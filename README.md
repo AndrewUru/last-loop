@@ -1,6 +1,6 @@
 # 🚀 Last Loop
 
-![Portada del Proyecto](./assets/portada.png)
+![Portada del Proyecto](https://elsaltoweb.es/wp-content/uploads/2026/04/portada.webp)
 
 **Last Loop** es un prototipo de constructor de cohetes con lanzamiento orbital simplificado. Diseña naves modulares en un hangar de alta precisión, valida su física y pon a prueba tu ingeniería en una simulación de vuelo arcade.
 
