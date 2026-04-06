@@ -137,12 +137,15 @@ export default class FlightScene extends Phaser.Scene {
 
   drawOrbitGuides() {
     const targetRadius = FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude;
+    const escapeRadius = FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.earthEscapeAltitude;
 
     this.orbitGraphics.clear();
     this.orbitGraphics.lineStyle(2, 0x68d9ff, 0.22);
     this.orbitGraphics.strokeCircle(0, 0, FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.atmosphereHeight);
     this.orbitGraphics.lineStyle(3, 0x73f7c0, 0.34);
     this.orbitGraphics.strokeCircle(0, 0, targetRadius);
+    this.orbitGraphics.lineStyle(2, 0xffd98a, 0.25);
+    this.orbitGraphics.strokeCircle(0, 0, escapeRadius);
     this.orbitGraphics.lineStyle(1, 0xffffff, 0.1);
     this.orbitGraphics.strokeCircle(0, 0, targetRadius - 28);
     this.orbitGraphics.strokeCircle(0, 0, targetRadius + 28);
@@ -268,17 +271,32 @@ export default class FlightScene extends Phaser.Scene {
 
     if (!this.finished && state.result) {
       this.finished = true;
-      this.time.delayedCall(1600, () => {
-        this.scene.start("ResultScene", {
-          build: this.build,
-          stats: this.stats,
-          result: state.result,
-          reason: state.reason,
-          altitude: state.altitude,
-          horizontalVelocity: Math.abs(state.tangentialVelocity),
-          time: state.time,
+      if (state.result === "success") {
+        this.cameras.main.fadeOut(900, 0, 0, 0);
+        this.time.delayedCall(920, () => {
+          this.scene.start("DeepSpaceScene", {
+            build: this.build,
+            stats: this.stats,
+            departure: {
+              altitude: state.altitude,
+              horizontalVelocity: Math.abs(state.tangentialVelocity),
+              time: state.time,
+            },
+          });
         });
-      });
+      } else {
+        this.time.delayedCall(1200, () => {
+          this.scene.start("ResultScene", {
+            build: this.build,
+            stats: this.stats,
+            result: state.result,
+            reason: state.reason,
+            altitude: state.altitude,
+            horizontalVelocity: Math.abs(state.tangentialVelocity),
+            time: state.time,
+          });
+        });
+      }
     }
   }
 
@@ -434,16 +452,20 @@ export default class FlightScene extends Phaser.Scene {
     this.progressText.setText(
       [
         "Mission Goal",
-        `Target altitude: ${FLIGHT_WORLD.targetOrbitAltitude} km`,
-        `Target tangential speed: ${FLIGHT_TARGETS.orbitalVelocity.toFixed(2)} km/s`,
+        `Orbit altitude: ${FLIGHT_WORLD.targetOrbitAltitude} km`,
+        `Target orbital speed: ${FLIGHT_TARGETS.orbitalVelocity.toFixed(2)} km/s`,
+        `Earth departure altitude: ${FLIGHT_WORLD.earthEscapeAltitude} km`,
         `Orbit lock: ${state.orbitHoldTime.toFixed(1)} / ${FLIGHT_WORLD.orbitLockDuration}s`,
+        `Escape progress: ${Math.round(state.escapeProgress * 100)}%`,
         `Apoapsis: ${state.apoapsis.toFixed(1)} km`,
         `Periapsis: ${state.periapsis.toFixed(1)} km`,
         `Pilot input: ${this.controls.source}`,
         state.reason
           ? `Status: ${state.reason}`
           : state.engineOn
-            ? "Status: build altitude, then push tangential speed"
+            ? state.orbitAchieved
+              ? "Status: keep burning until the ship leaves Earth orbit"
+              : "Status: capture orbit first, then push outward"
             : "Status: ignite the engine to leave the launch pad",
       ].join("\n"),
     );

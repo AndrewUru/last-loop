@@ -22,6 +22,7 @@ export const FLIGHT_WORLD = {
   planetRadius: 260,
   atmosphereHeight: 110,
   targetOrbitAltitude: 220,
+  earthEscapeAltitude: 430,
   orbitLockDuration: 5,
   gravitationalParameter: 4500,
 };
@@ -68,6 +69,8 @@ export default class FlightSimulator {
       apoapsis: 8,
       periapsis: 8,
       orbitHoldTime: 0,
+      orbitAchieved: false,
+      escapeProgress: 0,
       targetOrbitRadius: FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude,
       targetOrbitVelocity: FLIGHT_TARGETS.orbitalVelocity,
       currentG: 1,
@@ -225,6 +228,12 @@ export default class FlightSimulator {
       0,
       1,
     );
+    this.state.escapeProgress = clamp(
+      (updatedAltitude - FLIGHT_WORLD.targetOrbitAltitude) /
+        (FLIGHT_WORLD.earthEscapeAltitude - FLIGHT_WORLD.targetOrbitAltitude),
+      0,
+      1,
+    );
 
     if (updatedAltitude < -4 && this.state.time > 1.5) {
       return this.fail("The vehicle impacted the planet before achieving orbit.");
@@ -240,11 +249,21 @@ export default class FlightSimulator {
     }
 
     if (this.state.orbitHoldTime >= FLIGHT_WORLD.orbitLockDuration) {
-      return this.succeed("Stable orbit achieved.");
+      this.state.orbitAchieved = true;
+    }
+
+    if (
+      this.state.orbitAchieved &&
+      updatedAltitude >= FLIGHT_WORLD.earthEscapeAltitude &&
+      radialVelocity > 0.1 &&
+      speed > FLIGHT_TARGETS.orbitalVelocity * 0.92
+    ) {
+      return this.succeed("Earth orbit successfully departed.");
     }
 
     if (
       this.state.fuelRemaining <= 0.01 &&
+      !this.state.orbitAchieved &&
       this.state.apoapsis < FLIGHT_WORLD.targetOrbitAltitude * 0.88 &&
       updatedAltitude < FLIGHT_WORLD.atmosphereHeight * 0.6 &&
       this.state.time > 24
@@ -252,8 +271,17 @@ export default class FlightSimulator {
       return this.fail("Not enough delta-v to reach the orbital corridor.");
     }
 
-    if (this.state.time > 220) {
-      return this.fail("Mission timed out before orbital insertion.");
+    if (
+      this.state.fuelRemaining <= 0.01 &&
+      this.state.orbitAchieved &&
+      updatedAltitude < FLIGHT_WORLD.earthEscapeAltitude * 0.88 &&
+      this.state.time > 42
+    ) {
+      return this.fail("The vehicle reached orbit but lacked energy to leave Earth.");
+    }
+
+    if (this.state.time > 320) {
+      return this.fail("Mission timed out before Earth departure.");
     }
 
     this.state.phase = this.resolvePhase(updatedAltitude, tangentialVelocity);
@@ -266,6 +294,12 @@ export default class FlightSimulator {
     }
     if (this.state.orbitHoldTime > 0.5) {
       return "Orbit Lock";
+    }
+    if (this.state.orbitAchieved) {
+      if (altitude >= FLIGHT_WORLD.earthEscapeAltitude * 0.82) {
+        return "Leaving Earth";
+      }
+      return "Escape Burn";
     }
     if (altitude < FLIGHT_WORLD.atmosphereHeight * 0.3) {
       return "Atmospheric Ascent";
