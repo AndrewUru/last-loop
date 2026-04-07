@@ -37,6 +37,7 @@ export default class FlightScene extends Phaser.Scene {
     this.flightTrail = [];
     this.smokeTrail = [];
     this.padSmokeTrail = [];
+    this.uiObjects = [];
     this.input.mouse?.disableContextMenu();
     this.controls = {
       cruiseThrottle: 0.84,
@@ -65,17 +66,18 @@ export default class FlightScene extends Phaser.Scene {
     this.createLaunchComplex();
     this.createRocket();
     this.createHud();
+    this.setupUiCamera();
 
     this.cameraRig = {
       x: 0,
       y: -(FLIGHT_WORLD.planetRadius + 40),
       zoom: 1.95,
     };
-    this.cameras.main.centerOn(this.cameraRig.x, this.cameraRig.y);
-    this.cameras.main.setZoom(this.cameraRig.zoom);
+    this.worldCamera.centerOn(this.cameraRig.x, this.cameraRig.y);
+    this.worldCamera.setZoom(this.cameraRig.zoom);
 
     this.input.keyboard.on("keydown-ESC", () => {
-      this.cameras.main.fadeOut(400, 0, 0, 0);
+      this.fadeOutScene(400);
       this.time.delayedCall(420, () => {
         this.scene.start("BuildScene", { build: this.build });
       });
@@ -109,6 +111,17 @@ export default class FlightScene extends Phaser.Scene {
     this.scale.on("resize", this.handleResize, this);
   }
 
+  setupUiCamera() {
+    this.worldCamera = this.cameras.main;
+    this.uiCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height);
+    this.uiCamera.setScroll(0, 0);
+    this.uiCamera.setZoom(1);
+    this.uiCamera.setBackgroundColor("rgba(0,0,0,0)");
+    this.uiCamera.ignore(this.getWorldObjects());
+    this.worldCamera.ignore(this.uiObjects);
+    this.layoutHud();
+  }
+
   teardownThreeBackdrop() {
     this.scale.off("resize", this.handleResize, this);
     this.threeBackdrop?.destroy();
@@ -117,6 +130,10 @@ export default class FlightScene extends Phaser.Scene {
 
   handleResize(gameSize) {
     this.threeBackdrop?.resize(gameSize.width, gameSize.height);
+    this.worldCamera?.setSize(gameSize.width, gameSize.height);
+    this.uiCamera?.setSize(gameSize.width, gameSize.height);
+    this.uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);
+    this.layoutHud(gameSize.width, gameSize.height);
   }
 
   createSpaceBackdrop() {
@@ -308,30 +325,29 @@ export default class FlightScene extends Phaser.Scene {
   }
 
   createHud() {
-    // Left HUD shadow
-    this.add
-      .rectangle(192, 186, 316, 306, 0x000000, 0.3)
+    this.leftHudShadow = this.add
+      .rectangle(0, 0, 316, 306, 0x000000, 0.3)
       .setScrollFactor(0)
       .setStrokeStyle(2, 0x68d9ff, 0.1)
       .setDepth(39);
 
     this.leftHud = this.add
-      .rectangle(190, 184, 316, 306, 0x081624, 0.95)
+      .rectangle(0, 0, 316, 306, 0x081624, 0.95)
       .setScrollFactor(0)
       .setStrokeStyle(2, 0x68d9ff, 0.35)
       .setDepth(40);
-    this.add
-      .text(48, 40, "Orbital Telemetry", {
+    this.telemetryTitle = this.add
+      .text(0, 0, "Orbital Telemetry", {
         fontSize: "30px",
         color: "#effcff",
         fontStyle: "bold",
       })
       .setScrollFactor(0)
       .setDepth(41);
-    this.add
+    this.controlsHint = this.add
       .text(
-        48,
-        78,
+        0,
+        0,
         "F or button: engine on/off  A/D steer  W/S throttle  Hold click/Shift to burn  ESC returns",
         {
           fontSize: "15px",
@@ -342,7 +358,7 @@ export default class FlightScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(41);
     this.metricsText = this.add
-      .text(48, 126, "", {
+      .text(0, 0, "", {
         fontSize: "17px",
         color: "#d8f7ff",
         lineSpacing: 9,
@@ -350,20 +366,19 @@ export default class FlightScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(41);
 
-    // Right HUD shadow
-    this.add
-      .rectangle(this.scale.width - 188, 186, 316, 306, 0x000000, 0.3)
+    this.rightHudShadow = this.add
+      .rectangle(0, 0, 316, 306, 0x000000, 0.3)
       .setScrollFactor(0)
       .setStrokeStyle(2, 0x68d9ff, 0.1)
       .setDepth(39);
 
     this.rightHud = this.add
-      .rectangle(this.scale.width - 190, 184, 316, 306, 0x081624, 0.95)
+      .rectangle(0, 0, 316, 306, 0x081624, 0.95)
       .setScrollFactor(0)
       .setStrokeStyle(2, 0x68d9ff, 0.35)
       .setDepth(40);
     this.progressText = this.add
-      .text(this.scale.width - 334, 40, "", {
+      .text(0, 0, "", {
         fontSize: "17px",
         color: "#d8f7ff",
         lineSpacing: 9,
@@ -372,22 +387,21 @@ export default class FlightScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(41);
 
-    // Engine button shadow
-    this.add
-      .rectangle(192, 356, 240, 52, 0x000000, 0.25)
+    this.engineButtonShadow = this.add
+      .rectangle(0, 0, 240, 52, 0x000000, 0.25)
       .setScrollFactor(0)
       .setStrokeStyle(2, 0x73f7c0, 0.1)
       .setDepth(41)
       .setInteractive({ useHandCursor: true });
 
     this.engineButton = this.add
-      .rectangle(190, 354, 240, 52, 0x163248, 0.96)
+      .rectangle(0, 0, 240, 52, 0x163248, 0.96)
       .setScrollFactor(0)
       .setStrokeStyle(2, 0x73f7c0, 0.6)
       .setDepth(42)
       .setInteractive({ useHandCursor: true });
     this.engineButtonLabel = this.add
-      .text(190, 354, "Ignite Engine", {
+      .text(0, 0, "Ignite Engine", {
         fontSize: "20px",
         color: "#effcff",
         fontStyle: "bold",
@@ -395,6 +409,22 @@ export default class FlightScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(43);
+
+    this.uiObjects.push(
+      this.leftHudShadow,
+      this.leftHud,
+      this.telemetryTitle,
+      this.controlsHint,
+      this.metricsText,
+      this.rightHudShadow,
+      this.rightHud,
+      this.progressText,
+      this.engineButtonShadow,
+      this.engineButton,
+      this.engineButtonLabel,
+    );
+
+    this.layoutHud();
 
     this.engineButton.on("pointerdown", () => {
       this.toggleEngine();
@@ -405,6 +435,53 @@ export default class FlightScene extends Phaser.Scene {
     this.engineButton.on("pointerout", () => {
       this.updateEngineButton(this.simulator.state);
     });
+  }
+
+  layoutHud(width = this.scale.width, height = this.scale.height) {
+    if (!this.leftHud) {
+      return;
+    }
+
+    const panelWidth = Phaser.Math.Clamp(Math.round(width * 0.21), 250, 316);
+    const panelHeight = Phaser.Math.Clamp(Math.round(height * 0.36), 230, 306);
+    const sideMargin = Phaser.Math.Clamp(Math.round(width * 0.025), 22, 42);
+    const topMargin = Phaser.Math.Clamp(Math.round(height * 0.05), 28, 44);
+    const leftX = sideMargin + panelWidth / 2;
+    const rightX = width - sideMargin - panelWidth / 2;
+    const panelTop = topMargin;
+    const panelCenterY = panelTop + panelHeight / 2;
+    const innerLeft = leftX - panelWidth / 2 + 16;
+    const innerRight = rightX - panelWidth / 2 + 16;
+    const buttonWidth = Phaser.Math.Clamp(Math.round(panelWidth * 0.76), 188, 240);
+    const buttonHeight = 52;
+    const buttonX = leftX;
+    const buttonY = Math.min(
+      height - topMargin - buttonHeight / 2,
+      panelTop + panelHeight + buttonHeight / 2 + 18,
+    );
+
+    this.leftHudShadow.setPosition(leftX + 2, panelCenterY + 2);
+    this.leftHudShadow.setSize(panelWidth, panelHeight);
+    this.leftHud.setPosition(leftX, panelCenterY);
+    this.leftHud.setSize(panelWidth, panelHeight);
+
+    this.telemetryTitle.setPosition(innerLeft, panelTop + 12);
+    this.controlsHint.setPosition(innerLeft, panelTop + 48);
+    this.controlsHint.setWordWrapWidth(panelWidth - 32);
+    this.metricsText.setPosition(innerLeft, panelTop + 102);
+
+    this.rightHudShadow.setPosition(rightX + 2, panelCenterY + 2);
+    this.rightHudShadow.setSize(panelWidth, panelHeight);
+    this.rightHud.setPosition(rightX, panelCenterY);
+    this.rightHud.setSize(panelWidth, panelHeight);
+    this.progressText.setPosition(innerRight, panelTop + 12);
+    this.progressText.setWordWrapWidth(panelWidth - 32);
+
+    this.engineButtonShadow.setPosition(buttonX + 2, buttonY + 2);
+    this.engineButtonShadow.setSize(buttonWidth, buttonHeight);
+    this.engineButton.setPosition(buttonX, buttonY);
+    this.engineButton.setSize(buttonWidth, buttonHeight);
+    this.engineButtonLabel.setPosition(buttonX, buttonY);
   }
 
   update(time, delta) {
@@ -423,9 +500,9 @@ export default class FlightScene extends Phaser.Scene {
     this.threeBackdrop?.update(state);
 
     if (!this.finished && state.result) {
-      this.finished = true;
+        this.finished = true;
       if (state.result === "success") {
-        this.cameras.main.fadeOut(900, 0, 0, 0);
+        this.fadeOutScene(900);
         this.time.delayedCall(920, () => {
           this.scene.start("DeepSpaceScene", {
             build: this.build,
@@ -528,8 +605,8 @@ export default class FlightScene extends Phaser.Scene {
     this.cameraRig.y = Phaser.Math.Linear(this.cameraRig.y, targetCenterY, 0.08);
     this.cameraRig.zoom = Phaser.Math.Linear(this.cameraRig.zoom, targetZoom, 0.08);
 
-    this.cameras.main.centerOn(this.cameraRig.x, this.cameraRig.y);
-    this.cameras.main.setZoom(this.cameraRig.zoom);
+    this.worldCamera.centerOn(this.cameraRig.x, this.cameraRig.y);
+    this.worldCamera.setZoom(this.cameraRig.zoom);
   }
 
   updateOrbitalWorldVisuals(state) {
@@ -805,6 +882,31 @@ export default class FlightScene extends Phaser.Scene {
     this.engineButton.setFillStyle(fillColor, 0.96);
     this.engineButton.setStrokeStyle(2, strokeColor, 0.7);
     this.engineButtonLabel.setText(label);
+  }
+
+  getWorldObjects() {
+    return [
+      this.nebula,
+      ...(this.stars || []),
+      this.orbitGraphics,
+      this.trailGraphics,
+      this.planetAtmosphere,
+      this.planetBody,
+      this.planetDetails,
+      this.launchMarker,
+      this.launchPad,
+      this.launchPadSmoke,
+      this.launchPadGlow,
+      this.horizonClouds,
+      this.rocket,
+      this.exhaustSmoke,
+      this.exhaust,
+    ].filter(Boolean);
+  }
+
+  fadeOutScene(duration) {
+    this.worldCamera?.fadeOut(duration, 0, 0, 0);
+    this.uiCamera?.fadeOut(duration, 0, 0, 0);
   }
 
   updateSmokeTrail(state, delta) {
