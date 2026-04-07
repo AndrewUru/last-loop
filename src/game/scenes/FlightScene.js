@@ -175,7 +175,10 @@ export default class FlightScene extends Phaser.Scene {
 
   createOrbitalWorld() {
     this.orbitGraphics = this.add.graphics().setDepth(-20);
+    this.targetOrbitBand = this.add.graphics().setDepth(-19);
     this.trailGraphics = this.add.graphics().setDepth(11);
+    this.trajectoryPrediction = this.add.graphics().setDepth(10);
+    this.trajectoryMarkers = this.add.graphics().setDepth(10);
     this.planetAtmosphere = this.add.graphics().setDepth(-18);
     this.planetBody = this.add.graphics().setDepth(-17);
     this.planetDetails = this.add.graphics().setDepth(-16);
@@ -183,6 +186,7 @@ export default class FlightScene extends Phaser.Scene {
 
     this.drawPlanet();
     this.drawOrbitGuides();
+    this.targetOrbitBand.setAlpha(0.04);
     this.orbitGraphics.setAlpha(0.04);
     this.planetAtmosphere.setAlpha(0.02);
     this.planetBody.setAlpha(0.01);
@@ -319,8 +323,12 @@ export default class FlightScene extends Phaser.Scene {
       FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude;
     const escapeRadius =
       FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.earthEscapeAltitude;
+    const corridorWidth = 18;
 
     this.orbitGraphics.clear();
+    this.targetOrbitBand.clear();
+    this.targetOrbitBand.lineStyle(corridorWidth * 2, 0x73f7c0, 0.08);
+    this.targetOrbitBand.strokeCircle(0, 0, targetRadius);
     this.orbitGraphics.lineStyle(2, 0x68d9ff, 0.22);
     this.orbitGraphics.strokeCircle(
       0,
@@ -589,6 +597,7 @@ export default class FlightScene extends Phaser.Scene {
 
     this.updateTrail(state);
     this.updateOrbitalWorldVisuals(state);
+    this.updateTrajectoryGuidance(state);
     this.updateCamera(state);
     this.updateLaunchComplex(state, delta);
     this.updateStars(state);
@@ -726,9 +735,11 @@ export default class FlightScene extends Phaser.Scene {
       0.12,
       orbitalOverlayProgress,
     );
+    const bandAlpha = Phaser.Math.Linear(0.04, 0.34, orbitalOverlayProgress);
     const planetAlpha = Phaser.Math.Linear(0.01, 0.08, orbitalOverlayProgress);
     const detailsAlpha = Phaser.Math.Linear(0.01, 0.09, orbitalOverlayProgress);
 
+    this.targetOrbitBand.setAlpha(bandAlpha);
     this.orbitGraphics.setAlpha(guideAlpha);
     this.planetAtmosphere.setAlpha(atmosphereAlpha);
     this.planetBody.setAlpha(planetAlpha);
@@ -817,6 +828,159 @@ export default class FlightScene extends Phaser.Scene {
     this.rocket.rotation = renderedRotation;
   }
 
+  updateTrajectoryGuidance(state) {
+    const prediction = this.predictOrbitPath(state);
+    this.predictionSummary = prediction;
+    this.trajectoryPrediction.clear();
+    this.trajectoryMarkers.clear();
+
+    if (prediction.points.length < 2) {
+      return;
+    }
+
+    for (let index = 0; index < prediction.points.length; index += 1) {
+      const point = prediction.points[index];
+      const progress = index / prediction.points.length;
+      const alpha = 0.16 + progress * 0.36;
+
+      this.trajectoryPrediction.fillStyle(0x8fd7ff, alpha);
+      this.trajectoryPrediction.fillCircle(point.x, point.y, 2 + progress * 1.5);
+    }
+
+    if (prediction.apoapsisPoint) {
+      this.trajectoryMarkers.lineStyle(2, 0xffd773, 0.85);
+      this.trajectoryMarkers.strokeCircle(
+        prediction.apoapsisPoint.x,
+        prediction.apoapsisPoint.y,
+        10,
+      );
+      this.trajectoryMarkers.fillStyle(0xffd773, 0.22);
+      this.trajectoryMarkers.fillCircle(
+        prediction.apoapsisPoint.x,
+        prediction.apoapsisPoint.y,
+        10,
+      );
+    }
+
+    if (prediction.corridorPoint) {
+      this.trajectoryMarkers.lineStyle(2, 0x73f7c0, 0.95);
+      this.trajectoryMarkers.strokeCircle(
+        prediction.corridorPoint.x,
+        prediction.corridorPoint.y,
+        7,
+      );
+      this.trajectoryMarkers.lineStyle(2, 0x73f7c0, 0.55);
+      this.trajectoryMarkers.lineBetween(
+        state.position.x,
+        state.position.y,
+        prediction.corridorPoint.x,
+        prediction.corridorPoint.y,
+      );
+    }
+  }
+
+  predictOrbitPath(state) {
+    if (!state.launched) {
+      return {
+        points: [],
+        apoapsis: state.altitude,
+        periapsis: state.altitude,
+        apoapsisPoint: null,
+        corridorPoint: null,
+      };
+    }
+
+    const points = [];
+    const position = { ...state.position };
+    const velocity = { ...state.velocity };
+    const targetRadius =
+      FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude;
+    const thrustMagnitude = 0.13 + this.stats.twr * 0.07;
+    const step = 0.08;
+    const steps = 300;
+    const burnSteps =
+      state.engineOn && state.fuelRemaining > 0.01
+        ? Math.round(steps * 0.22)
+        : 0;
+    const dragBase =
+      0.012 + Math.max(this.stats.mass - 22, 0) * 0.00012;
+
+    let apoapsis = state.altitude;
+    let periapsis = state.altitude;
+    let apoapsisPoint = { ...position };
+    let corridorPoint = null;
+    let bestCorridorDelta = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < steps; index += 1) {
+      const radius = Math.hypot(position.x, position.y);
+      const altitude = radius - FLIGHT_WORLD.planetRadius;
+      const radialUnit = radius > 0
+        ? { x: position.x / radius, y: position.y / radius }
+        : { x: 0, y: -1 };
+      const gravityStrength =
+        FLIGHT_WORLD.gravitationalParameter / Math.max(radius * radius, 1);
+      const atmosphereDensity = Phaser.Math.Clamp(
+        1 - altitude / FLIGHT_WORLD.atmosphereHeight,
+        0,
+        1,
+      );
+      const dragStrength = atmosphereDensity * atmosphereDensity * dragBase;
+      const thrustActive = index < burnSteps;
+      const thrustAcceleration = thrustActive
+        ? {
+            x: Math.cos(state.orientation) * thrustMagnitude * state.throttle,
+            y: Math.sin(state.orientation) * thrustMagnitude * state.throttle,
+          }
+        : { x: 0, y: 0 };
+      const totalAcceleration = {
+        x:
+          -radialUnit.x * gravityStrength +
+          thrustAcceleration.x -
+          velocity.x * dragStrength,
+        y:
+          -radialUnit.y * gravityStrength +
+          thrustAcceleration.y -
+          velocity.y * dragStrength,
+      };
+
+      velocity.x += totalAcceleration.x * step;
+      velocity.y += totalAcceleration.y * step;
+      position.x += velocity.x * step * 60;
+      position.y += velocity.y * step * 60;
+
+      const updatedRadius = Math.hypot(position.x, position.y);
+      const updatedAltitude = updatedRadius - FLIGHT_WORLD.planetRadius;
+
+      if (index % 3 === 0) {
+        points.push({ x: position.x, y: position.y });
+      }
+
+      if (updatedAltitude > apoapsis) {
+        apoapsis = updatedAltitude;
+        apoapsisPoint = { ...position };
+      }
+      periapsis = Math.min(periapsis, updatedAltitude);
+
+      const corridorDelta = Math.abs(updatedRadius - targetRadius);
+      if (corridorDelta < bestCorridorDelta) {
+        bestCorridorDelta = corridorDelta;
+        corridorPoint = { ...position };
+      }
+
+      if (updatedAltitude < -6) {
+        break;
+      }
+    }
+
+    return {
+      points,
+      apoapsis,
+      periapsis,
+      apoapsisPoint,
+      corridorPoint,
+    };
+  }
+
   updateExhaust(state, time, delta) {
     const engineCount = Math.max(
       this.stats.engineCount + this.stats.boosterCount,
@@ -887,6 +1051,10 @@ export default class FlightScene extends Phaser.Scene {
       (this.manualZoomOffset / this.zoomSettings.step) * 6,
     );
     const missionPhase = this.getMissionPhase(state);
+    const prediction = this.predictionSummary || {
+      apoapsis: state.apoapsis,
+      periapsis: state.periapsis,
+    };
 
     this.metricsText.setText(
       [
@@ -899,6 +1067,8 @@ export default class FlightScene extends Phaser.Scene {
         `Throttle: ${Math.round(state.throttle * 100)}%`,
         `Fuel: ${Math.max(0, fuelPct).toFixed(0)}%`,
         `G-load: ${state.currentG.toFixed(1)} g`,
+        `Pred apoapsis: ${prediction.apoapsis.toFixed(1)} km`,
+        `Pred periapsis: ${prediction.periapsis.toFixed(1)} km`,
         `Mission step: ${missionPhase.index}/${missionPhase.total}`,
         `View zoom: ${this.cameraRig.zoom.toFixed(2)}x`,
         `Zoom trim: ${zoomBiasPct >= 0 ? "+" : ""}${zoomBiasPct}%`,
@@ -912,6 +1082,7 @@ export default class FlightScene extends Phaser.Scene {
         "",
         `${missionPhase.label}`,
         missionPhase.message,
+        "Guide: cyan dots show your projected path, green band is the orbit corridor.",
         "",
         `Orbit altitude: ${FLIGHT_WORLD.targetOrbitAltitude} km`,
         `Target orbital speed: ${FLIGHT_TARGETS.orbitalVelocity.toFixed(2)} km/s`,
@@ -1140,7 +1311,10 @@ export default class FlightScene extends Phaser.Scene {
       this.nebula,
       ...(this.stars || []),
       this.orbitGraphics,
+      this.targetOrbitBand,
       this.trailGraphics,
+      this.trajectoryPrediction,
+      this.trajectoryMarkers,
       this.planetAtmosphere,
       this.planetBody,
       this.planetDetails,
