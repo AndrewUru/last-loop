@@ -38,6 +38,13 @@ export default class FlightScene extends Phaser.Scene {
     this.smokeTrail = [];
     this.padSmokeTrail = [];
     this.uiObjects = [];
+    this.manualZoomOffset = 0;
+    this.zoomSettings = {
+      min: 0.28,
+      max: 2.2,
+      step: 0.09,
+      wheelStep: 0.06,
+    };
     this.input.mouse?.disableContextMenu();
     this.controls = {
       cruiseThrottle: 0.84,
@@ -56,6 +63,9 @@ export default class FlightScene extends Phaser.Scene {
       s: Phaser.Input.Keyboard.KeyCodes.S,
       d: Phaser.Input.Keyboard.KeyCodes.D,
       f: Phaser.Input.Keyboard.KeyCodes.F,
+      q: Phaser.Input.Keyboard.KeyCodes.Q,
+      e: Phaser.Input.Keyboard.KeyCodes.E,
+      r: Phaser.Input.Keyboard.KeyCodes.R,
       space: Phaser.Input.Keyboard.KeyCodes.SPACE,
       shift: Phaser.Input.Keyboard.KeyCodes.SHIFT,
     });
@@ -75,6 +85,7 @@ export default class FlightScene extends Phaser.Scene {
     };
     this.worldCamera.centerOn(this.cameraRig.x, this.cameraRig.y);
     this.worldCamera.setZoom(this.cameraRig.zoom);
+    this.input.on("wheel", this.handleWheelZoom, this);
 
     this.input.keyboard.on("keydown-ESC", () => {
       this.fadeOutScene(400);
@@ -124,6 +135,7 @@ export default class FlightScene extends Phaser.Scene {
 
   teardownThreeBackdrop() {
     this.scale.off("resize", this.handleResize, this);
+    this.input.off("wheel", this.handleWheelZoom, this);
     this.threeBackdrop?.destroy();
     this.threeBackdrop = null;
   }
@@ -348,10 +360,16 @@ export default class FlightScene extends Phaser.Scene {
       .text(
         0,
         0,
-        "F or button: engine on/off  A/D steer  W/S throttle  Hold click/Shift to burn  ESC returns",
+        [
+          "Keyboard Flight Controls",
+          "[F/Space] Engine  [Shift] Full burn",
+          "[A/D or arrows] Steer  [W/S or arrows] Cruise",
+          "[Wheel or Q/E] Zoom  [R] Reset view  [Esc] Return",
+        ].join("\n"),
         {
-          fontSize: "15px",
+          fontSize: "14px",
           color: "#8fd7ff",
+          lineSpacing: 4,
           wordWrap: { width: 280 },
         },
       )
@@ -468,7 +486,10 @@ export default class FlightScene extends Phaser.Scene {
     this.telemetryTitle.setPosition(innerLeft, panelTop + 12);
     this.controlsHint.setPosition(innerLeft, panelTop + 48);
     this.controlsHint.setWordWrapWidth(panelWidth - 32);
-    this.metricsText.setPosition(innerLeft, panelTop + 102);
+    this.metricsText.setPosition(
+      innerLeft,
+      this.controlsHint.y + this.controlsHint.height + 14,
+    );
 
     this.rightHudShadow.setPosition(rightX + 2, panelCenterY + 2);
     this.rightHudShadow.setSize(panelWidth, panelHeight);
@@ -589,10 +610,15 @@ export default class FlightScene extends Phaser.Scene {
       1.52,
     );
     const cinematicZoom = Phaser.Math.Linear(1.7, 1.34, launchCinematicProgress);
-    const targetZoom = Phaser.Math.Linear(
+    const autoZoom = Phaser.Math.Linear(
       cinematicZoom,
       orbitalZoom,
       Phaser.Math.Clamp(state.altitude / 130, 0, 1),
+    );
+    const targetZoom = Phaser.Math.Clamp(
+      autoZoom + this.manualZoomOffset,
+      this.zoomSettings.min,
+      this.zoomSettings.max,
     );
     const targetCenterX = Phaser.Math.Linear(
       state.position.x * 0.1,
@@ -769,6 +795,9 @@ export default class FlightScene extends Phaser.Scene {
   updateHud(state) {
     const fuelPct =
       this.stats.fuel > 0 ? (state.fuelRemaining / this.stats.fuel) * 100 : 0;
+    const zoomBiasPct = Math.round(
+      (this.manualZoomOffset / this.zoomSettings.step) * 6,
+    );
 
     this.metricsText.setText(
       [
@@ -781,6 +810,8 @@ export default class FlightScene extends Phaser.Scene {
         `Throttle: ${Math.round(state.throttle * 100)}%`,
         `Fuel: ${Math.max(0, fuelPct).toFixed(0)}%`,
         `G-load: ${state.currentG.toFixed(1)} g`,
+        `View zoom: ${this.cameraRig.zoom.toFixed(2)}x`,
+        `Zoom trim: ${zoomBiasPct >= 0 ? "+" : ""}${zoomBiasPct}%`,
       ].join("\n"),
     );
 
@@ -820,6 +851,15 @@ export default class FlightScene extends Phaser.Scene {
       Phaser.Input.Keyboard.JustDown(this.flightKeys.space)
     ) {
       this.toggleEngine();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.flightKeys.q)) {
+      this.adjustManualZoom(this.zoomSettings.step);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.flightKeys.e)) {
+      this.adjustManualZoom(-this.zoomSettings.step);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.flightKeys.r)) {
+      this.manualZoomOffset = 0;
     }
 
     if (upPressed) {
@@ -882,6 +922,22 @@ export default class FlightScene extends Phaser.Scene {
     this.engineButton.setFillStyle(fillColor, 0.96);
     this.engineButton.setStrokeStyle(2, strokeColor, 0.7);
     this.engineButtonLabel.setText(label);
+  }
+
+  handleWheelZoom(pointer, gameObjects, deltaX, deltaY, deltaZ, event) {
+    const direction = Math.sign(-deltaY);
+    if (direction !== 0) {
+      this.adjustManualZoom(direction * this.zoomSettings.wheelStep);
+      event?.preventDefault?.();
+    }
+  }
+
+  adjustManualZoom(delta) {
+    this.manualZoomOffset = Phaser.Math.Clamp(
+      this.manualZoomOffset + delta,
+      this.zoomSettings.min - 1.1,
+      this.zoomSettings.max - 0.34,
+    );
   }
 
   getWorldObjects() {
