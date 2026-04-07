@@ -191,9 +191,13 @@ export default class FlightScene extends Phaser.Scene {
 
   createLaunchComplex() {
     const padY = -FLIGHT_WORLD.planetRadius;
+    this.launchSky = this.add.graphics().setDepth(-14);
+    this.launchGround = this.add.graphics().setDepth(-13);
+    this.launchHorizon = this.add.graphics().setDepth(-12);
     this.launchPad = this.add.container(0, 0).setDepth(12);
     this.launchPadSmoke = this.add.graphics().setDepth(12);
     this.launchPadGlow = this.add.graphics().setDepth(13);
+    this.drawLaunchLandscape();
 
     const deck = this.add.rectangle(0, padY + 36, 320, 38, 0x31424f, 0.96);
     const deckTop = this.add.rectangle(0, padY + 24, 348, 14, 0x5c7388, 0.96);
@@ -242,6 +246,29 @@ export default class FlightScene extends Phaser.Scene {
       );
       this.horizonClouds.add(puff);
     });
+  }
+
+  drawLaunchLandscape() {
+    const padY = -FLIGHT_WORLD.planetRadius;
+    const horizonY = padY + 74;
+
+    this.launchSky.clear();
+    this.launchSky.fillGradientStyle(0x79bff4, 0x79bff4, 0xa7d7ff, 0xd8efff, 1);
+    this.launchSky.fillRect(-1400, padY - 680, 2800, 760);
+
+    this.launchHorizon.clear();
+    this.launchHorizon.fillStyle(0x8a8375, 0.98);
+    this.launchHorizon.fillRect(-1400, horizonY, 2800, 82);
+    this.launchHorizon.fillStyle(0x7e786d, 0.7);
+    this.launchHorizon.fillRect(-1400, horizonY + 12, 2800, 12);
+    this.launchHorizon.fillStyle(0x4b8f49, 0.9);
+    this.launchHorizon.fillRect(-1400, horizonY + 74, 2800, 10);
+
+    this.launchGround.clear();
+    this.launchGround.fillStyle(0x766c5f, 1);
+    this.launchGround.fillRect(-1400, horizonY + 82, 2800, 320);
+    this.launchGround.fillStyle(0x6a6156, 0.55);
+    this.launchGround.fillRect(-1400, horizonY + 108, 2800, 24);
   }
 
   drawPlanet() {
@@ -586,7 +613,7 @@ export default class FlightScene extends Phaser.Scene {
   updateCamera(state) {
     const minViewport = Math.min(this.scale.width, this.scale.height);
     const launchCinematicProgress = Phaser.Math.Clamp(state.altitude / 60, 0, 1);
-    const cinematicCenterY = state.position.y + 54;
+    const cinematicCenterY = state.position.y + 92;
     const orbitalCenterY = Phaser.Math.Linear(
       cinematicCenterY,
       0,
@@ -610,7 +637,7 @@ export default class FlightScene extends Phaser.Scene {
       0.34,
       1.52,
     );
-    const cinematicZoom = Phaser.Math.Linear(1.7, 1.34, launchCinematicProgress);
+    const cinematicZoom = Phaser.Math.Linear(1.46, 1.2, launchCinematicProgress);
     const autoZoom = Phaser.Math.Linear(
       cinematicZoom,
       orbitalZoom,
@@ -660,10 +687,14 @@ export default class FlightScene extends Phaser.Scene {
 
   updateLaunchComplex(state, delta) {
     const altitudeFade = Phaser.Math.Clamp(1 - state.altitude / 120, 0, 1);
+    const sideViewFade = Phaser.Math.Clamp(1 - state.altitude / 95, 0, 1);
     const lifeStep = delta / 1000;
     const thrustVisual = state.engineOn && state.fuelRemaining > 0 ? state.throttle : 0;
     const padY = -FLIGHT_WORLD.planetRadius;
 
+    this.launchSky.setAlpha(0.96 * sideViewFade);
+    this.launchGround.setAlpha(sideViewFade);
+    this.launchHorizon.setAlpha(sideViewFade);
     this.launchPad.setAlpha(0.18 + altitudeFade * 0.82);
     this.horizonClouds.setAlpha(0.12 + altitudeFade * 0.88);
     this.launchPadGlow.clear();
@@ -725,9 +756,14 @@ export default class FlightScene extends Phaser.Scene {
   }
 
   updateRocketPose(state) {
+    const launchPoseProgress = Phaser.Math.Clamp((state.altitude - 16) / 90, 0, 1);
+    const targetRotation = state.orientation + Math.PI / 2;
+    const renderedRotation =
+      angleDifference(targetRotation, 0) * launchPoseProgress;
+
     this.rocket.x = state.position.x;
     this.rocket.y = state.position.y;
-    this.rocket.rotation = state.orientation + Math.PI / 2;
+    this.rocket.rotation = renderedRotation;
   }
 
   updateExhaust(state, time, delta) {
@@ -938,6 +974,9 @@ export default class FlightScene extends Phaser.Scene {
       this.planetBody,
       this.planetDetails,
       this.launchMarker,
+      this.launchSky,
+      this.launchGround,
+      this.launchHorizon,
       this.launchPad,
       this.launchPadSmoke,
       this.launchPadGlow,
