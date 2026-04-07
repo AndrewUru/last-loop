@@ -25,16 +25,17 @@ export default class BuildScene extends Phaser.Scene {
 
   setupLayout() {
     const { width, height } = this.scale;
+    const compactUi = width < 1500 || height < 920;
     const outerPadding = Math.max(28, Math.round(width * 0.018));
     const panelGap = Math.max(26, Math.round(width * 0.014));
     const leftPanelWidth = Phaser.Math.Clamp(
       Math.round(width * 0.19),
-      300,
+      290,
       360,
     );
     const rightPanelWidth = Phaser.Math.Clamp(
       Math.round(width * 0.21),
-      320,
+      300,
       390,
     );
     const centerStartX = outerPadding + leftPanelWidth + panelGap;
@@ -60,9 +61,37 @@ export default class BuildScene extends Phaser.Scene {
     this.grid.y = gridY;
     this.baseGridCellSize = cellSize;
     this.gridZoom = this.gridZoom ?? 1;
+    const panelTop = 162;
+    const leftPanelBottom = height - 32;
+    const buttonHeight = 56;
+    const buttonGap = 12;
+    const buttonStackHeight = buttonHeight * 3 + buttonGap * 2;
+    const controlsTextHeight = compactUi ? 88 : 112;
+    const controlsY = leftPanelBottom - buttonStackHeight - controlsTextHeight - 18;
+    const paletteTopY = panelTop + 82;
+    const paletteBottomY = controlsY - 18;
+    const paletteGap = compactUi ? 10 : 14;
+    const paletteCount = SHIP_PARTS.length;
+    const availablePaletteHeight = Math.max(
+      360,
+      paletteBottomY - paletteTopY - paletteGap * (paletteCount - 1),
+    );
+    const cardHeight = Phaser.Math.Clamp(
+      Math.floor(availablePaletteHeight / paletteCount),
+      compactUi ? 82 : 88,
+      compactUi ? 94 : 110,
+    );
+    const cardGapY = cardHeight + paletteGap;
+    const cardStartY = paletteTopY + cardHeight / 2;
+    const rightInnerTop = panelTop + 34;
+    const stackBlockHeight = compactUi ? 154 : 190;
+    const validationBlockHeight = compactUi ? 138 : 170;
+    const focusBlockTop = rightInnerTop + stackBlockHeight + validationBlockHeight + 74;
+
     this.layout = {
       width,
       height,
+      compactUi,
       outerPadding,
       panelGap,
       leftPanelWidth,
@@ -78,22 +107,38 @@ export default class BuildScene extends Phaser.Scene {
       rightPanelX: width - outerPadding - rightPanelWidth / 2,
       panelY: height / 2 + 20,
       panelHeight: height - 170,
+      panelTop,
       centerPanelX: centerStartX + centerWidth / 2,
       centerPanelWidth: centerWidth + 36,
       centerPanelHeight: gridHeight + 70,
       titleX: outerPadding + 18,
       cardWidth: leftPanelWidth - 42,
-      cardHeight: 108,
+      cardHeight,
       cardX: outerPadding + leftPanelWidth / 2,
-      cardStartY: 248,
-      cardGapY: 122,
+      cardStartY,
+      cardGapY,
+      paletteTopY,
+      paletteBottomY,
+      paletteIconCellSize: compactUi ? 19 : 22,
+      paletteTitleSize: compactUi ? 16 : 18,
+      paletteMetaSize: compactUi ? 12 : 13,
+      paletteHintSize: compactUi ? 11 : 12,
       controlsX: outerPadding + 18,
-      controlsY: height - 280,
+      controlsY,
       launchButtonX: outerPadding + 44,
-      launchButtonY: height - 138,
+      launchButtonY: leftPanelBottom - buttonStackHeight,
       sideButtonWidth: leftPanelWidth - 88,
+      sideButtonGap: buttonGap,
       sideButtonHeight: 56,
       rightTextX: width - outerPadding - rightPanelWidth + 26,
+      rightInnerTop,
+      statsTitleY: rightInnerTop,
+      statsBodyY: rightInnerTop + 36,
+      validationTitleY: rightInnerTop + stackBlockHeight + 22,
+      validationBodyY: rightInnerTop + stackBlockHeight + 58,
+      focusTitleY: focusBlockTop,
+      focusBodyY: focusBlockTop + 36,
+      rightWrapWidth: rightPanelWidth - 52,
       messageX: gridX,
       messageY: gridY + gridHeight + 26,
     };
@@ -125,7 +170,7 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   createBackground() {
-    const { width, height, titleX } = this.layout;
+    const { width, height, titleX, compactUi } = this.layout;
     const nebula = this.add.graphics().setDepth(-20);
 
     nebula.fillGradientStyle(0x061522, 0x0a2132, 0x0f2740, 0x030812, 1);
@@ -147,8 +192,14 @@ export default class BuildScene extends Phaser.Scene {
         .setDepth(-19);
     }
 
+    this.add.text(titleX, 26, "Assembly & Validation Deck", {
+      fontSize: compactUi ? "15px" : "16px",
+      color: "#73f7c0",
+      fontStyle: "bold",
+      letterSpacing: 1.2,
+    });
     this.add.text(titleX, 42, "Orbital Yard", {
-      fontSize: "44px",
+      fontSize: compactUi ? "40px" : "44px",
       color: "#effcff",
       fontStyle: "bold",
     });
@@ -166,7 +217,6 @@ export default class BuildScene extends Phaser.Scene {
   createPanels() {
     const {
       width,
-      height,
       leftPanelX,
       rightPanelX,
       panelY,
@@ -178,6 +228,7 @@ export default class BuildScene extends Phaser.Scene {
       centerPanelHeight,
       centerStartX,
       outerPadding,
+      panelTop,
     } = this.layout;
 
     // Left panel with shadow
@@ -247,12 +298,12 @@ export default class BuildScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x68d9ff, 0.25);
 
     this.add.text(outerPadding + 18, 142, "Parts", {
-      fontSize: "24px",
+      fontSize: "23px",
       color: "#effcff",
       fontStyle: "bold",
     });
     this.add.text(centerStartX + 18, 142, "Assembly Grid", {
-      fontSize: "24px",
+      fontSize: "23px",
       color: "#effcff",
       fontStyle: "bold",
     });
@@ -266,6 +317,15 @@ export default class BuildScene extends Phaser.Scene {
         fontStyle: "bold",
       },
     );
+
+    this.add
+      .line(leftPanelX, panelTop - 10, -leftPanelWidth / 2 + 18, 0, leftPanelWidth / 2 - 18, 0, 0x68d9ff, 0.18)
+      .setLineWidth(2)
+      .setDepth(2);
+    this.add
+      .line(rightPanelX, panelTop - 10, -rightPanelWidth / 2 + 18, 0, rightPanelWidth / 2 - 18, 0, 0x68d9ff, 0.18)
+      .setLineWidth(2)
+      .setDepth(2);
   }
 
   createPartPalette() {
@@ -277,10 +337,23 @@ export default class BuildScene extends Phaser.Scene {
       cardGapY,
       controlsX,
       controlsY,
+      paletteIconCellSize,
+      paletteTitleSize,
+      paletteMetaSize,
+      paletteHintSize,
+      compactUi,
     } = this.layout;
 
     SHIP_PARTS.forEach((part, index) => {
       const card = this.add.container(cardX, cardStartY + index * cardGapY);
+      const accentStrip = this.add.rectangle(
+        -cardWidth / 2 + 7,
+        0,
+        6,
+        cardHeight - 16,
+        part.color,
+        0.92,
+      );
       const background = this.add
         .rectangle(0, 0, cardWidth, cardHeight, 0x102233, 0.96)
         .setStrokeStyle(2, part.color, 0.28);
@@ -291,7 +364,7 @@ export default class BuildScene extends Phaser.Scene {
         .setStrokeStyle(2, part.color, 0.08);
 
       const icon = new ShipPart(this, -cardWidth / 2 + 50, 0, part, {
-        cellSize: 22,
+        cellSize: paletteIconCellSize,
         padding: 1,
         showLabel: false,
         showPlate: false,
@@ -299,7 +372,7 @@ export default class BuildScene extends Phaser.Scene {
       });
       const title = this.add
         .text(-cardWidth / 2 + 92, -26, part.name, {
-          fontSize: "18px",
+          fontSize: `${paletteTitleSize}px`,
           color: "#effcff",
           fontStyle: "bold",
         })
@@ -308,9 +381,9 @@ export default class BuildScene extends Phaser.Scene {
         .text(
           -cardWidth / 2 + 92,
           0,
-          `Mass ${part.mass}   Fuel ${part.fuel}   Thrust ${part.thrust}`,
+          `M ${part.mass}   F ${part.fuel}   T ${part.thrust}`,
           {
-            fontSize: "13px",
+            fontSize: `${paletteMetaSize}px`,
             color: "#91c9e8",
             wordWrap: { width: cardWidth - 114 },
           },
@@ -318,13 +391,21 @@ export default class BuildScene extends Phaser.Scene {
         .setOrigin(0, 0.5);
       const hint = this.add
         .text(-cardWidth / 2 + 92, 28, part.description, {
-          fontSize: "12px",
+          fontSize: `${paletteHintSize}px`,
           color: "#bfdff4",
           wordWrap: { width: cardWidth - 114 },
         })
         .setOrigin(0, 0.5);
+      const roleChip = this.add
+        .text(cardWidth / 2 - 18, -26, part.role.toUpperCase(), {
+          fontSize: compactUi ? "9px" : "10px",
+          color: "#081624",
+          backgroundColor: "#a7e8ff",
+          padding: { left: 7, right: 7, top: 3, bottom: 3 },
+        })
+        .setOrigin(1, 0.5);
 
-      card.add([shadow, background, icon, title, meta, hint]);
+      card.add([shadow, background, accentStrip, icon, title, meta, hint, roleChip]);
       card.setSize(cardWidth, cardHeight);
       card.setInteractive(
         new Phaser.Geom.Rectangle(
@@ -361,16 +442,16 @@ export default class BuildScene extends Phaser.Scene {
     });
 
     this.add.text(controlsX, controlsY, "Controls", {
-      fontSize: "22px",
+      fontSize: compactUi ? "20px" : "22px",
       color: "#effcff",
       fontStyle: "bold",
     });
     this.add.text(
       controlsX,
       controlsY + 38,
-      "Drag from the panel to add modules.\nClick selects a part.\nDrag a placed part to move it.\nRight click opens part options.",
+      "Drag from the catalog to add modules.\nClick selects a placed part.\nDrag a placed part to reposition it.\nRight click opens part actions.",
       {
-        fontSize: "16px",
+        fontSize: compactUi ? "14px" : "16px",
         color: "#a9d9f3",
         lineSpacing: 6,
         wordWrap: { width: this.layout.leftPanelWidth - 42 },
@@ -460,7 +541,7 @@ export default class BuildScene extends Phaser.Scene {
     );
     this.clearButton = this.createButton(
       this.layout.launchButtonX,
-      this.layout.launchButtonY + 68,
+      this.layout.launchButtonY + this.layout.sideButtonHeight + this.layout.sideButtonGap,
       this.layout.sideButtonWidth,
       this.layout.sideButtonHeight,
       "Clear Build",
@@ -472,7 +553,7 @@ export default class BuildScene extends Phaser.Scene {
     );
     this.removeButton = this.createButton(
       this.layout.launchButtonX,
-      this.layout.launchButtonY + 136,
+      this.layout.launchButtonY + (this.layout.sideButtonHeight + this.layout.sideButtonGap) * 2,
       this.layout.sideButtonWidth,
       this.layout.sideButtonHeight,
       "Remove Selected",
@@ -578,41 +659,51 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   createStatsPanel() {
-    const x = this.layout.rightTextX;
+    const {
+      rightTextX: x,
+      statsTitleY,
+      statsBodyY,
+      validationTitleY,
+      validationBodyY,
+      focusTitleY,
+      focusBodyY,
+      rightWrapWidth,
+      compactUi,
+    } = this.layout;
 
-    this.add.text(x, 196, "Current stack", {
-      fontSize: "18px",
+    this.add.text(x, statsTitleY, "Current stack", {
+      fontSize: compactUi ? "17px" : "18px",
       color: "#8fd7ff",
     });
-    this.statsText = this.add.text(x, 236, "", {
-      fontSize: "18px",
+    this.statsText = this.add.text(x, statsBodyY, "", {
+      fontSize: compactUi ? "16px" : "18px",
       color: "#effcff",
-      lineSpacing: 12,
+      lineSpacing: compactUi ? 9 : 12,
     });
-    this.add.text(x, 518, "Launch check", {
-      fontSize: "18px",
+    this.add.text(x, validationTitleY, "Launch check", {
+      fontSize: compactUi ? "17px" : "18px",
       color: "#8fd7ff",
     });
-    this.validationText = this.add.text(x, 558, "", {
-      fontSize: "16px",
+    this.validationText = this.add.text(x, validationBodyY, "", {
+      fontSize: compactUi ? "14px" : "16px",
       color: "#bfdff4",
-      wordWrap: { width: this.layout.rightPanelWidth - 52 },
-      lineSpacing: 8,
+      wordWrap: { width: rightWrapWidth },
+      lineSpacing: compactUi ? 6 : 8,
     });
-    this.add.text(x, 690, "Focused module", {
-      fontSize: "18px",
+    this.add.text(x, focusTitleY, "Focused module", {
+      fontSize: compactUi ? "17px" : "18px",
       color: "#8fd7ff",
     });
-    this.focusTitleText = this.add.text(x, 726, "Hover a part", {
-      fontSize: "18px",
+    this.focusTitleText = this.add.text(x, focusBodyY, "Hover a part", {
+      fontSize: compactUi ? "17px" : "18px",
       color: "#effcff",
       fontStyle: "bold",
     });
-    this.focusBodyText = this.add.text(x, 756, "", {
-      fontSize: "14px",
+    this.focusBodyText = this.add.text(x, focusBodyY + 30, "", {
+      fontSize: compactUi ? "13px" : "14px",
       color: "#bfdff4",
-      wordWrap: { width: this.layout.rightPanelWidth - 52 },
-      lineSpacing: 7,
+      wordWrap: { width: rightWrapWidth },
+      lineSpacing: compactUi ? 6 : 7,
     });
   }
 
