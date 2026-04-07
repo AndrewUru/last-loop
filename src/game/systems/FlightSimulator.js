@@ -160,9 +160,18 @@ export default class FlightSimulator {
         y: Math.sin(this.state.orientation),
       };
       const maxThrustAcceleration = 0.13 + this.stats.twr * 0.07;
+      const launchAssistMultiplier = 1 + Math.max(0, 1 - altitude / 24) * 0.55;
       thrustAcceleration = {
-        x: thrustDirection.x * maxThrustAcceleration * throttle,
-        y: thrustDirection.y * maxThrustAcceleration * throttle,
+        x:
+          thrustDirection.x *
+          maxThrustAcceleration *
+          throttle *
+          launchAssistMultiplier,
+        y:
+          thrustDirection.y *
+          maxThrustAcceleration *
+          throttle *
+          launchAssistMultiplier,
       };
 
       const fuelSpent = Math.min(

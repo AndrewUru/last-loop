@@ -2,10 +2,10 @@ import Phaser from "phaser";
 import ShipPart from "../entities/ShipPart.js";
 import ShipStatsCalculator from "../systems/ShipStatsCalculator.js";
 import FlightSimulator, {
-  FLIGHT_TARGETS,
   FLIGHT_WORLD,
 } from "../systems/FlightSimulator.js";
 import ThreeFlightBackdrop from "../systems/ThreeFlightBackdrop.js";
+import FlightHud from "../ui/FlightHud.js";
 import { PARTS_BY_ID } from "../data/parts.js";
 
 function angleDifference(target, current) {
@@ -34,11 +34,15 @@ export default class FlightScene extends Phaser.Scene {
   create() {
     this.simulator = new FlightSimulator(this.stats);
     this.finished = false;
-    this.missionPhaseId = null;
     this.flightTrail = [];
     this.smokeTrail = [];
     this.padSmokeTrail = [];
     this.uiObjects = [];
+    this.launchCountdown = {
+      active: false,
+      remaining: 0,
+    };
+    this.liftoffAssistTime = 0;
     this.manualZoomOffset = 0;
     this.zoomSettings = {
       min: 0.28,
@@ -373,225 +377,20 @@ export default class FlightScene extends Phaser.Scene {
   }
 
   createHud() {
-    this.leftHudShadow = this.add
-      .rectangle(0, 0, 316, 306, 0x000000, 0.3)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0x68d9ff, 0.1)
-      .setDepth(39);
-
-    this.leftHud = this.add
-      .rectangle(0, 0, 316, 306, 0x081624, 0.95)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0x68d9ff, 0.35)
-      .setDepth(40);
-    this.telemetryTitle = this.add
-      .text(0, 0, "Orbital Telemetry", {
-        fontSize: "30px",
-        color: "#effcff",
-        fontStyle: "bold",
-      })
-      .setScrollFactor(0)
-      .setDepth(41);
-    this.controlsHint = this.add
-      .text(
-        0,
-        0,
-        [
-          "Keyboard Flight Controls",
-          "[F/Space] Engine  [Shift] Full burn",
-          "[A/D or arrows] Steer  [W/S or arrows] Cruise",
-          "[Wheel or Q/E] Zoom  [R] Reset view  [Esc] Return",
-          "Mouse stays UI-only during flight",
-        ].join("\n"),
-        {
-          fontSize: "14px",
-          color: "#8fd7ff",
-          lineSpacing: 4,
-          wordWrap: { width: 280 },
-        },
-      )
-      .setScrollFactor(0)
-      .setDepth(41);
-    this.metricsText = this.add
-      .text(0, 0, "", {
-        fontSize: "17px",
-        color: "#d8f7ff",
-        lineSpacing: 9,
-      })
-      .setScrollFactor(0)
-      .setDepth(41);
-
-    this.rightHudShadow = this.add
-      .rectangle(0, 0, 316, 306, 0x000000, 0.3)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0x68d9ff, 0.1)
-      .setDepth(39);
-
-    this.rightHud = this.add
-      .rectangle(0, 0, 316, 306, 0x081624, 0.95)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0x68d9ff, 0.35)
-      .setDepth(40);
-    this.progressText = this.add
-      .text(0, 0, "", {
-        fontSize: "17px",
-        color: "#d8f7ff",
-        lineSpacing: 9,
-        wordWrap: { width: 280 },
-      })
-      .setScrollFactor(0)
-      .setDepth(41);
-
-    this.phaseBannerShadow = this.add
-      .rectangle(0, 0, 420, 88, 0x000000, 0.22)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0x73f7c0, 0.08)
-      .setDepth(40);
-    this.phaseBanner = this.add
-      .rectangle(0, 0, 420, 88, 0x091824, 0.94)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0x73f7c0, 0.4)
-      .setDepth(41);
-    this.phaseBannerTitle = this.add
-      .text(0, 0, "", {
-        fontSize: "22px",
-        color: "#effcff",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(42);
-    this.phaseBannerBody = this.add
-      .text(0, 0, "", {
-        fontSize: "15px",
-        color: "#a9dcf5",
-        align: "center",
-        wordWrap: { width: 360 },
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0)
-      .setDepth(42);
-
-    this.engineButtonShadow = this.add
-      .rectangle(0, 0, 240, 52, 0x000000, 0.25)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0x73f7c0, 0.1)
-      .setDepth(41)
-      .setInteractive({ useHandCursor: true });
-
-    this.engineButton = this.add
-      .rectangle(0, 0, 240, 52, 0x163248, 0.96)
-      .setScrollFactor(0)
-      .setStrokeStyle(2, 0x73f7c0, 0.6)
-      .setDepth(42)
-      .setInteractive({ useHandCursor: true });
-    this.engineButtonLabel = this.add
-      .text(0, 0, "Ignite Engine", {
-        fontSize: "20px",
-        color: "#effcff",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(43);
-
-    this.uiObjects.push(
-      this.leftHudShadow,
-      this.leftHud,
-      this.telemetryTitle,
-      this.controlsHint,
-      this.metricsText,
-      this.rightHudShadow,
-      this.rightHud,
-      this.progressText,
-      this.phaseBannerShadow,
-      this.phaseBanner,
-      this.phaseBannerTitle,
-      this.phaseBannerBody,
-      this.engineButtonShadow,
-      this.engineButton,
-      this.engineButtonLabel,
-    );
-
+    this.hud = new FlightHud(this, {
+      onEngineToggle: () => this.handleEngineToggle(),
+    });
+    this.hud.create();
+    this.uiObjects.push(...this.hud.getObjects());
     this.layoutHud();
-
-    this.engineButton.on("pointerdown", () => {
-      this.toggleEngine();
-    });
-    this.engineButton.on("pointerover", () => {
-      this.engineButton.setStrokeStyle(2, 0x73f7c0, 1);
-    });
-    this.engineButton.on("pointerout", () => {
-      this.updateEngineButton(this.simulator.state);
-    });
   }
 
   layoutHud(width = this.scale.width, height = this.scale.height) {
-    if (!this.leftHud) {
-      return;
-    }
-
-    const panelWidth = Phaser.Math.Clamp(Math.round(width * 0.21), 250, 316);
-    const panelHeight = Phaser.Math.Clamp(Math.round(height * 0.36), 230, 306);
-    const sideMargin = Phaser.Math.Clamp(Math.round(width * 0.025), 22, 42);
-    const topMargin = Phaser.Math.Clamp(Math.round(height * 0.05), 28, 44);
-    const leftX = sideMargin + panelWidth / 2;
-    const rightX = width - sideMargin - panelWidth / 2;
-    const panelTop = topMargin;
-    const panelCenterY = panelTop + panelHeight / 2;
-    const innerLeft = leftX - panelWidth / 2 + 16;
-    const innerRight = rightX - panelWidth / 2 + 16;
-    const centerX = width / 2;
-    const buttonWidth = Phaser.Math.Clamp(Math.round(panelWidth * 0.76), 188, 240);
-    const buttonHeight = 52;
-    const buttonX = leftX;
-    const buttonY = Math.min(
-      height - topMargin - buttonHeight / 2,
-      panelTop + panelHeight + buttonHeight / 2 + 18,
-    );
-
-    this.leftHudShadow.setPosition(leftX + 2, panelCenterY + 2);
-    this.leftHudShadow.setSize(panelWidth, panelHeight);
-    this.leftHud.setPosition(leftX, panelCenterY);
-    this.leftHud.setSize(panelWidth, panelHeight);
-
-    this.telemetryTitle.setPosition(innerLeft, panelTop + 12);
-    this.controlsHint.setPosition(innerLeft, panelTop + 48);
-    this.controlsHint.setWordWrapWidth(panelWidth - 32);
-    this.metricsText.setPosition(
-      innerLeft,
-      this.controlsHint.y + this.controlsHint.height + 14,
-    );
-
-    this.rightHudShadow.setPosition(rightX + 2, panelCenterY + 2);
-    this.rightHudShadow.setSize(panelWidth, panelHeight);
-    this.rightHud.setPosition(rightX, panelCenterY);
-    this.rightHud.setSize(panelWidth, panelHeight);
-    this.progressText.setPosition(innerRight, panelTop + 12);
-    this.progressText.setWordWrapWidth(panelWidth - 32);
-
-    const bannerWidth = Phaser.Math.Clamp(
-      Math.round(width * 0.3),
-      320,
-      width - sideMargin * 2 - panelWidth * 2 + 40,
-    );
-    const clampedBannerWidth = Math.max(280, bannerWidth);
-    this.phaseBannerShadow.setPosition(centerX + 2, panelTop + 42);
-    this.phaseBannerShadow.setSize(clampedBannerWidth, 88);
-    this.phaseBanner.setPosition(centerX, panelTop + 40);
-    this.phaseBanner.setSize(clampedBannerWidth, 88);
-    this.phaseBannerTitle.setPosition(centerX, panelTop + 16);
-    this.phaseBannerBody.setPosition(centerX, panelTop + 32);
-    this.phaseBannerBody.setWordWrapWidth(clampedBannerWidth - 44);
-
-    this.engineButtonShadow.setPosition(buttonX + 2, buttonY + 2);
-    this.engineButtonShadow.setSize(buttonWidth, buttonHeight);
-    this.engineButton.setPosition(buttonX, buttonY);
-    this.engineButton.setSize(buttonWidth, buttonHeight);
-    this.engineButtonLabel.setPosition(buttonX, buttonY);
+    this.hud?.layout(width, height);
   }
 
   update(time, delta) {
+    this.updateLaunchCountdown(delta);
     this.updatePilotControls(delta);
     const state = this.simulator.update(delta, this.controls);
 
@@ -603,9 +402,15 @@ export default class FlightScene extends Phaser.Scene {
     this.updateStars(state);
     this.updateRocketPose(state);
     this.updateExhaust(state, time, delta);
-    this.updateMissionPhase(state);
-    this.updateHud(state);
-    this.updateEngineButton(state);
+    this.hud?.update(state, {
+      stats: this.stats,
+      controlsSource: this.controls.source,
+      cameraZoom: this.cameraRig.zoom,
+      manualZoomOffset: this.manualZoomOffset,
+      zoomSettings: this.zoomSettings,
+      predictionSummary: this.predictionSummary,
+      countdown: this.launchCountdown,
+    });
     this.threeBackdrop?.update(state);
 
     if (!this.finished && state.result) {
@@ -1045,175 +850,35 @@ export default class FlightScene extends Phaser.Scene {
   }
 
   updateHud(state) {
-    const fuelPct =
-      this.stats.fuel > 0 ? (state.fuelRemaining / this.stats.fuel) * 100 : 0;
-    const zoomBiasPct = Math.round(
-      (this.manualZoomOffset / this.zoomSettings.step) * 6,
-    );
-    const missionPhase = this.getMissionPhase(state);
-    const prediction = this.predictionSummary || {
-      apoapsis: state.apoapsis,
-      periapsis: state.periapsis,
-    };
-
-    this.metricsText.setText(
-      [
-        `Phase: ${state.phase}`,
-        `Engine: ${state.engineOn ? "ON" : "OFF"}`,
-        `Altitude: ${state.altitude.toFixed(1)} km`,
-        `Speed: ${state.speed.toFixed(2)} km/s`,
-        `Radial vel: ${state.radialVelocity.toFixed(2)} km/s`,
-        `Tangential vel: ${Math.abs(state.tangentialVelocity).toFixed(2)} km/s`,
-        `Throttle: ${Math.round(state.throttle * 100)}%`,
-        `Fuel: ${Math.max(0, fuelPct).toFixed(0)}%`,
-        `G-load: ${state.currentG.toFixed(1)} g`,
-        `Pred apoapsis: ${prediction.apoapsis.toFixed(1)} km`,
-        `Pred periapsis: ${prediction.periapsis.toFixed(1)} km`,
-        `Mission step: ${missionPhase.index}/${missionPhase.total}`,
-        `View zoom: ${this.cameraRig.zoom.toFixed(2)}x`,
-        `Zoom trim: ${zoomBiasPct >= 0 ? "+" : ""}${zoomBiasPct}%`,
-      ].join("\n"),
-    );
-
-    this.progressText.setText(
-      [
-        "Primary Objective",
-        "Place the ship into a stable orbit around Earth.",
-        "",
-        `${missionPhase.label}`,
-        missionPhase.message,
-        "Guide: cyan dots show your projected path, green band is the orbit corridor.",
-        "",
-        `Orbit altitude: ${FLIGHT_WORLD.targetOrbitAltitude} km`,
-        `Target orbital speed: ${FLIGHT_TARGETS.orbitalVelocity.toFixed(2)} km/s`,
-        `Orbit lock: ${state.orbitHoldTime.toFixed(1)} / ${FLIGHT_WORLD.orbitLockDuration}s`,
-        `Apoapsis: ${state.apoapsis.toFixed(1)} km`,
-        `Periapsis: ${state.periapsis.toFixed(1)} km`,
-        `Pilot input: ${this.controls.source}`,
-        `Checklist: ${this.buildMissionChecklist(state)}`,
-        state.reason
-          ? `Status: ${state.reason}`
-          : state.engineOn
-            ? `Status: ${missionPhase.status}`
-            : "Status: ignite the engine to leave the launch pad",
-      ].join("\n"),
-    );
+    this.hud?.update(state, {
+      stats: this.stats,
+      controlsSource: this.controls.source,
+      cameraZoom: this.cameraRig.zoom,
+      manualZoomOffset: this.manualZoomOffset,
+      zoomSettings: this.zoomSettings,
+      predictionSummary: this.predictionSummary,
+      countdown: this.launchCountdown,
+    });
   }
 
   getMissionPhase(state) {
-    const total = 5;
-
-    if (state.orbitAchieved || state.result === "success" || state.orbitHoldTime > 0.5) {
-      return {
-        id: "hold-orbit",
-        index: 5,
-        total,
-        label: "Phase 5: Hold Orbit",
-        title: "Phase 5/5: Hold Orbit",
-        message:
-          "Stay close to target altitude and keep radial speed low until orbit lock completes.",
-        status: "Hold a clean orbit until the lock timer completes.",
-      };
-    }
-
-    if (!state.launched || state.altitude < 12) {
-      return {
-        id: "launch",
-        index: 1,
-        total,
-        label: "Phase 1: Launch",
-        title: "Phase 1/5: Launch",
-        message:
-          "Ignite the engine and lift off cleanly. Keep the stack steady while leaving the pad.",
-        status: "Climb straight and avoid over-correcting.",
-      };
-    }
-
-    if (state.altitude < FLIGHT_WORLD.atmosphereHeight * 0.55) {
-      return {
-        id: "ascent",
-        index: 2,
-        total,
-        label: "Phase 2: Atmospheric Ascent",
-        title: "Phase 2/5: Atmospheric Ascent",
-        message:
-          "Build altitude first. Stay mostly vertical while the atmosphere is still dense.",
-        status: "Keep rising and save aggressive turning for later.",
-      };
-    }
-
-    if (state.altitude < FLIGHT_WORLD.atmosphereHeight + 35) {
-      return {
-        id: "gravity-turn",
-        index: 3,
-        total,
-        label: "Phase 3: Gravity Turn",
-        title: "Phase 3/5: Gravity Turn",
-        message:
-          "Start a gentle pitch to the side so the rocket trades vertical climb for horizontal speed.",
-        status: "Turn gradually and keep the rocket under control.",
-      };
-    }
-
-    return {
-      id: "circularize",
-      index: 4,
-      total,
-      label: "Phase 4: Circularize",
-      title: "Phase 4/5: Circularize",
-      message:
-        "Match the target orbital corridor by building sideways speed near the target altitude.",
-      status: "Trim altitude and chase orbital velocity, not raw height.",
-    };
+    return this.hud?.getMissionPhase?.(state);
   }
 
   buildMissionChecklist(state) {
-    const checks = [
-      `${state.launched ? "[x]" : "[ ]"} liftoff`,
-      `${state.altitude >= FLIGHT_WORLD.atmosphereHeight ? "[x]" : "[ ]"} clear atmosphere`,
-      `${Math.abs(state.tangentialVelocity) >= FLIGHT_TARGETS.orbitalVelocity * 0.75 ? "[x]" : "[ ]"} build lateral speed`,
-      `${state.orbitHoldTime > 0.5 ? "[x]" : "[ ]"} stabilize orbit`,
-    ];
-    return checks.join(" ");
+    return this.hud?.buildMissionChecklist?.(state);
   }
 
   updateMissionPhase(state) {
-    const missionPhase = this.getMissionPhase(state);
-    if (missionPhase.id === this.missionPhaseId) {
+    const missionPhase = this.hud?.getMissionPhase?.(state);
+    if (!missionPhase) {
       return;
     }
-
-    this.missionPhaseId = missionPhase.id;
-    this.phaseBannerTitle.setText(missionPhase.title);
-    this.phaseBannerBody.setText(missionPhase.message);
-
-    this.tweens.killTweensOf([
-      this.phaseBannerShadow,
-      this.phaseBanner,
-      this.phaseBannerTitle,
-      this.phaseBannerBody,
-    ]);
-
-    [
-      this.phaseBannerShadow,
-      this.phaseBanner,
-      this.phaseBannerTitle,
-      this.phaseBannerBody,
-    ].forEach((object) => {
-      object.setAlpha(0.3);
-    });
-
-    this.tweens.add({
-      targets: [
-        this.phaseBannerShadow,
-        this.phaseBanner,
-        this.phaseBannerTitle,
-        this.phaseBannerBody,
-      ],
-      alpha: 1,
-      duration: 260,
-      ease: "Quad.easeOut",
-    });
+    this.hud?.updateMissionPhase?.(
+      state,
+      { countdown: this.launchCountdown },
+      missionPhase,
+    );
   }
 
   updatePilotControls(delta) {
@@ -1231,7 +896,7 @@ export default class FlightScene extends Phaser.Scene {
       Phaser.Input.Keyboard.JustDown(this.flightKeys.f) ||
       Phaser.Input.Keyboard.JustDown(this.flightKeys.space)
     ) {
-      this.toggleEngine();
+      this.handleEngineToggle();
     }
     if (Phaser.Input.Keyboard.JustDown(this.flightKeys.q)) {
       this.adjustManualZoom(this.zoomSettings.step);
@@ -1256,10 +921,20 @@ export default class FlightScene extends Phaser.Scene {
       );
     }
 
+    if (this.launchCountdown.active) {
+      this.controls.throttle = 0;
+      this.controls.steer = Phaser.Math.Linear(this.controls.steer, 0, 0.12);
+      this.controls.source = "Countdown";
+      return;
+    }
+
+    const liftoffAssistActive = this.liftoffAssistTime > 0;
     this.controls.throttle = this.controls.engineOn
-      ? this.flightKeys.shift.isDown
-        ? 1
-        : this.controls.cruiseThrottle
+      ? liftoffAssistActive
+        ? Math.max(this.controls.cruiseThrottle, 0.96)
+        : this.flightKeys.shift.isDown
+          ? 1
+          : this.controls.cruiseThrottle
       : 0;
 
     this.controls.steer = Phaser.Math.Linear(
@@ -1270,24 +945,71 @@ export default class FlightScene extends Phaser.Scene {
     this.controls.source =
       keyboardSteer !== 0
         ? "Keyboard"
-        : this.controls.engineOn
-          ? "Stabilized"
-          : "Pad";
+        : liftoffAssistActive
+          ? "Launch Assist"
+          : this.controls.engineOn
+            ? "Stabilized"
+            : "Pad";
+  }
+
+  updateLaunchCountdown(delta) {
+    if (this.liftoffAssistTime > 0) {
+      this.liftoffAssistTime = Math.max(0, this.liftoffAssistTime - delta / 1000);
+    }
+
+    if (!this.launchCountdown.active) {
+      return;
+    }
+
+    this.launchCountdown.remaining -= delta / 1000;
+    if (this.launchCountdown.remaining <= 0) {
+      this.completeLaunchCountdown();
+    }
+  }
+
+  handleEngineToggle() {
+    if (this.launchCountdown.active) {
+      this.cancelLaunchCountdown();
+      return;
+    }
+
+    if (!this.controls.engineOn && !this.simulator.state.launched) {
+      this.startLaunchCountdown();
+      return;
+    }
+
+    this.controls.engineOn = !this.controls.engineOn;
+    if (!this.controls.engineOn) {
+      this.liftoffAssistTime = 0;
+    }
+  }
+
+  startLaunchCountdown() {
+    this.controls.engineOn = false;
+    this.controls.throttle = 0;
+    this.launchCountdown.active = true;
+    this.launchCountdown.remaining = 3.2;
+  }
+
+  cancelLaunchCountdown() {
+    this.launchCountdown.active = false;
+    this.launchCountdown.remaining = 0;
+  }
+
+  completeLaunchCountdown() {
+    this.launchCountdown.active = false;
+    this.launchCountdown.remaining = 0;
+    this.controls.engineOn = true;
+    this.controls.cruiseThrottle = Math.max(this.controls.cruiseThrottle, 0.92);
+    this.liftoffAssistTime = 10;
   }
 
   toggleEngine() {
-    this.controls.engineOn = !this.controls.engineOn;
+    this.handleEngineToggle();
   }
 
   updateEngineButton(state) {
-    const isOn = state?.engineOn ?? this.controls.engineOn;
-    const fillColor = isOn ? 0x5b1f1f : 0x163248;
-    const strokeColor = isOn ? 0xff9b7a : 0x73f7c0;
-    const label = isOn ? "Shutdown Engine" : "Ignite Engine";
-
-    this.engineButton.setFillStyle(fillColor, 0.96);
-    this.engineButton.setStrokeStyle(2, strokeColor, 0.7);
-    this.engineButtonLabel.setText(label);
+    this.hud?.updateEngineButton?.(state, this.launchCountdown);
   }
 
   handleWheelZoom(pointer, gameObjects, deltaX, deltaY, deltaZ, event) {
