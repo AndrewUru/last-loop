@@ -881,8 +881,8 @@ export default class FlightScene extends Phaser.Scene {
     const upPressed = this.flightKeys.up.isDown || this.flightKeys.w.isDown;
     const downPressed = this.flightKeys.down.isDown || this.flightKeys.s.isDown;
     const keyboardSteer = (rightPressed ? 1 : 0) - (leftPressed ? 1 : 0);
-    const steerStrength = 0.52;
-    const steerResponse = Phaser.Math.Clamp(delta * 0.008, 0, 0.18);
+    const steerStrength = 0.1;
+    const steerResponse = Phaser.Math.Clamp(delta * 0.0045, 0, 0.1);
     const desiredSteer = keyboardSteer * steerStrength;
 
     if (
