@@ -8,64 +8,81 @@ export default class UIScene extends Phaser.Scene {
   create() {
     this.pendingChoices = [];
 
-    this.hudPanel = this.add
-      .rectangle(16, 16, 300, 258, 0x0a1320, 0.84)
+    // HUD Panel shadow
+    this.add
+      .rectangle(18, 18, 300, 258, 0x000000, 0.4)
       .setOrigin(0)
-      .setStrokeStyle(1, 0x75f6ff, 0.2);
+      .setStrokeStyle(1, 0x75f6ff, 0.1);
+
+    this.hudPanel = this.add
+      .rectangle(16, 16, 300, 258, 0x0a1320, 0.94)
+      .setOrigin(0)
+      .setStrokeStyle(2, 0x75f6ff, 0.35);
+
     this.titleText = this.add.text(32, 24, "Last Loop", {
       fontSize: "22px",
       color: "#75f6ff",
+      fontStyle: "bold",
     });
     this.scoreText = this.add.text(32, 58, "Score: 0", {
-      fontSize: "18px",
-      color: "#ffffff",
+      fontSize: "16px",
+      color: "#d8f7ff",
     });
     this.timeText = this.add.text(32, 86, "Time: 0s", {
-      fontSize: "18px",
-      color: "#ffffff",
+      fontSize: "16px",
+      color: "#d8f7ff",
     });
     this.goalText = this.add.text(32, 114, "Objective: 10:00", {
-      fontSize: "18px",
+      fontSize: "16px",
       color: "#9cdcff",
+      fontStyle: "bold",
     });
     this.levelText = this.add.text(32, 142, "Level: 1", {
-      fontSize: "18px",
-      color: "#ffffff",
+      fontSize: "16px",
+      color: "#d8f7ff",
     });
     this.killsText = this.add.text(32, 170, "Kills: 0", {
-      fontSize: "18px",
-      color: "#ffffff",
+      fontSize: "16px",
+      color: "#d8f7ff",
     });
     this.healthText = this.add.text(32, 198, "Health: 100 / 100", {
-      fontSize: "18px",
-      color: "#ffffff",
+      fontSize: "16px",
+      color: "#d8f7ff",
     });
     this.xpLabel = this.add.text(32, 230, "XP", {
       fontSize: "14px",
       color: "#75f6ff",
+      fontStyle: "bold",
     });
     this.xpValueText = this.add.text(278, 230, "0 / 40", {
       fontSize: "14px",
       color: "#d8f7ff",
     });
     this.xpValueText.setOrigin(1, 0);
+
+    // XP Bar background with border
     this.xpBarBg = this.add
       .rectangle(32, 252, 246, 12, 0x15283a, 1)
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1, 0x75f6ff, 0.3);
+
+    // XP Bar fill with gradient effect
     this.xpBarFill = this.add
       .rectangle(32, 252, 246, 12, 0x75f6ff, 1)
-      .setOrigin(0, 0.5);
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(1, 0xffffff, 0.4);
     this.xpBarFill.scaleX = 0;
 
     this.overlayBackdrop = this.add
-      .rectangle(0, 0, this.scale.width, this.scale.height, 0x04070d, 0.84)
+      .rectangle(0, 0, this.scale.width, this.scale.height, 0x04070d, 0.88)
       .setOrigin(0)
       .setDepth(20)
       .setInteractive();
     this.overlayTitle = this.add
       .text(0, 0, "", {
-        fontSize: "28px",
+        fontSize: "36px",
         color: "#ffffff",
+        fontStyle: "bold",
       })
       .setOrigin(0.5)
       .setDepth(21);
@@ -79,39 +96,79 @@ export default class UIScene extends Phaser.Scene {
 
     this.optionCards = [];
     for (let index = 0; index < 3; index += 1) {
+      // Shadow for card
+      const shadow = this.add
+        .rectangle(0, 4, 250, 150, 0x000000, 0.4)
+        .setStrokeStyle(2, 0x75f6ff, 0.15)
+        .setDepth(20);
+
       const box = this.add
         .rectangle(0, 0, 250, 150, 0x101d30, 0.98)
-        .setStrokeStyle(2, 0x75f6ff, 0.4)
+        .setStrokeStyle(2, 0x75f6ff, 0.5)
         .setDepth(21)
         .setInteractive({ useHandCursor: true });
+
       const title = this.add
-        .text(0, 0, "", {
+        .text(0, -25, "", {
           fontSize: "22px",
           color: "#ffffff",
           align: "center",
           wordWrap: { width: 190 },
+          fontStyle: "bold",
         })
         .setOrigin(0.5)
         .setDepth(22);
       const description = this.add
-        .text(0, 0, "", {
-          fontSize: "16px",
-          color: "#b6dfff",
+        .text(0, 18, "", {
+          fontSize: "14px",
+          color: "#9cdcff",
           align: "center",
           wordWrap: { width: 210 },
         })
         .setOrigin(0.5)
         .setDepth(22);
       const hotkey = this.add
-        .text(0, 0, `${index + 1}`, {
-          fontSize: "14px",
-          color: "#75f6ff",
-        })
+        .rectangle(0, 62, 28, 24, 0x75f6ff, 0.15)
+        .setStrokeStyle(1, 0x75f6ff, 0.8)
         .setOrigin(0.5)
         .setDepth(22);
+      const hotkeyText = this.add
+        .text(0, 62, `${index + 1}`, {
+          fontSize: "14px",
+          color: "#75f6ff",
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5)
+        .setDepth(23);
 
       box.on("pointerdown", () => this.selectUpgrade(index));
-      this.optionCards.push({ box, title, description, hotkey });
+      box.on("pointerover", () => {
+        box.setStrokeStyle(2, 0x75f6ff, 1);
+        this.tweens.add({
+          targets: [shadow, box, title, description, hotkey, hotkeyText],
+          scale: 1.06,
+          duration: 150,
+          ease: "Quad.easeOut",
+        });
+      });
+      box.on("pointerout", () => {
+        box.setStrokeStyle(2, 0x75f6ff, 0.5);
+        this.tweens.add({
+          targets: [shadow, box, title, description, hotkey, hotkeyText],
+          scale: 1,
+          duration: 150,
+          ease: "Quad.easeOut",
+        });
+      });
+
+      this.optionCards.push({
+        box,
+        shadow,
+        title,
+        description,
+        hotkey,
+        hotkeyText,
+      });
     }
 
     this.optionKeys = this.input.keyboard.addKeys({
@@ -135,7 +192,9 @@ export default class UIScene extends Phaser.Scene {
 
     this.scoreText.setText(`Score: ${gameScene.score}`);
     this.timeText.setText(`Time: ${gameScene.survivalTime}s`);
-    this.goalText.setText(`Objective: ${this.formatSeconds(gameScene.remainingTime)}`);
+    this.goalText.setText(
+      `Objective: ${this.formatSeconds(gameScene.remainingTime)}`,
+    );
     this.levelText.setText(`Level: ${gameScene.level}`);
     this.killsText.setText(`Kills: ${gameScene.kills}`);
     this.healthText.setText(
@@ -183,9 +242,11 @@ export default class UIScene extends Phaser.Scene {
       const visible = Boolean(choice);
 
       card.box.setVisible(visible);
+      card.shadow.setVisible(visible);
       card.title.setVisible(visible);
       card.description.setVisible(visible);
       card.hotkey.setVisible(visible);
+      card.hotkeyText.setVisible(visible);
 
       if (!choice) {
         return;
@@ -193,7 +254,7 @@ export default class UIScene extends Phaser.Scene {
 
       card.title.setText(choice.title);
       card.description.setText(choice.description);
-      card.hotkey.setText(`Press ${index + 1}`);
+      card.hotkeyText.setText(`${index + 1}`);
     });
 
     this.setUpgradeOverlayVisible(true);
@@ -222,9 +283,11 @@ export default class UIScene extends Phaser.Scene {
 
     this.optionCards.forEach((card) => {
       card.box.setVisible(visible);
+      card.shadow.setVisible(visible);
       card.title.setVisible(visible);
       card.description.setVisible(visible);
       card.hotkey.setVisible(visible);
+      card.hotkeyText.setVisible(visible);
     });
   }
 
@@ -234,7 +297,10 @@ export default class UIScene extends Phaser.Scene {
 
     this.cameras.main.setViewport(0, 0, width, height);
     this.overlayBackdrop.setSize(width, height);
-    this.overlayTitle.setPosition(width / 2, height < 760 ? 96 : height / 2 - 180);
+    this.overlayTitle.setPosition(
+      width / 2,
+      height < 760 ? 96 : height / 2 - 180,
+    );
     this.overlaySubtitle.setPosition(
       width / 2,
       height < 760 ? 126 : height / 2 - 146,
@@ -245,9 +311,11 @@ export default class UIScene extends Phaser.Scene {
       this.optionCards.forEach((card, index) => {
         const y = startY + index * 170;
         card.box.setPosition(width / 2, y);
-        card.title.setPosition(width / 2, y - 28);
-        card.description.setPosition(width / 2, y + 14);
-        card.hotkey.setPosition(width / 2, y + 52);
+        card.shadow.setPosition(width / 2, y);
+        card.title.setPosition(width / 2, y);
+        card.description.setPosition(width / 2, y);
+        card.hotkey.setPosition(width / 2, y);
+        card.hotkeyText.setPosition(width / 2, y);
       });
       return;
     }
@@ -256,9 +324,11 @@ export default class UIScene extends Phaser.Scene {
       const x = width / 2 + (index - 1) * 280;
       const y = height / 2 + 10;
       card.box.setPosition(x, y);
-      card.title.setPosition(x, y - 28);
-      card.description.setPosition(x, y + 14);
-      card.hotkey.setPosition(x, y + 52);
+      card.shadow.setPosition(x, y);
+      card.title.setPosition(x, y);
+      card.description.setPosition(x, y);
+      card.hotkey.setPosition(x, y);
+      card.hotkeyText.setPosition(x, y);
     });
   }
 

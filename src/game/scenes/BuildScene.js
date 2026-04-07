@@ -27,8 +27,16 @@ export default class BuildScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const outerPadding = Math.max(28, Math.round(width * 0.018));
     const panelGap = Math.max(26, Math.round(width * 0.014));
-    const leftPanelWidth = Phaser.Math.Clamp(Math.round(width * 0.19), 300, 360);
-    const rightPanelWidth = Phaser.Math.Clamp(Math.round(width * 0.21), 320, 390);
+    const leftPanelWidth = Phaser.Math.Clamp(
+      Math.round(width * 0.19),
+      300,
+      360,
+    );
+    const rightPanelWidth = Phaser.Math.Clamp(
+      Math.round(width * 0.21),
+      320,
+      390,
+    );
     const centerStartX = outerPadding + leftPanelWidth + panelGap;
     const centerEndX = width - outerPadding - rightPanelWidth - panelGap;
     const centerWidth = centerEndX - centerStartX;
@@ -50,6 +58,8 @@ export default class BuildScene extends Phaser.Scene {
     this.grid.cellSize = cellSize;
     this.grid.x = gridX;
     this.grid.y = gridY;
+    this.baseGridCellSize = cellSize;
+    this.gridZoom = this.gridZoom ?? 1;
     this.layout = {
       width,
       height,
@@ -142,10 +152,15 @@ export default class BuildScene extends Phaser.Scene {
       color: "#effcff",
       fontStyle: "bold",
     });
-    this.add.text(titleX, 88, "Drag modules onto the grid, rebalance the stack, then send it to orbit.", {
-      fontSize: "20px",
-      color: "#8fd7ff",
-    });
+    this.add.text(
+      titleX,
+      88,
+      "Drag modules onto the grid, rebalance the stack, then send it to orbit.",
+      {
+        fontSize: "20px",
+        color: "#8fd7ff",
+      },
+    );
   }
 
   createPanels() {
@@ -165,15 +180,71 @@ export default class BuildScene extends Phaser.Scene {
       outerPadding,
     } = this.layout;
 
+    // Left panel with shadow
     this.add
-      .rectangle(leftPanelX, panelY, leftPanelWidth, panelHeight, 0x081624, 0.95)
-      .setStrokeStyle(2, 0x68d9ff, 0.18);
+      .rectangle(
+        leftPanelX,
+        panelY + 2,
+        leftPanelWidth,
+        panelHeight,
+        0x000000,
+        0.2,
+      )
+      .setStrokeStyle(2, 0x68d9ff, 0.08);
     this.add
-      .rectangle(centerPanelX, this.grid.y + this.layout.gridHeight / 2 + 10, centerPanelWidth, centerPanelHeight, 0x071321, 0.78)
-      .setStrokeStyle(2, 0x68d9ff, 0.2);
+      .rectangle(
+        leftPanelX,
+        panelY,
+        leftPanelWidth,
+        panelHeight,
+        0x081624,
+        0.95,
+      )
+      .setStrokeStyle(2, 0x68d9ff, 0.25);
+
+    // Center panel with shadow
     this.add
-      .rectangle(rightPanelX, panelY, rightPanelWidth, panelHeight, 0x081624, 0.95)
-      .setStrokeStyle(2, 0x68d9ff, 0.18);
+      .rectangle(
+        centerPanelX,
+        this.grid.y + this.layout.gridHeight / 2 + 12,
+        centerPanelWidth,
+        centerPanelHeight,
+        0x000000,
+        0.25,
+      )
+      .setStrokeStyle(2, 0x68d9ff, 0.1);
+    this.add
+      .rectangle(
+        centerPanelX,
+        this.grid.y + this.layout.gridHeight / 2 + 10,
+        centerPanelWidth,
+        centerPanelHeight,
+        0x071321,
+        0.78,
+      )
+      .setStrokeStyle(2, 0x68d9ff, 0.28);
+
+    // Right panel with shadow
+    this.add
+      .rectangle(
+        rightPanelX,
+        panelY + 2,
+        rightPanelWidth,
+        panelHeight,
+        0x000000,
+        0.2,
+      )
+      .setStrokeStyle(2, 0x68d9ff, 0.08);
+    this.add
+      .rectangle(
+        rightPanelX,
+        panelY,
+        rightPanelWidth,
+        panelHeight,
+        0x081624,
+        0.95,
+      )
+      .setStrokeStyle(2, 0x68d9ff, 0.25);
 
     this.add.text(outerPadding + 18, 142, "Parts", {
       fontSize: "24px",
@@ -185,21 +256,40 @@ export default class BuildScene extends Phaser.Scene {
       color: "#effcff",
       fontStyle: "bold",
     });
-    this.add.text(width - outerPadding - rightPanelWidth + 18, 142, "Flight Readiness", {
-      fontSize: "24px",
-      color: "#effcff",
-      fontStyle: "bold",
-    });
+    this.add.text(
+      width - outerPadding - rightPanelWidth + 18,
+      142,
+      "Flight Readiness",
+      {
+        fontSize: "24px",
+        color: "#effcff",
+        fontStyle: "bold",
+      },
+    );
   }
 
   createPartPalette() {
-    const { cardX, cardWidth, cardHeight, cardStartY, cardGapY, controlsX, controlsY } = this.layout;
+    const {
+      cardX,
+      cardWidth,
+      cardHeight,
+      cardStartY,
+      cardGapY,
+      controlsX,
+      controlsY,
+    } = this.layout;
 
     SHIP_PARTS.forEach((part, index) => {
       const card = this.add.container(cardX, cardStartY + index * cardGapY);
       const background = this.add
         .rectangle(0, 0, cardWidth, cardHeight, 0x102233, 0.96)
         .setStrokeStyle(2, part.color, 0.28);
+
+      // Add shadow effect
+      const shadow = this.add
+        .rectangle(0, 2, cardWidth, cardHeight, 0x000000, 0.3)
+        .setStrokeStyle(2, part.color, 0.08);
+
       const icon = new ShipPart(this, -cardWidth / 2 + 50, 0, part, {
         cellSize: 22,
         padding: 1,
@@ -234,17 +324,40 @@ export default class BuildScene extends Phaser.Scene {
         })
         .setOrigin(0, 0.5);
 
-      card.add([background, icon, title, meta, hint]);
+      card.add([shadow, background, icon, title, meta, hint]);
       card.setSize(cardWidth, cardHeight);
       card.setInteractive(
-        new Phaser.Geom.Rectangle(-cardWidth / 2, -cardHeight / 2, cardWidth, cardHeight),
+        new Phaser.Geom.Rectangle(
+          -cardWidth / 2,
+          -cardHeight / 2,
+          cardWidth,
+          cardHeight,
+        ),
         Phaser.Geom.Rectangle.Contains,
       );
+
+      const originalScale = card.scale;
       card.on("pointerdown", (pointer) => this.beginPaletteDrag(part, pointer));
-      card.on("pointerover", () => this.setHoveredInfo({ source: "palette", partId: part.id }));
-      card.on("pointerout", () => this.clearHoveredInfo("palette", part.id));
-      card.on("pointerover", () => background.setStrokeStyle(2, part.color, 0.5));
-      card.on("pointerout", () => background.setStrokeStyle(2, part.color, 0.28));
+      card.on("pointerover", () => {
+        this.setHoveredInfo({ source: "palette", partId: part.id });
+        background.setStrokeStyle(2, part.color, 0.6);
+        this.tweens.add({
+          targets: card,
+          scale: originalScale * 1.05,
+          duration: 150,
+          ease: "Quad.easeOut",
+        });
+      });
+      card.on("pointerout", () => {
+        this.clearHoveredInfo("palette", part.id);
+        background.setStrokeStyle(2, part.color, 0.28);
+        this.tweens.add({
+          targets: card,
+          scale: originalScale,
+          duration: 150,
+          ease: "Quad.easeOut",
+        });
+      });
     });
 
     this.add.text(controlsX, controlsY, "Controls", {
@@ -266,35 +379,42 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   createGrid() {
-    const { columns, rows, cellSize, x, y } = this.grid;
-
     this.gridGraphics = this.add.graphics();
-    this.gridGraphics.lineStyle(1, 0x68d9ff, 0.18);
-
-    for (let column = 0; column <= columns; column += 1) {
-      const lineX = x + column * cellSize;
-      this.gridGraphics.lineBetween(lineX, y, lineX, y + rows * cellSize);
-    }
-
-    for (let row = 0; row <= rows; row += 1) {
-      const lineY = y + row * cellSize;
-      this.gridGraphics.lineBetween(x, lineY, x + columns * cellSize, lineY);
-    }
-
+    this.hullShadowGraphics = this.add.graphics().setDepth(8);
+    this.hullGraphics = this.add.graphics().setDepth(9);
     this.issueGraphics = this.add.graphics().setDepth(11);
     this.gridHighlight = this.add
-      .rectangle(0, 0, cellSize - 8, cellSize - 8, 0x68d9ff, 0.16)
+      .rectangle(
+        0,
+        0,
+        this.grid.cellSize - 8,
+        this.grid.cellSize - 8,
+        0x68d9ff,
+        0.16,
+      )
       .setStrokeStyle(2, 0x68d9ff, 0.78)
       .setVisible(false)
       .setDepth(12);
     this.selectionHighlight = this.add
-      .rectangle(0, 0, cellSize - 4, cellSize - 4, 0xffffff, 0)
+      .rectangle(
+        0,
+        0,
+        this.grid.cellSize - 4,
+        this.grid.cellSize - 4,
+        0xffffff,
+        0,
+      )
       .setStrokeStyle(3, 0xffd773, 0.95)
       .setVisible(false)
       .setDepth(13);
 
-    this.centerOfMassMarker = this.add.container(0, 0).setVisible(false).setDepth(14);
-    const markerRing = this.add.circle(0, 0, 12, 0x73f7c0, 0.14).setStrokeStyle(2, 0x73f7c0, 1);
+    this.centerOfMassMarker = this.add
+      .container(0, 0)
+      .setVisible(false)
+      .setDepth(14);
+    const markerRing = this.add
+      .circle(0, 0, 12, 0x73f7c0, 0.14)
+      .setStrokeStyle(2, 0x73f7c0, 1);
     const markerCrossH = this.add.rectangle(0, 0, 22, 2, 0x73f7c0, 1);
     const markerCrossV = this.add.rectangle(0, 0, 2, 22, 0x73f7c0, 1);
     const markerText = this.add
@@ -304,13 +424,25 @@ export default class BuildScene extends Phaser.Scene {
         fontStyle: "bold",
       })
       .setOrigin(0.5);
-    this.centerOfMassMarker.add([markerRing, markerCrossH, markerCrossV, markerText]);
+    this.centerOfMassMarker.add([
+      markerRing,
+      markerCrossH,
+      markerCrossV,
+      markerText,
+    ]);
 
-    this.messageText = this.add.text(this.layout.messageX, this.layout.messageY, "", {
-      fontSize: "18px",
-      color: "#ffd8ad",
-      wordWrap: { width: this.layout.gridWidth },
-    });
+    this.messageText = this.add.text(
+      this.layout.messageX,
+      this.layout.messageY,
+      "",
+      {
+        fontSize: "18px",
+        color: "#ffd8ad",
+        wordWrap: { width: this.layout.gridWidth },
+      },
+    );
+
+    this.redrawGrid();
   }
 
   createControls() {
@@ -365,14 +497,20 @@ export default class BuildScene extends Phaser.Scene {
         if (!this.contextMenuEntry) {
           return;
         }
-        this.selectPlacedPart(this.contextMenuEntry.cellX, this.contextMenuEntry.cellY);
+        this.selectPlacedPart(
+          this.contextMenuEntry.cellX,
+          this.contextMenuEntry.cellY,
+        );
         this.hideContextMenu();
       }),
       this.createContextMenuItem(12, 52, "Delete", () => {
         if (!this.contextMenuEntry) {
           return;
         }
-        this.removePlacedPart(this.contextMenuEntry.cellX, this.contextMenuEntry.cellY);
+        this.removePlacedPart(
+          this.contextMenuEntry.cellX,
+          this.contextMenuEntry.cellY,
+        );
         this.hideContextMenu();
       }),
       this.createContextMenuItem(12, 92, "Cancel", () => {
@@ -398,8 +536,12 @@ export default class BuildScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    background.on("pointerover", () => background.setStrokeStyle(1, 0x68d9ff, 0.8));
-    background.on("pointerout", () => background.setStrokeStyle(1, 0x68d9ff, 0.24));
+    background.on("pointerover", () =>
+      background.setStrokeStyle(1, 0x68d9ff, 0.8),
+    );
+    background.on("pointerout", () =>
+      background.setStrokeStyle(1, 0x68d9ff, 0.24),
+    );
     background.on("pointerdown", callback);
     item.add([background, text]);
     return item;
@@ -478,10 +620,34 @@ export default class BuildScene extends Phaser.Scene {
     this.input.on("pointerdown", this.handlePointerDown, this);
     this.input.on("pointermove", this.handlePointerMove, this);
     this.input.on("pointerup", this.handlePointerUp, this);
+    this.input.on("wheel", this.handleMouseWheel, this);
 
     this.input.keyboard.on("keydown-DELETE", () => this.removeSelectedPart());
-    this.input.keyboard.on("keydown-BACKSPACE", () => this.removeSelectedPart());
-    this.input.keyboard.on("keydown-ESC", () => this.cancelActiveDrag("Drag canceled."));
+    this.input.keyboard.on("keydown-BACKSPACE", () =>
+      this.removeSelectedPart(),
+    );
+    this.input.keyboard.on("keydown-ESC", () =>
+      this.cancelActiveDrag("Drag canceled."),
+    );
+  }
+
+  handleMouseWheel(pointer, over, deltaX, deltaY) {
+    if (this.draggingPart || this.isPointerOverContextMenu(pointer)) {
+      return;
+    }
+
+    const nextZoom = Phaser.Math.Clamp(
+      this.gridZoom + (deltaY > 0 ? -0.08 : 0.08),
+      0.72,
+      1.65,
+    );
+
+    if (Math.abs(nextZoom - this.gridZoom) < 0.001) {
+      return;
+    }
+
+    this.gridZoom = nextZoom;
+    this.refreshGridZoom();
   }
 
   handlePointerDown(pointer) {
@@ -607,7 +773,11 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   handlePointerUp(pointer) {
-    if (this.pendingMove && !this.draggingPart && pointer.id === this.pendingMove.pointerId) {
+    if (
+      this.pendingMove &&
+      !this.draggingPart &&
+      pointer.id === this.pendingMove.pointerId
+    ) {
       this.pendingMove = null;
       return;
     }
@@ -626,7 +796,11 @@ export default class BuildScene extends Phaser.Scene {
       this.gridHighlight.setVisible(false);
 
       if (candidate.valid) {
-        this.addPlacedPart(definition.id, candidate.cell.cellX, candidate.cell.cellY);
+        this.addPlacedPart(
+          definition.id,
+          candidate.cell.cellX,
+          candidate.cell.cellY,
+        );
         this.showMessage(`${definition.name} installed.`);
       } else {
         this.renderCurrentBuild();
@@ -642,7 +816,9 @@ export default class BuildScene extends Phaser.Scene {
     } else {
       this.cancelPlacedPartDrag();
       if (candidate.cell) {
-        this.showMessage("That slot is blocked. Drop on a free connected cell.");
+        this.showMessage(
+          "That slot is blocked. Drop on a free connected cell.",
+        );
       }
     }
   }
@@ -718,8 +894,15 @@ export default class BuildScene extends Phaser.Scene {
 
   createButton(x, y, width, height, label, fillColor, strokeColor, callback) {
     const colorValue = Phaser.Display.Color.HexStringToColor(fillColor).color;
-    const strokeValue = Phaser.Display.Color.HexStringToColor(strokeColor).color;
+    const strokeValue =
+      Phaser.Display.Color.HexStringToColor(strokeColor).color;
     const container = this.add.container(x, y);
+
+    // Add shadow effect
+    const shadow = this.add
+      .rectangle(0, 2, width, height, 0x000000, 0.3)
+      .setOrigin(0);
+
     const background = this.add
       .rectangle(0, 0, width, height, colorValue, 0.96)
       .setOrigin(0)
@@ -733,7 +916,7 @@ export default class BuildScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    container.add([background, text]);
+    container.add([shadow, background, text]);
     container.disabled = false;
     container.setDisabled = (disabled) => {
       container.disabled = disabled;
@@ -747,16 +930,35 @@ export default class BuildScene extends Phaser.Scene {
 
     background.on("pointerdown", () => {
       if (!container.disabled) {
+        // Add press animation
+        this.tweens.add({
+          targets: container,
+          y: container.y + 2,
+          duration: 80,
+          ease: "Quad.easeInOut",
+        });
         callback();
       }
     });
     background.on("pointerover", () => {
       if (!container.disabled) {
         background.setStrokeStyle(2, strokeValue, 0.95);
+        this.tweens.add({
+          targets: container,
+          scale: 1.04,
+          duration: 150,
+          ease: "Quad.easeOut",
+        });
       }
     });
     background.on("pointerout", () => {
       background.setStrokeStyle(2, strokeValue, 0.55);
+      this.tweens.add({
+        targets: container,
+        scale: 1,
+        duration: 150,
+        ease: "Quad.easeOut",
+      });
     });
 
     return container;
@@ -777,7 +979,11 @@ export default class BuildScene extends Phaser.Scene {
 
     return {
       cell,
-      valid: this.canPlacePart(this.draggingPart.definition.id, cell.cellX, cell.cellY),
+      valid: this.canPlacePart(
+        this.draggingPart.definition.id,
+        cell.cellX,
+        cell.cellY,
+      ),
     };
   }
 
@@ -797,10 +1003,93 @@ export default class BuildScene extends Phaser.Scene {
     const definition = this.getPartDefinition(partId);
     return {
       worldX:
-        this.grid.x + cellX * this.grid.cellSize + (definition.gridWidth * this.grid.cellSize) / 2,
+        this.grid.x +
+        cellX * this.grid.cellSize +
+        (definition.gridWidth * this.grid.cellSize) / 2,
       worldY:
-        this.grid.y + cellY * this.grid.cellSize + (definition.gridHeight * this.grid.cellSize) / 2,
+        this.grid.y +
+        cellY * this.grid.cellSize +
+        (definition.gridHeight * this.grid.cellSize) / 2,
     };
+  }
+
+  redrawGrid() {
+    const { columns, rows, cellSize, x, y } = this.grid;
+
+    this.gridGraphics.clear();
+    this.gridGraphics.lineStyle(1, 0x68d9ff, 0.18);
+
+    for (let column = 0; column <= columns; column += 1) {
+      const lineX = x + column * cellSize;
+      this.gridGraphics.lineBetween(lineX, y, lineX, y + rows * cellSize);
+    }
+
+    for (let row = 0; row <= rows; row += 1) {
+      const lineY = y + row * cellSize;
+      this.gridGraphics.lineBetween(x, lineY, x + columns * cellSize, lineY);
+    }
+  }
+
+  refreshGridZoom() {
+    const zoomedCellSize = Math.round(this.baseGridCellSize * this.gridZoom);
+    const gridWidth = this.grid.columns * zoomedCellSize;
+    const gridHeight = this.grid.rows * zoomedCellSize;
+
+    this.grid.cellSize = zoomedCellSize;
+    this.grid.x =
+      this.layout.centerStartX + (this.layout.centerWidth - gridWidth) / 2;
+    this.grid.y = Math.max(
+      178,
+      Math.round((this.layout.height - gridHeight) / 2),
+    );
+    this.layout.gridWidth = gridWidth;
+    this.layout.gridHeight = gridHeight;
+    this.layout.gridX = this.grid.x;
+    this.layout.gridY = this.grid.y;
+    this.layout.messageX = this.grid.x;
+    this.layout.messageY = this.grid.y + gridHeight + 26;
+
+    this.redrawGrid();
+    this.messageText.setPosition(this.layout.messageX, this.layout.messageY);
+    this.messageText.setWordWrapWidth(this.layout.gridWidth);
+    this.gridHighlight.setDisplaySize(
+      this.grid.cellSize - 8,
+      this.grid.cellSize - 8,
+    );
+    this.selectionHighlight.setDisplaySize(
+      this.grid.cellSize - 4,
+      this.grid.cellSize - 4,
+    );
+
+    Array.from(this.placedParts.values()).forEach((entry) => {
+      const center = this.getPartCenterFromCell(
+        entry.partId,
+        entry.cellX,
+        entry.cellY,
+      );
+      entry.view.setPosition(center.worldX, center.worldY);
+      entry.view.redraw({
+        cellSize: this.grid.cellSize,
+        padding: 8,
+        showLabel: false,
+        showPlate: false,
+      });
+      this.makePlacedPartInteractive(entry);
+    });
+
+    if (this.selectedPartId) {
+      const selectedPart = this.placedParts.get(this.selectedPartId);
+      if (selectedPart) {
+        const size = this.getPartSizePx(selectedPart.partId);
+        this.selectionHighlight
+          .setPosition(selectedPart.view.x, selectedPart.view.y)
+          .setDisplaySize(size.width - 4, size.height - 4)
+          .setVisible(true);
+      }
+    }
+
+    this.renderCurrentBuild();
+    this.showMessage(`Zoom ${Math.round(this.gridZoom * 100)}%`);
   }
 
   getOccupiedCells(partId, cellX, cellY) {
@@ -885,7 +1174,9 @@ export default class BuildScene extends Phaser.Scene {
 
     const occupiedCells = this.getOccupiedCells(partId, cellX, cellY);
     if (
-      occupiedCells.some((cell) => Boolean(this.findPlacedPartAtCell(cell.cellX, cell.cellY)))
+      occupiedCells.some((cell) =>
+        Boolean(this.findPlacedPartAtCell(cell.cellX, cell.cellY)),
+      )
     ) {
       return false;
     }
@@ -900,7 +1191,9 @@ export default class BuildScene extends Phaser.Scene {
         { x: cell.cellX + 1, y: cell.cellY },
         { x: cell.cellX, y: cell.cellY - 1 },
         { x: cell.cellX, y: cell.cellY + 1 },
-      ].some((neighbor) => Boolean(this.findPlacedPartAtCell(neighbor.x, neighbor.y))),
+      ].some((neighbor) =>
+        Boolean(this.findPlacedPartAtCell(neighbor.x, neighbor.y)),
+      ),
     );
   }
 
@@ -950,7 +1243,9 @@ export default class BuildScene extends Phaser.Scene {
       ),
       Phaser.Geom.Rectangle.Contains,
     );
-    entry.view.on("pointerdown", (pointer) => this.queuePlacedPartDrag(entry, pointer));
+    entry.view.on("pointerdown", (pointer) =>
+      this.queuePlacedPartDrag(entry, pointer),
+    );
     entry.view.on("pointerover", () =>
       this.setHoveredInfo({
         source: "placed",
@@ -961,7 +1256,11 @@ export default class BuildScene extends Phaser.Scene {
       }),
     );
     entry.view.on("pointerout", () =>
-      this.clearHoveredInfo("placed", entry.partId, cellKey(entry.cellX, entry.cellY)),
+      this.clearHoveredInfo(
+        "placed",
+        entry.partId,
+        cellKey(entry.cellX, entry.cellY),
+      ),
     );
   }
 
@@ -1128,9 +1427,182 @@ export default class BuildScene extends Phaser.Scene {
 
     this.validationText.setText(sections.join("\n\n"));
     this.validationText.setColor(validation.isValid ? "#9ef6ca" : "#ffd2b5");
+    this.renderRocketHull(build);
     this.renderIssueHighlights(validation.issues);
     this.renderCenterOfMass(stats);
     this.updateFocusPanel();
+  }
+
+  getBuildOccupancy(build) {
+    const occupied = new Map();
+
+    build.forEach((part) => {
+      const definition = this.getPartDefinition(part.partId);
+      if (!definition) {
+        return;
+      }
+
+      this.getOccupiedCells(part.partId, part.cellX, part.cellY).forEach(
+        (cell) => {
+          occupied.set(cellKey(cell.cellX, cell.cellY), {
+            ...cell,
+            partId: part.partId,
+            type: definition.type,
+          });
+        },
+      );
+    });
+
+    return occupied;
+  }
+
+  renderRocketHull(build) {
+    this.hullShadowGraphics.clear();
+    this.hullGraphics.clear();
+
+    if (build.length === 0) {
+      return;
+    }
+
+    const occupied = this.getBuildOccupancy(build);
+    if (occupied.size === 0) {
+      return;
+    }
+
+    const columns = new Map();
+    occupied.forEach((cell) => {
+      const list = columns.get(cell.cellX) || [];
+      list.push(cell);
+      columns.set(cell.cellX, list);
+    });
+
+    const shellWidth = this.grid.cellSize * 0.68;
+    const shellInsetX = (this.grid.cellSize - shellWidth) / 2;
+    const shellInsetY = this.grid.cellSize * 0.06;
+    const shellRadius = Math.max(12, Math.round(this.grid.cellSize * 0.26));
+    const coneHeight = this.grid.cellSize * 0.42;
+
+    columns.forEach((cells, cellX) => {
+      const sorted = cells.sort((a, b) => a.cellY - b.cellY);
+      const segments = [];
+      let segmentStart = sorted[0].cellY;
+      let previousY = sorted[0].cellY;
+
+      for (let index = 1; index < sorted.length; index += 1) {
+        const currentY = sorted[index].cellY;
+        if (currentY !== previousY + 1) {
+          segments.push({ topY: segmentStart, bottomY: previousY });
+          segmentStart = currentY;
+        }
+        previousY = currentY;
+      }
+
+      segments.push({ topY: segmentStart, bottomY: previousY });
+
+      segments.forEach((segment) => {
+        const segmentHeight =
+          (segment.bottomY - segment.topY + 1) * this.grid.cellSize;
+        const bodyX = this.grid.x + cellX * this.grid.cellSize + shellInsetX;
+        const bodyY =
+          this.grid.y + segment.topY * this.grid.cellSize + shellInsetY;
+        const bodyHeight = Math.max(18, segmentHeight - shellInsetY * 2);
+        const centerX = bodyX + shellWidth / 2;
+        const topCell = occupied.get(cellKey(cellX, segment.topY));
+        const bottomCell = occupied.get(cellKey(cellX, segment.bottomY));
+        const shouldDrawCone = topCell?.type === "command";
+        const bodyTop = shouldDrawCone ? bodyY + coneHeight * 0.58 : bodyY;
+        const noseBaseY = bodyTop;
+
+        this.hullShadowGraphics.fillStyle(0x000000, 0.18);
+        this.hullShadowGraphics.fillRoundedRect(
+          bodyX + 4,
+          bodyTop + 8,
+          shellWidth,
+          Math.max(12, bodyHeight - (bodyTop - bodyY)),
+          shellRadius,
+        );
+
+        this.hullGraphics.fillStyle(0xd5e4f0, 0.22);
+        this.hullGraphics.fillRoundedRect(
+          bodyX,
+          bodyTop,
+          shellWidth,
+          Math.max(12, bodyHeight - (bodyTop - bodyY)),
+          shellRadius,
+        );
+
+        this.hullGraphics.fillStyle(0xffffff, 0.18);
+        this.hullGraphics.fillRoundedRect(
+          bodyX + shellWidth * 0.14,
+          bodyTop + 6,
+          shellWidth * 0.18,
+          Math.max(10, bodyHeight - (bodyTop - bodyY) - 12),
+          shellRadius * 0.5,
+        );
+
+        this.hullGraphics.lineStyle(2, 0xffffff, 0.2);
+        this.hullGraphics.strokeRoundedRect(
+          bodyX,
+          bodyTop,
+          shellWidth,
+          Math.max(12, bodyHeight - (bodyTop - bodyY)),
+          shellRadius,
+        );
+
+        if (shouldDrawCone) {
+          const coneTopY = bodyY - coneHeight * 0.3;
+          this.hullGraphics.fillStyle(0xe9f2f8, 0.26);
+          this.hullGraphics.fillTriangle(
+            bodyX + shellWidth * 0.12,
+            noseBaseY,
+            bodyX + shellWidth * 0.88,
+            noseBaseY,
+            centerX,
+            coneTopY,
+          );
+          this.hullGraphics.lineStyle(2, 0xffffff, 0.22);
+          this.hullGraphics.strokeTriangle(
+            bodyX + shellWidth * 0.12,
+            noseBaseY,
+            bodyX + shellWidth * 0.88,
+            noseBaseY,
+            centerX,
+            coneTopY,
+          );
+        } else {
+          this.hullGraphics.fillStyle(0xdce8f3, 0.18);
+          this.hullGraphics.fillRoundedRect(
+            bodyX,
+            bodyY,
+            shellWidth,
+            Math.max(12, this.grid.cellSize * 0.34),
+            shellRadius,
+          );
+        }
+
+        if (bottomCell?.type === "engine") {
+          const skirtY = bodyY + bodyHeight - this.grid.cellSize * 0.2;
+          this.hullGraphics.fillStyle(0x9caaba, 0.2);
+          this.hullGraphics.fillTriangle(
+            bodyX,
+            skirtY,
+            bodyX + shellWidth,
+            skirtY,
+            centerX,
+            skirtY + this.grid.cellSize * 0.24,
+          );
+          this.hullGraphics.lineStyle(2, 0xffffff, 0.18);
+          this.hullGraphics.strokeTriangle(
+            bodyX,
+            skirtY,
+            bodyX + shellWidth,
+            skirtY,
+            centerX,
+            skirtY + this.grid.cellSize * 0.24,
+          );
+        }
+      });
+    });
   }
 
   setHoveredInfo(info) {
@@ -1155,14 +1627,21 @@ export default class BuildScene extends Phaser.Scene {
   getFocusedDescriptor() {
     if (this.draggingPart) {
       return {
-        source: this.draggingPart.type === "move" ? "dragging-existing" : "dragging-palette",
+        source:
+          this.draggingPart.type === "move"
+            ? "dragging-existing"
+            : "dragging-palette",
         partId: this.draggingPart.definition.id,
         cellX:
           this.dragPreviewCell?.cellX ??
-          (this.draggingPart.originalCell ? this.draggingPart.originalCell.cellX : null),
+          (this.draggingPart.originalCell
+            ? this.draggingPart.originalCell.cellX
+            : null),
         cellY:
           this.dragPreviewCell?.cellY ??
-          (this.draggingPart.originalCell ? this.draggingPart.originalCell.cellY : null),
+          (this.draggingPart.originalCell
+            ? this.draggingPart.originalCell.cellY
+            : null),
       };
     }
 
@@ -1209,7 +1688,10 @@ export default class BuildScene extends Phaser.Scene {
         : `Grid: ${focused.cellX + 1}, ${focused.cellY + 1}`;
     const issueLines =
       issues.length > 0
-        ? issues.map((issue) => `${issue.severity === "error" ? "Error" : "Warn"}: ${issue.message}`)
+        ? issues.map(
+            (issue) =>
+              `${issue.severity === "error" ? "Error" : "Warn"}: ${issue.message}`,
+          )
         : ["Status: No direct issue on this module."];
 
     this.focusTitleText.setText(definition.name);
@@ -1225,12 +1707,17 @@ export default class BuildScene extends Phaser.Scene {
       ].join("\n"),
     );
     this.focusBodyText.setColor(
-      issues.some((issue) => issue.severity === "error") ? "#ffd2b5" : "#bfdff4",
+      issues.some((issue) => issue.severity === "error")
+        ? "#ffd2b5"
+        : "#bfdff4",
     );
   }
 
   getFocusStateLabel(focused) {
-    if (focused.source === "dragging-existing" || focused.source === "dragging-palette") {
+    if (
+      focused.source === "dragging-existing" ||
+      focused.source === "dragging-palette"
+    ) {
       return "Dragging";
     }
     if (focused.source === "selected") {
@@ -1246,7 +1733,11 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   getIssuesForFocusedPart(focused) {
-    if (!this.currentValidation || focused.cellX == null || focused.cellY == null) {
+    if (
+      !this.currentValidation ||
+      focused.cellX == null ||
+      focused.cellY == null
+    ) {
       return [];
     }
 
@@ -1257,12 +1748,12 @@ export default class BuildScene extends Phaser.Scene {
     );
 
     return this.currentValidation.issues.filter((issue) =>
-      issue.affectedCells.some(
-        (cell) =>
-          occupiedCells.some(
-            (occupiedCell) =>
-              occupiedCell.cellX === cell.cellX && occupiedCell.cellY === cell.cellY,
-          ),
+      issue.affectedCells.some((cell) =>
+        occupiedCells.some(
+          (occupiedCell) =>
+            occupiedCell.cellX === cell.cellX &&
+            occupiedCell.cellY === cell.cellY,
+        ),
       ),
     );
   }
@@ -1335,9 +1826,14 @@ export default class BuildScene extends Phaser.Scene {
     }
 
     this.registry.set("rocket-build", build);
-    this.scene.start("FlightScene", {
-      build,
-      stats: validation.stats,
+
+    // Add smooth fade transition
+    this.cameras.main.fadeOut(600, 0, 0, 0);
+    this.time.delayedCall(620, () => {
+      this.scene.start("FlightScene", {
+        build,
+        stats: validation.stats,
+      });
     });
   }
 

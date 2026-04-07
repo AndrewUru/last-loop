@@ -66,7 +66,10 @@ export default class FlightScene extends Phaser.Scene {
     this.cameras.main.setZoom(1.2);
 
     this.input.keyboard.on("keydown-ESC", () => {
-      this.scene.start("BuildScene", { build: this.build });
+      this.cameras.main.fadeOut(400, 0, 0, 0);
+      this.time.delayedCall(420, () => {
+        this.scene.start("BuildScene", { build: this.build });
+      });
     });
   }
 
@@ -113,9 +116,17 @@ export default class FlightScene extends Phaser.Scene {
 
     this.planetAtmosphere.clear();
     this.planetAtmosphere.fillStyle(0x4fc3ff, 0.08);
-    this.planetAtmosphere.fillCircle(0, 0, radius + FLIGHT_WORLD.atmosphereHeight + 16);
+    this.planetAtmosphere.fillCircle(
+      0,
+      0,
+      radius + FLIGHT_WORLD.atmosphereHeight + 16,
+    );
     this.planetAtmosphere.lineStyle(3, 0x6fd4ff, 0.28);
-    this.planetAtmosphere.strokeCircle(0, 0, radius + FLIGHT_WORLD.atmosphereHeight);
+    this.planetAtmosphere.strokeCircle(
+      0,
+      0,
+      radius + FLIGHT_WORLD.atmosphereHeight,
+    );
 
     this.planetBody.clear();
     this.planetBody.fillStyle(0x0d2840, 1);
@@ -132,16 +143,29 @@ export default class FlightScene extends Phaser.Scene {
 
     this.launchMarker.clear();
     this.launchMarker.fillStyle(0xffd773, 1);
-    this.launchMarker.fillTriangle(-10, -radius - 2, 10, -radius - 2, 0, -radius - 18);
+    this.launchMarker.fillTriangle(
+      -10,
+      -radius - 2,
+      10,
+      -radius - 2,
+      0,
+      -radius - 18,
+    );
   }
 
   drawOrbitGuides() {
-    const targetRadius = FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude;
-    const escapeRadius = FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.earthEscapeAltitude;
+    const targetRadius =
+      FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude;
+    const escapeRadius =
+      FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.earthEscapeAltitude;
 
     this.orbitGraphics.clear();
     this.orbitGraphics.lineStyle(2, 0x68d9ff, 0.22);
-    this.orbitGraphics.strokeCircle(0, 0, FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.atmosphereHeight);
+    this.orbitGraphics.strokeCircle(
+      0,
+      0,
+      FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.atmosphereHeight,
+    );
     this.orbitGraphics.lineStyle(3, 0x73f7c0, 0.34);
     this.orbitGraphics.strokeCircle(0, 0, targetRadius);
     this.orbitGraphics.lineStyle(2, 0xffd98a, 0.25);
@@ -180,10 +204,17 @@ export default class FlightScene extends Phaser.Scene {
   }
 
   createHud() {
-    this.leftHud = this.add
-      .rectangle(190, 184, 316, 306, 0x081624, 0.9)
+    // Left HUD shadow
+    this.add
+      .rectangle(192, 186, 316, 306, 0x000000, 0.3)
       .setScrollFactor(0)
-      .setStrokeStyle(2, 0x68d9ff, 0.2)
+      .setStrokeStyle(2, 0x68d9ff, 0.1)
+      .setDepth(39);
+
+    this.leftHud = this.add
+      .rectangle(190, 184, 316, 306, 0x081624, 0.95)
+      .setScrollFactor(0)
+      .setStrokeStyle(2, 0x68d9ff, 0.35)
       .setDepth(40);
     this.add
       .text(48, 40, "Orbital Telemetry", {
@@ -209,31 +240,46 @@ export default class FlightScene extends Phaser.Scene {
     this.metricsText = this.add
       .text(48, 126, "", {
         fontSize: "17px",
-        color: "#effcff",
+        color: "#d8f7ff",
         lineSpacing: 9,
       })
       .setScrollFactor(0)
       .setDepth(41);
 
-    this.rightHud = this.add
-      .rectangle(this.scale.width - 190, 184, 316, 306, 0x081624, 0.9)
+    // Right HUD shadow
+    this.add
+      .rectangle(this.scale.width - 188, 186, 316, 306, 0x000000, 0.3)
       .setScrollFactor(0)
-      .setStrokeStyle(2, 0x68d9ff, 0.2)
+      .setStrokeStyle(2, 0x68d9ff, 0.1)
+      .setDepth(39);
+
+    this.rightHud = this.add
+      .rectangle(this.scale.width - 190, 184, 316, 306, 0x081624, 0.95)
+      .setScrollFactor(0)
+      .setStrokeStyle(2, 0x68d9ff, 0.35)
       .setDepth(40);
     this.progressText = this.add
       .text(this.scale.width - 334, 40, "", {
         fontSize: "17px",
-        color: "#effcff",
+        color: "#d8f7ff",
         lineSpacing: 9,
         wordWrap: { width: 280 },
       })
       .setScrollFactor(0)
       .setDepth(41);
 
+    // Engine button shadow
+    this.add
+      .rectangle(192, 356, 240, 52, 0x000000, 0.25)
+      .setScrollFactor(0)
+      .setStrokeStyle(2, 0x73f7c0, 0.1)
+      .setDepth(41)
+      .setInteractive({ useHandCursor: true });
+
     this.engineButton = this.add
       .rectangle(190, 354, 240, 52, 0x163248, 0.96)
       .setScrollFactor(0)
-      .setStrokeStyle(2, 0x73f7c0, 0.5)
+      .setStrokeStyle(2, 0x73f7c0, 0.6)
       .setDepth(42)
       .setInteractive({ useHandCursor: true });
     this.engineButtonLabel = this.add
@@ -250,7 +296,7 @@ export default class FlightScene extends Phaser.Scene {
       this.toggleEngine();
     });
     this.engineButton.on("pointerover", () => {
-      this.engineButton.setStrokeStyle(2, 0x73f7c0, 0.9);
+      this.engineButton.setStrokeStyle(2, 0x73f7c0, 1);
     });
     this.engineButton.on("pointerout", () => {
       this.updateEngineButton(this.simulator.state);
@@ -323,7 +369,10 @@ export default class FlightScene extends Phaser.Scene {
     this.trailGraphics.beginPath();
     this.trailGraphics.moveTo(this.flightTrail[0].x, this.flightTrail[0].y);
     for (let index = 1; index < this.flightTrail.length; index += 1) {
-      this.trailGraphics.lineTo(this.flightTrail[index].x, this.flightTrail[index].y);
+      this.trailGraphics.lineTo(
+        this.flightTrail[index].x,
+        this.flightTrail[index].y,
+      );
     }
     this.trailGraphics.strokePath();
   }
@@ -335,7 +384,11 @@ export default class FlightScene extends Phaser.Scene {
       Phaser.Math.Linear(
         FLIGHT_WORLD.planetRadius + 120,
         FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude + 90,
-        Phaser.Math.Clamp(state.altitude / FLIGHT_WORLD.targetOrbitAltitude, 0, 1),
+        Phaser.Math.Clamp(
+          state.altitude / FLIGHT_WORLD.targetOrbitAltitude,
+          0,
+          1,
+        ),
       ),
       state.radius + 70,
     );
@@ -373,7 +426,10 @@ export default class FlightScene extends Phaser.Scene {
   }
 
   updateExhaust(state, time, delta) {
-    const engineCount = Math.max(this.stats.engineCount + this.stats.boosterCount, 1);
+    const engineCount = Math.max(
+      this.stats.engineCount + this.stats.boosterCount,
+      1,
+    );
     const thrustVisual =
       state.engineOn && state.fuelRemaining > 0 ? state.throttle : 0;
     const flameLength =
@@ -433,7 +489,8 @@ export default class FlightScene extends Phaser.Scene {
   }
 
   updateHud(state) {
-    const fuelPct = this.stats.fuel > 0 ? (state.fuelRemaining / this.stats.fuel) * 100 : 0;
+    const fuelPct =
+      this.stats.fuel > 0 ? (state.fuelRemaining / this.stats.fuel) * 100 : 0;
 
     this.metricsText.setText(
       [
@@ -473,14 +530,17 @@ export default class FlightScene extends Phaser.Scene {
 
   updatePilotControls(delta) {
     const leftPressed = this.flightKeys.left.isDown || this.flightKeys.a.isDown;
-    const rightPressed = this.flightKeys.right.isDown || this.flightKeys.d.isDown;
+    const rightPressed =
+      this.flightKeys.right.isDown || this.flightKeys.d.isDown;
     const upPressed = this.flightKeys.up.isDown || this.flightKeys.w.isDown;
     const downPressed = this.flightKeys.down.isDown || this.flightKeys.s.isDown;
     const keyboardSteer = (rightPressed ? 1 : 0) - (leftPressed ? 1 : 0);
     const pointer = this.input.activePointer;
 
-    if (Phaser.Input.Keyboard.JustDown(this.flightKeys.f) ||
-      Phaser.Input.Keyboard.JustDown(this.flightKeys.space)) {
+    if (
+      Phaser.Input.Keyboard.JustDown(this.flightKeys.f) ||
+      Phaser.Input.Keyboard.JustDown(this.flightKeys.space)
+    ) {
       this.toggleEngine();
     }
 
@@ -512,8 +572,14 @@ export default class FlightScene extends Phaser.Scene {
     const rocketWorld = this.simulator.state.position;
     const mouseWorldX = pointer.worldX;
     const mouseWorldY = pointer.worldY;
-    const aimAngle = Math.atan2(mouseWorldY - rocketWorld.y, mouseWorldX - rocketWorld.x);
-    const aimDelta = angleDifference(aimAngle, this.simulator.state.orientation);
+    const aimAngle = Math.atan2(
+      mouseWorldY - rocketWorld.y,
+      mouseWorldX - rocketWorld.x,
+    );
+    const aimDelta = angleDifference(
+      aimAngle,
+      this.simulator.state.orientation,
+    );
 
     if (pointer.x > 0 && pointer.y > 0 && this.controls.engineOn) {
       this.controls.steer = Phaser.Math.Clamp(aimDelta / 0.65, -1, 1);
@@ -542,11 +608,16 @@ export default class FlightScene extends Phaser.Scene {
 
   updateSmokeTrail(state, delta) {
     const lifeStep = delta / 1000;
-    const thrustVisual = state.engineOn && state.fuelRemaining > 0 ? state.throttle : 0;
+    const thrustVisual =
+      state.engineOn && state.fuelRemaining > 0 ? state.throttle : 0;
     const rearX = state.position.x - Math.cos(state.orientation) * 28;
     const rearY = state.position.y - Math.sin(state.orientation) * 28;
     const smokeAmount = Math.round(
-      Phaser.Math.Clamp(thrustVisual * (0.8 + state.atmosphereDensity * 2.8), 0, 4),
+      Phaser.Math.Clamp(
+        thrustVisual * (0.8 + state.atmosphereDensity * 2.8),
+        0,
+        4,
+      ),
     );
 
     for (let index = 0; index < smokeAmount; index += 1) {
@@ -563,7 +634,9 @@ export default class FlightScene extends Phaser.Scene {
           Phaser.Math.FloatBetween(-0.22, 0.22),
         size: Phaser.Math.FloatBetween(8, 13),
         growth: Phaser.Math.FloatBetween(18, 28),
-        life: Phaser.Math.FloatBetween(0.35, 0.85) * (0.65 + state.atmosphereDensity),
+        life:
+          Phaser.Math.FloatBetween(0.35, 0.85) *
+          (0.65 + state.atmosphereDensity),
         maxLife: 1,
         heat: Phaser.Math.FloatBetween(0.15, 0.55),
       });
