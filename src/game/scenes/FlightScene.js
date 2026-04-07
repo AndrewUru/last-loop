@@ -365,6 +365,7 @@ export default class FlightScene extends Phaser.Scene {
           "[F/Space] Engine  [Shift] Full burn",
           "[A/D or arrows] Steer  [W/S or arrows] Cruise",
           "[Wheel or Q/E] Zoom  [R] Reset view  [Esc] Return",
+          "Mouse stays UI-only during flight",
         ].join("\n"),
         {
           fontSize: "14px",
@@ -844,7 +845,9 @@ export default class FlightScene extends Phaser.Scene {
     const upPressed = this.flightKeys.up.isDown || this.flightKeys.w.isDown;
     const downPressed = this.flightKeys.down.isDown || this.flightKeys.s.isDown;
     const keyboardSteer = (rightPressed ? 1 : 0) - (leftPressed ? 1 : 0);
-    const pointer = this.input.activePointer;
+    const steerStrength = 0.52;
+    const steerResponse = Phaser.Math.Clamp(delta * 0.008, 0, 0.18);
+    const desiredSteer = keyboardSteer * steerStrength;
 
     if (
       Phaser.Input.Keyboard.JustDown(this.flightKeys.f) ||
@@ -876,37 +879,22 @@ export default class FlightScene extends Phaser.Scene {
     }
 
     this.controls.throttle = this.controls.engineOn
-      ? pointer.isDown || this.flightKeys.shift.isDown
+      ? this.flightKeys.shift.isDown
         ? 1
         : this.controls.cruiseThrottle
       : 0;
 
-    if (keyboardSteer !== 0) {
-      this.controls.steer = keyboardSteer;
-      this.controls.source = this.controls.engineOn ? "Keyboard" : "Pad";
-      return;
-    }
-
-    const rocketWorld = this.simulator.state.position;
-    const mouseWorldX = pointer.worldX;
-    const mouseWorldY = pointer.worldY;
-    const aimAngle = Math.atan2(
-      mouseWorldY - rocketWorld.y,
-      mouseWorldX - rocketWorld.x,
+    this.controls.steer = Phaser.Math.Linear(
+      this.controls.steer,
+      desiredSteer,
+      steerResponse,
     );
-    const aimDelta = angleDifference(
-      aimAngle,
-      this.simulator.state.orientation,
-    );
-
-    if (pointer.x > 0 && pointer.y > 0 && this.controls.engineOn) {
-      this.controls.steer = Phaser.Math.Clamp(aimDelta / 0.65, -1, 1);
-      this.controls.source = pointer.isDown ? "Mouse + Burn" : "Mouse";
-      return;
-    }
-
-    this.controls.steer = 0;
-    this.controls.source = this.controls.engineOn ? "Stable" : "Pad";
+    this.controls.source =
+      keyboardSteer !== 0
+        ? "Keyboard"
+        : this.controls.engineOn
+          ? "Stabilized"
+          : "Pad";
   }
 
   toggleEngine() {
