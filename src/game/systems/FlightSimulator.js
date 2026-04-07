@@ -25,6 +25,10 @@ export const FLIGHT_WORLD = {
   earthEscapeAltitude: 430,
   orbitLockDuration: 5,
   gravitationalParameter: 4500,
+  simulationRate: 0.05,
+  preOrbitFuelFailureTime: 480,
+  postOrbitFuelFailureTime: 780,
+  missionTimeout: 1200,
 };
 
 export const FLIGHT_TARGETS = {
@@ -54,6 +58,7 @@ export default class FlightSimulator {
       tangentialVelocity: 0,
       fuelRemaining: stats.fuel,
       time: 0,
+      simulationTime: 0,
       orientation: -Math.PI / 2,
       angularVelocity: 0,
       throttle: 0,
@@ -83,6 +88,7 @@ export default class FlightSimulator {
     }
 
     const dt = Math.min(delta / 1000, 0.05);
+    const simulationDt = dt * FLIGHT_WORLD.simulationRate;
     const guidance = clamp(
       this.stats.stability * 0.72 + this.stats.balanceScore * 0.28,
       0.12,
@@ -111,6 +117,7 @@ export default class FlightSimulator {
       (1 - guidance) * (0.2 + atmosphereDensity * 0.9 + clamp(altitude / 260, 0, 0.35));
 
     this.state.time += dt;
+    this.state.simulationTime += simulationDt;
     this.state.throttle = throttle;
     this.state.steerInput = steerInput;
     this.state.engineOn = engineOn;
@@ -118,7 +125,9 @@ export default class FlightSimulator {
     this.state.altitude = altitude;
     this.state.atmosphereDensity = atmosphereDensity;
     this.state.wobble =
-      Math.sin(this.state.time * (2.6 + wobbleStrength * 6.2)) * wobbleStrength * 0.22;
+      Math.sin(this.state.simulationTime * (2.6 + wobbleStrength * 6.2)) *
+      wobbleStrength *
+      0.22;
 
     if (!this.state.launched && throttle > 0.02 && this.state.fuelRemaining > 0.01) {
       this.state.launched = true;
@@ -138,8 +147,9 @@ export default class FlightSimulator {
 
     const turnRate = (0.9 + guidance * 1.3) * (0.8 + atmosphereDensity * 0.3);
     this.state.angularVelocity *= 0.92;
-    this.state.angularVelocity += steerInput * turnRate * dt * 2.8;
-    this.state.orientation += this.state.angularVelocity + this.state.wobble * dt;
+    this.state.angularVelocity += steerInput * turnRate * simulationDt * 2.8;
+    this.state.orientation +=
+      this.state.angularVelocity + this.state.wobble * simulationDt;
 
     const hasFuel = this.state.fuelRemaining > 0.01 && throttle > 0.02;
     let thrustAcceleration = { x: 0, y: 0 };
@@ -157,7 +167,7 @@ export default class FlightSimulator {
 
       const fuelSpent = Math.min(
         this.state.fuelRemaining,
-        this.stats.fuelUse * throttle * dt,
+        this.stats.fuelUse * throttle * simulationDt,
       );
       this.state.fuelRemaining -= fuelSpent;
     }
@@ -178,10 +188,10 @@ export default class FlightSimulator {
       y: gravityAcceleration.y + thrustAcceleration.y + dragAcceleration.y,
     };
 
-    this.state.velocity.x += totalAcceleration.x * dt;
-    this.state.velocity.y += totalAcceleration.y * dt;
-    this.state.position.x += this.state.velocity.x * dt * 60;
-    this.state.position.y += this.state.velocity.y * dt * 60;
+    this.state.velocity.x += totalAcceleration.x * simulationDt;
+    this.state.velocity.y += totalAcceleration.y * simulationDt;
+    this.state.position.x += this.state.velocity.x * simulationDt * 60;
+    this.state.position.y += this.state.velocity.y * simulationDt * 60;
 
     const updatedRadiusVector = { ...this.state.position };
     const updatedRadius = length(updatedRadiusVector);
@@ -266,7 +276,7 @@ export default class FlightSimulator {
       !this.state.orbitAchieved &&
       this.state.apoapsis < FLIGHT_WORLD.targetOrbitAltitude * 0.88 &&
       updatedAltitude < FLIGHT_WORLD.atmosphereHeight * 0.6 &&
-      this.state.time > 24
+      this.state.time > FLIGHT_WORLD.preOrbitFuelFailureTime
     ) {
       return this.fail("Not enough delta-v to reach the orbital corridor.");
     }
@@ -275,12 +285,12 @@ export default class FlightSimulator {
       this.state.fuelRemaining <= 0.01 &&
       this.state.orbitAchieved &&
       updatedAltitude < FLIGHT_WORLD.earthEscapeAltitude * 0.88 &&
-      this.state.time > 42
+      this.state.time > FLIGHT_WORLD.postOrbitFuelFailureTime
     ) {
       return this.fail("The vehicle reached orbit but lacked energy to leave Earth.");
     }
 
-    if (this.state.time > 320) {
+    if (this.state.time > FLIGHT_WORLD.missionTimeout) {
       return this.fail("Mission timed out before Earth departure.");
     }
 
