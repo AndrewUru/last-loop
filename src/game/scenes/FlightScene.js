@@ -5,6 +5,7 @@ import FlightSimulator, {
   FLIGHT_TARGETS,
   FLIGHT_WORLD,
 } from "../systems/FlightSimulator.js";
+import ThreeFlightBackdrop from "../systems/ThreeFlightBackdrop.js";
 import { PARTS_BY_ID } from "../data/parts.js";
 
 function angleDifference(target, current) {
@@ -35,6 +36,7 @@ export default class FlightScene extends Phaser.Scene {
     this.finished = false;
     this.flightTrail = [];
     this.smokeTrail = [];
+    this.padSmokeTrail = [];
     this.input.mouse?.disableContextMenu();
     this.controls = {
       cruiseThrottle: 0.84,
@@ -57,13 +59,20 @@ export default class FlightScene extends Phaser.Scene {
       shift: Phaser.Input.Keyboard.KeyCodes.SHIFT,
     });
 
+    this.setupThreeBackdrop();
     this.createSpaceBackdrop();
     this.createOrbitalWorld();
+    this.createLaunchComplex();
     this.createRocket();
     this.createHud();
 
-    this.cameras.main.centerOn(0, 0);
-    this.cameras.main.setZoom(1.2);
+    this.cameraRig = {
+      x: 0,
+      y: -(FLIGHT_WORLD.planetRadius + 40),
+      zoom: 1.95,
+    };
+    this.cameras.main.centerOn(this.cameraRig.x, this.cameraRig.y);
+    this.cameras.main.setZoom(this.cameraRig.zoom);
 
     this.input.keyboard.on("keydown-ESC", () => {
       this.cameras.main.fadeOut(400, 0, 0, 0);
@@ -71,18 +80,53 @@ export default class FlightScene extends Phaser.Scene {
         this.scene.start("BuildScene", { build: this.build });
       });
     });
+
+    this.events.once("shutdown", () => {
+      this.teardownThreeBackdrop();
+    });
+    this.events.once("destroy", () => {
+      this.teardownThreeBackdrop();
+    });
+  }
+
+  setupThreeBackdrop() {
+    const parent = document.getElementById("game-container");
+    if (!parent) {
+      return;
+    }
+
+    this.game.canvas.style.position = "absolute";
+    this.game.canvas.style.inset = "0";
+    this.game.canvas.style.zIndex = "2";
+    this.game.canvas.style.background = "transparent";
+
+    this.threeBackdrop = new ThreeFlightBackdrop({
+      parent,
+      width: this.scale.width,
+      height: this.scale.height,
+    });
+
+    this.scale.on("resize", this.handleResize, this);
+  }
+
+  teardownThreeBackdrop() {
+    this.scale.off("resize", this.handleResize, this);
+    this.threeBackdrop?.destroy();
+    this.threeBackdrop = null;
+  }
+
+  handleResize(gameSize) {
+    this.threeBackdrop?.resize(gameSize.width, gameSize.height);
   }
 
   createSpaceBackdrop() {
     const { width, height } = this.scale;
-    this.cameras.main.setBackgroundColor("#020712");
+    this.cameras.main.setBackgroundColor("rgba(0,0,0,0)");
 
     this.nebula = this.add.graphics().setScrollFactor(0).setDepth(-100);
-    this.nebula.fillGradientStyle(0x020712, 0x081726, 0x040a12, 0x02050a, 1);
-    this.nebula.fillRect(-width, -height, width * 3, height * 3);
-    this.nebula.fillStyle(0x19456b, 0.12);
+    this.nebula.fillStyle(0x122c47, 0.14);
     this.nebula.fillCircle(width * 0.78, height * 0.22, 180);
-    this.nebula.fillStyle(0xff8e54, 0.08);
+    this.nebula.fillStyle(0xff8e54, 0.1);
     this.nebula.fillCircle(width * 0.25, height * 0.78, 220);
 
     this.stars = Array.from({ length: 120 }, () =>
@@ -92,7 +136,7 @@ export default class FlightScene extends Phaser.Scene {
           Phaser.Math.Between(-height, height * 2),
           Phaser.Math.FloatBetween(1, 2.8),
           Phaser.Math.Between(0xb8daff, 0xffffff),
-          Phaser.Math.FloatBetween(0.18, 0.8),
+          Phaser.Math.FloatBetween(0.04, 0.22),
         )
         .setScrollFactor(0.05)
         .setDepth(-90),
@@ -109,6 +153,64 @@ export default class FlightScene extends Phaser.Scene {
 
     this.drawPlanet();
     this.drawOrbitGuides();
+    this.planetAtmosphere.setAlpha(0.12);
+    this.planetBody.setAlpha(0.08);
+    this.planetDetails.setAlpha(0.08);
+  }
+
+  createLaunchComplex() {
+    const padY = -FLIGHT_WORLD.planetRadius;
+    this.launchPad = this.add.container(0, 0).setDepth(12);
+    this.launchPadSmoke = this.add.graphics().setDepth(12);
+    this.launchPadGlow = this.add.graphics().setDepth(13);
+
+    const deck = this.add.rectangle(0, padY + 36, 320, 38, 0x31424f, 0.96);
+    const deckTop = this.add.rectangle(0, padY + 24, 348, 14, 0x5c7388, 0.96);
+    const trench = this.add.rectangle(0, padY + 52, 92, 30, 0x101820, 0.95);
+    const gantry = this.add.rectangle(68, padY - 118, 34, 276, 0x465868, 0.98);
+    const gantryCore = this.add.rectangle(68, padY - 118, 14, 276, 0x70859c, 0.95);
+    const serviceArmTop = this.add.rectangle(26, padY - 176, 90, 12, 0x6f8298, 0.95);
+    const serviceArmMid = this.add.rectangle(20, padY - 114, 76, 10, 0x6b7a8d, 0.92);
+    const serviceArmLow = this.add.rectangle(16, padY - 42, 58, 10, 0x637487, 0.9);
+    const clampLeft = this.add.rectangle(-26, padY + 8, 18, 44, 0x5d6d7e, 0.95);
+    const clampRight = this.add.rectangle(26, padY + 8, 18, 44, 0x5d6d7e, 0.95);
+    const towerLightA = this.add.circle(68, padY - 212, 5, 0xffe3a1, 0.9);
+    const towerLightB = this.add.circle(68, padY - 164, 4, 0xff9b7a, 0.85);
+
+    this.launchPad.add([
+      deck,
+      deckTop,
+      trench,
+      gantry,
+      gantryCore,
+      serviceArmTop,
+      serviceArmMid,
+      serviceArmLow,
+      clampLeft,
+      clampRight,
+      towerLightA,
+      towerLightB,
+    ]);
+
+    this.horizonClouds = this.add.container(0, 0).setDepth(10);
+    const cloudOffsets = [
+      { x: -150, y: padY + 92, width: 148, height: 54, alpha: 0.2 },
+      { x: -72, y: padY + 78, width: 168, height: 60, alpha: 0.24 },
+      { x: 56, y: padY + 88, width: 176, height: 64, alpha: 0.2 },
+      { x: 168, y: padY + 100, width: 136, height: 48, alpha: 0.14 },
+    ];
+
+    cloudOffsets.forEach((cloud) => {
+      const puff = this.add.ellipse(
+        cloud.x,
+        cloud.y,
+        cloud.width,
+        cloud.height,
+        0xffffff,
+        cloud.alpha,
+      );
+      this.horizonClouds.add(puff);
+    });
   }
 
   drawPlanet() {
@@ -309,11 +411,13 @@ export default class FlightScene extends Phaser.Scene {
 
     this.updateTrail(state);
     this.updateCamera(state);
+    this.updateLaunchComplex(state, delta);
     this.updateStars(state);
     this.updateRocketPose(state);
     this.updateExhaust(state, time, delta);
     this.updateHud(state);
     this.updateEngineButton(state);
+    this.threeBackdrop?.update(state);
 
     if (!this.finished && state.result) {
       this.finished = true;
@@ -379,6 +483,13 @@ export default class FlightScene extends Phaser.Scene {
 
   updateCamera(state) {
     const minViewport = Math.min(this.scale.width, this.scale.height);
+    const launchCinematicProgress = Phaser.Math.Clamp(state.altitude / 60, 0, 1);
+    const cinematicCenterY = state.position.y + 34;
+    const orbitalCenterY = Phaser.Math.Linear(
+      cinematicCenterY,
+      0,
+      Phaser.Math.Clamp(state.altitude / 170, 0, 1),
+    );
     const targetViewRadius = Math.max(
       FLIGHT_WORLD.planetRadius + 120,
       Phaser.Math.Linear(
@@ -392,18 +503,81 @@ export default class FlightScene extends Phaser.Scene {
       ),
       state.radius + 70,
     );
-    const targetZoom = Phaser.Math.Clamp(
+    const orbitalZoom = Phaser.Math.Clamp(
       (minViewport * 0.45) / targetViewRadius,
       0.34,
       1.52,
     );
-
-    this.cameras.main.centerOn(0, 0);
-    this.cameras.main.zoom = Phaser.Math.Linear(
-      this.cameras.main.zoom,
-      targetZoom,
-      0.08,
+    const cinematicZoom = Phaser.Math.Linear(1.95, 1.38, launchCinematicProgress);
+    const targetZoom = Phaser.Math.Linear(
+      cinematicZoom,
+      orbitalZoom,
+      Phaser.Math.Clamp(state.altitude / 130, 0, 1),
     );
+    const targetCenterX = Phaser.Math.Linear(
+      state.position.x * 0.1,
+      0,
+      Phaser.Math.Clamp(state.altitude / 140, 0, 1),
+    );
+    const targetCenterY = state.altitude < 120 ? cinematicCenterY : orbitalCenterY;
+
+    this.cameraRig.x = Phaser.Math.Linear(this.cameraRig.x, targetCenterX, 0.08);
+    this.cameraRig.y = Phaser.Math.Linear(this.cameraRig.y, targetCenterY, 0.08);
+    this.cameraRig.zoom = Phaser.Math.Linear(this.cameraRig.zoom, targetZoom, 0.08);
+
+    this.cameras.main.centerOn(this.cameraRig.x, this.cameraRig.y);
+    this.cameras.main.setZoom(this.cameraRig.zoom);
+  }
+
+  updateLaunchComplex(state, delta) {
+    const altitudeFade = Phaser.Math.Clamp(1 - state.altitude / 120, 0, 1);
+    const lifeStep = delta / 1000;
+    const thrustVisual = state.engineOn && state.fuelRemaining > 0 ? state.throttle : 0;
+    const padY = -FLIGHT_WORLD.planetRadius;
+
+    this.launchPad.setAlpha(0.18 + altitudeFade * 0.82);
+    this.horizonClouds.setAlpha(0.12 + altitudeFade * 0.88);
+    this.launchPadGlow.clear();
+    this.launchPadSmoke.clear();
+
+    if (altitudeFade > 0.02) {
+      this.launchPadGlow.fillStyle(0xffa95a, thrustVisual * altitudeFade * 0.16);
+      this.launchPadGlow.fillEllipse(0, padY + 44, 186, 52);
+    }
+
+    if (thrustVisual > 0.06 && state.altitude < 80) {
+      const smokeBursts = Math.round(2 + thrustVisual * 5 + state.atmosphereDensity * 3);
+      for (let index = 0; index < smokeBursts; index += 1) {
+        this.padSmokeTrail.push({
+          x: Phaser.Math.Between(-34, 34),
+          y: padY + Phaser.Math.Between(12, 32),
+          vx: Phaser.Math.FloatBetween(-0.8, 0.8),
+          vy: Phaser.Math.FloatBetween(0.2, 1.4),
+          size: Phaser.Math.FloatBetween(16, 28),
+          growth: Phaser.Math.FloatBetween(12, 22),
+          life: Phaser.Math.FloatBetween(0.4, 1),
+          maxLife: 1,
+        });
+      }
+    }
+
+    this.padSmokeTrail = this.padSmokeTrail.filter((puff) => {
+      puff.life -= lifeStep;
+      puff.x += puff.vx;
+      puff.y += puff.vy;
+      puff.size += puff.growth * lifeStep;
+
+      if (puff.life <= 0) {
+        return false;
+      }
+
+      const alpha = Phaser.Math.Clamp(puff.life / puff.maxLife, 0, 1) * altitudeFade;
+      this.launchPadSmoke.fillStyle(0xcdd6de, alpha * 0.12);
+      this.launchPadSmoke.fillCircle(puff.x, puff.y, puff.size);
+      this.launchPadSmoke.fillStyle(0x6f7b88, alpha * 0.18);
+      this.launchPadSmoke.fillCircle(puff.x, puff.y, puff.size * 0.72);
+      return alpha > 0.01;
+    });
   }
 
   updateStars(state) {
@@ -414,9 +588,11 @@ export default class FlightScene extends Phaser.Scene {
     );
 
     this.stars.forEach((star, index) => {
-      star.alpha = 0.2 + altitudeProgress * 0.9;
+      star.alpha = 0.02 + altitudeProgress * 1.05;
       star.scale = 0.8 + altitudeProgress * 0.5 + (index % 5) * 0.03;
     });
+
+    this.nebula.setAlpha(0.28 + altitudeProgress * 0.72);
   }
 
   updateRocketPose(state) {
