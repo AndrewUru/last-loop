@@ -34,6 +34,7 @@ export default class FlightScene extends Phaser.Scene {
   create() {
     this.simulator = new FlightSimulator(this.stats);
     this.finished = false;
+    this.missionPhaseId = null;
     this.flightTrail = [];
     this.smokeTrail = [];
     this.padSmokeTrail = [];
@@ -433,6 +434,36 @@ export default class FlightScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(41);
 
+    this.phaseBannerShadow = this.add
+      .rectangle(0, 0, 420, 88, 0x000000, 0.22)
+      .setScrollFactor(0)
+      .setStrokeStyle(2, 0x73f7c0, 0.08)
+      .setDepth(40);
+    this.phaseBanner = this.add
+      .rectangle(0, 0, 420, 88, 0x091824, 0.94)
+      .setScrollFactor(0)
+      .setStrokeStyle(2, 0x73f7c0, 0.4)
+      .setDepth(41);
+    this.phaseBannerTitle = this.add
+      .text(0, 0, "", {
+        fontSize: "22px",
+        color: "#effcff",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(42);
+    this.phaseBannerBody = this.add
+      .text(0, 0, "", {
+        fontSize: "15px",
+        color: "#a9dcf5",
+        align: "center",
+        wordWrap: { width: 360 },
+      })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(42);
+
     this.engineButtonShadow = this.add
       .rectangle(0, 0, 240, 52, 0x000000, 0.25)
       .setScrollFactor(0)
@@ -465,6 +496,10 @@ export default class FlightScene extends Phaser.Scene {
       this.rightHudShadow,
       this.rightHud,
       this.progressText,
+      this.phaseBannerShadow,
+      this.phaseBanner,
+      this.phaseBannerTitle,
+      this.phaseBannerBody,
       this.engineButtonShadow,
       this.engineButton,
       this.engineButtonLabel,
@@ -498,6 +533,7 @@ export default class FlightScene extends Phaser.Scene {
     const panelCenterY = panelTop + panelHeight / 2;
     const innerLeft = leftX - panelWidth / 2 + 16;
     const innerRight = rightX - panelWidth / 2 + 16;
+    const centerX = width / 2;
     const buttonWidth = Phaser.Math.Clamp(Math.round(panelWidth * 0.76), 188, 240);
     const buttonHeight = 52;
     const buttonX = leftX;
@@ -526,6 +562,20 @@ export default class FlightScene extends Phaser.Scene {
     this.progressText.setPosition(innerRight, panelTop + 12);
     this.progressText.setWordWrapWidth(panelWidth - 32);
 
+    const bannerWidth = Phaser.Math.Clamp(
+      Math.round(width * 0.3),
+      320,
+      width - sideMargin * 2 - panelWidth * 2 + 40,
+    );
+    const clampedBannerWidth = Math.max(280, bannerWidth);
+    this.phaseBannerShadow.setPosition(centerX + 2, panelTop + 42);
+    this.phaseBannerShadow.setSize(clampedBannerWidth, 88);
+    this.phaseBanner.setPosition(centerX, panelTop + 40);
+    this.phaseBanner.setSize(clampedBannerWidth, 88);
+    this.phaseBannerTitle.setPosition(centerX, panelTop + 16);
+    this.phaseBannerBody.setPosition(centerX, panelTop + 32);
+    this.phaseBannerBody.setWordWrapWidth(clampedBannerWidth - 44);
+
     this.engineButtonShadow.setPosition(buttonX + 2, buttonY + 2);
     this.engineButtonShadow.setSize(buttonWidth, buttonHeight);
     this.engineButton.setPosition(buttonX, buttonY);
@@ -544,6 +594,7 @@ export default class FlightScene extends Phaser.Scene {
     this.updateStars(state);
     this.updateRocketPose(state);
     this.updateExhaust(state, time, delta);
+    this.updateMissionPhase(state);
     this.updateHud(state);
     this.updateEngineButton(state);
     this.threeBackdrop?.update(state);
@@ -553,14 +604,14 @@ export default class FlightScene extends Phaser.Scene {
       if (state.result === "success") {
         this.fadeOutScene(900);
         this.time.delayedCall(920, () => {
-          this.scene.start("DeepSpaceScene", {
+          this.scene.start("ResultScene", {
             build: this.build,
             stats: this.stats,
-            departure: {
-              altitude: state.altitude,
-              horizontalVelocity: Math.abs(state.tangentialVelocity),
-              time: state.time,
-            },
+            result: state.result,
+            reason: state.reason,
+            altitude: state.altitude,
+            horizontalVelocity: Math.abs(state.tangentialVelocity),
+            time: state.time,
           });
         });
       } else {
@@ -835,6 +886,7 @@ export default class FlightScene extends Phaser.Scene {
     const zoomBiasPct = Math.round(
       (this.manualZoomOffset / this.zoomSettings.step) * 6,
     );
+    const missionPhase = this.getMissionPhase(state);
 
     this.metricsText.setText(
       [
@@ -847,6 +899,7 @@ export default class FlightScene extends Phaser.Scene {
         `Throttle: ${Math.round(state.throttle * 100)}%`,
         `Fuel: ${Math.max(0, fuelPct).toFixed(0)}%`,
         `G-load: ${state.currentG.toFixed(1)} g`,
+        `Mission step: ${missionPhase.index}/${missionPhase.total}`,
         `View zoom: ${this.cameraRig.zoom.toFixed(2)}x`,
         `Zoom trim: ${zoomBiasPct >= 0 ? "+" : ""}${zoomBiasPct}%`,
       ].join("\n"),
@@ -854,24 +907,142 @@ export default class FlightScene extends Phaser.Scene {
 
     this.progressText.setText(
       [
-        "Mission Goal",
+        "Primary Objective",
+        "Place the ship into a stable orbit around Earth.",
+        "",
+        `${missionPhase.label}`,
+        missionPhase.message,
+        "",
         `Orbit altitude: ${FLIGHT_WORLD.targetOrbitAltitude} km`,
         `Target orbital speed: ${FLIGHT_TARGETS.orbitalVelocity.toFixed(2)} km/s`,
-        `Earth departure altitude: ${FLIGHT_WORLD.earthEscapeAltitude} km`,
         `Orbit lock: ${state.orbitHoldTime.toFixed(1)} / ${FLIGHT_WORLD.orbitLockDuration}s`,
-        `Escape progress: ${Math.round(state.escapeProgress * 100)}%`,
         `Apoapsis: ${state.apoapsis.toFixed(1)} km`,
         `Periapsis: ${state.periapsis.toFixed(1)} km`,
         `Pilot input: ${this.controls.source}`,
+        `Checklist: ${this.buildMissionChecklist(state)}`,
         state.reason
           ? `Status: ${state.reason}`
           : state.engineOn
-            ? state.orbitAchieved
-              ? "Status: keep burning until the ship leaves Earth orbit"
-              : "Status: capture orbit first, then push outward"
+            ? `Status: ${missionPhase.status}`
             : "Status: ignite the engine to leave the launch pad",
       ].join("\n"),
     );
+  }
+
+  getMissionPhase(state) {
+    const total = 5;
+
+    if (state.orbitAchieved || state.result === "success" || state.orbitHoldTime > 0.5) {
+      return {
+        id: "hold-orbit",
+        index: 5,
+        total,
+        label: "Phase 5: Hold Orbit",
+        title: "Phase 5/5: Hold Orbit",
+        message:
+          "Stay close to target altitude and keep radial speed low until orbit lock completes.",
+        status: "Hold a clean orbit until the lock timer completes.",
+      };
+    }
+
+    if (!state.launched || state.altitude < 12) {
+      return {
+        id: "launch",
+        index: 1,
+        total,
+        label: "Phase 1: Launch",
+        title: "Phase 1/5: Launch",
+        message:
+          "Ignite the engine and lift off cleanly. Keep the stack steady while leaving the pad.",
+        status: "Climb straight and avoid over-correcting.",
+      };
+    }
+
+    if (state.altitude < FLIGHT_WORLD.atmosphereHeight * 0.55) {
+      return {
+        id: "ascent",
+        index: 2,
+        total,
+        label: "Phase 2: Atmospheric Ascent",
+        title: "Phase 2/5: Atmospheric Ascent",
+        message:
+          "Build altitude first. Stay mostly vertical while the atmosphere is still dense.",
+        status: "Keep rising and save aggressive turning for later.",
+      };
+    }
+
+    if (state.altitude < FLIGHT_WORLD.atmosphereHeight + 35) {
+      return {
+        id: "gravity-turn",
+        index: 3,
+        total,
+        label: "Phase 3: Gravity Turn",
+        title: "Phase 3/5: Gravity Turn",
+        message:
+          "Start a gentle pitch to the side so the rocket trades vertical climb for horizontal speed.",
+        status: "Turn gradually and keep the rocket under control.",
+      };
+    }
+
+    return {
+      id: "circularize",
+      index: 4,
+      total,
+      label: "Phase 4: Circularize",
+      title: "Phase 4/5: Circularize",
+      message:
+        "Match the target orbital corridor by building sideways speed near the target altitude.",
+      status: "Trim altitude and chase orbital velocity, not raw height.",
+    };
+  }
+
+  buildMissionChecklist(state) {
+    const checks = [
+      `${state.launched ? "[x]" : "[ ]"} liftoff`,
+      `${state.altitude >= FLIGHT_WORLD.atmosphereHeight ? "[x]" : "[ ]"} clear atmosphere`,
+      `${Math.abs(state.tangentialVelocity) >= FLIGHT_TARGETS.orbitalVelocity * 0.75 ? "[x]" : "[ ]"} build lateral speed`,
+      `${state.orbitHoldTime > 0.5 ? "[x]" : "[ ]"} stabilize orbit`,
+    ];
+    return checks.join(" ");
+  }
+
+  updateMissionPhase(state) {
+    const missionPhase = this.getMissionPhase(state);
+    if (missionPhase.id === this.missionPhaseId) {
+      return;
+    }
+
+    this.missionPhaseId = missionPhase.id;
+    this.phaseBannerTitle.setText(missionPhase.title);
+    this.phaseBannerBody.setText(missionPhase.message);
+
+    this.tweens.killTweensOf([
+      this.phaseBannerShadow,
+      this.phaseBanner,
+      this.phaseBannerTitle,
+      this.phaseBannerBody,
+    ]);
+
+    [
+      this.phaseBannerShadow,
+      this.phaseBanner,
+      this.phaseBannerTitle,
+      this.phaseBannerBody,
+    ].forEach((object) => {
+      object.setAlpha(0.3);
+    });
+
+    this.tweens.add({
+      targets: [
+        this.phaseBannerShadow,
+        this.phaseBanner,
+        this.phaseBannerTitle,
+        this.phaseBannerBody,
+      ],
+      alpha: 1,
+      duration: 260,
+      ease: "Quad.easeOut",
+    });
   }
 
   updatePilotControls(delta) {
