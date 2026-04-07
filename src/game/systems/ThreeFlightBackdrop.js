@@ -96,6 +96,7 @@ export default class ThreeFlightBackdrop {
       roughness: 0.92,
       metalness: 0.04,
       map: earthTexture,
+      transparent: true,
     });
     this.earthMesh = new THREE.Mesh(
       new THREE.SphereGeometry(5.2, 64, 64),
@@ -132,6 +133,7 @@ export default class ThreeFlightBackdrop {
       color: 0xbbbcc4,
       roughness: 1,
       metalness: 0,
+      transparent: true,
     });
     this.moonMesh = new THREE.Mesh(
       new THREE.SphereGeometry(0.8, 24, 24),
@@ -170,6 +172,7 @@ export default class ThreeFlightBackdrop {
   update(state) {
     const altitudeProgress = THREE.MathUtils.clamp(state.altitude / 260, 0, 1);
     const departureProgress = THREE.MathUtils.clamp(state.altitude / 430, 0, 1);
+    const cinematicPlanetFade = 1 - THREE.MathUtils.clamp((state.altitude - 36) / 150, 0, 1);
 
     this.earthMesh.rotation.y += 0.0018;
     this.cloudMesh.rotation.y += 0.0024;
@@ -183,9 +186,13 @@ export default class ThreeFlightBackdrop {
     const earthScale = THREE.MathUtils.lerp(1.32, 0.54, departureProgress);
     this.planetGroup.scale.setScalar(earthScale);
 
-    this.atmosphereMesh.material.opacity = THREE.MathUtils.lerp(0.22, 0.1, departureProgress);
-    this.cloudMesh.material.opacity = THREE.MathUtils.lerp(0.15, 0.05, departureProgress);
-    this.moonMesh.material.opacity = THREE.MathUtils.lerp(0.65, 0.35, departureProgress);
+    this.earthMesh.material.opacity = THREE.MathUtils.lerp(0.98, 0.12, 1 - cinematicPlanetFade);
+    this.atmosphereMesh.material.opacity =
+      THREE.MathUtils.lerp(0.22, 0.03, 1 - cinematicPlanetFade);
+    this.cloudMesh.material.opacity =
+      THREE.MathUtils.lerp(0.15, 0.02, 1 - cinematicPlanetFade);
+    this.moonMesh.material.opacity =
+      THREE.MathUtils.lerp(0.65, 0.18, 1 - cinematicPlanetFade);
 
     this.camera.position.x = THREE.MathUtils.lerp(0.55, 0, altitudeProgress);
     this.camera.position.y = THREE.MathUtils.lerp(0.8, 1.9, altitudeProgress);

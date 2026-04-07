@@ -153,9 +153,11 @@ export default class FlightScene extends Phaser.Scene {
 
     this.drawPlanet();
     this.drawOrbitGuides();
-    this.planetAtmosphere.setAlpha(0.12);
-    this.planetBody.setAlpha(0.08);
-    this.planetDetails.setAlpha(0.08);
+    this.orbitGraphics.setAlpha(0.04);
+    this.planetAtmosphere.setAlpha(0.02);
+    this.planetBody.setAlpha(0.01);
+    this.planetDetails.setAlpha(0.01);
+    this.launchMarker.setAlpha(0.02);
   }
 
   createLaunchComplex() {
@@ -410,6 +412,7 @@ export default class FlightScene extends Phaser.Scene {
     const state = this.simulator.update(delta, this.controls);
 
     this.updateTrail(state);
+    this.updateOrbitalWorldVisuals(state);
     this.updateCamera(state);
     this.updateLaunchComplex(state, delta);
     this.updateStars(state);
@@ -484,7 +487,7 @@ export default class FlightScene extends Phaser.Scene {
   updateCamera(state) {
     const minViewport = Math.min(this.scale.width, this.scale.height);
     const launchCinematicProgress = Phaser.Math.Clamp(state.altitude / 60, 0, 1);
-    const cinematicCenterY = state.position.y + 34;
+    const cinematicCenterY = state.position.y + 54;
     const orbitalCenterY = Phaser.Math.Linear(
       cinematicCenterY,
       0,
@@ -508,7 +511,7 @@ export default class FlightScene extends Phaser.Scene {
       0.34,
       1.52,
     );
-    const cinematicZoom = Phaser.Math.Linear(1.95, 1.38, launchCinematicProgress);
+    const cinematicZoom = Phaser.Math.Linear(1.7, 1.34, launchCinematicProgress);
     const targetZoom = Phaser.Math.Linear(
       cinematicZoom,
       orbitalZoom,
@@ -527,6 +530,28 @@ export default class FlightScene extends Phaser.Scene {
 
     this.cameras.main.centerOn(this.cameraRig.x, this.cameraRig.y);
     this.cameras.main.setZoom(this.cameraRig.zoom);
+  }
+
+  updateOrbitalWorldVisuals(state) {
+    const orbitalOverlayProgress = Phaser.Math.Clamp(
+      (state.altitude - 36) / 150,
+      0,
+      1,
+    );
+    const guideAlpha = Phaser.Math.Linear(0.04, 0.82, orbitalOverlayProgress);
+    const atmosphereAlpha = Phaser.Math.Linear(
+      0.02,
+      0.12,
+      orbitalOverlayProgress,
+    );
+    const planetAlpha = Phaser.Math.Linear(0.01, 0.08, orbitalOverlayProgress);
+    const detailsAlpha = Phaser.Math.Linear(0.01, 0.09, orbitalOverlayProgress);
+
+    this.orbitGraphics.setAlpha(guideAlpha);
+    this.planetAtmosphere.setAlpha(atmosphereAlpha);
+    this.planetBody.setAlpha(planetAlpha);
+    this.planetDetails.setAlpha(detailsAlpha);
+    this.launchMarker.setAlpha(Phaser.Math.Linear(0.02, 0.86, orbitalOverlayProgress));
   }
 
   updateLaunchComplex(state, delta) {
