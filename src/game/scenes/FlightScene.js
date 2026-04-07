@@ -43,6 +43,13 @@ export default class FlightScene extends Phaser.Scene {
       remaining: 0,
     };
     this.liftoffAssistTime = 0;
+    this.cameraPan = { x: 0, y: 0 };
+    this.cameraDrag = {
+      active: false,
+      pointerId: null,
+      lastX: 0,
+      lastY: 0,
+    };
     this.manualZoomOffset = 0;
     this.zoomSettings = {
       min: 0.28,
@@ -91,6 +98,9 @@ export default class FlightScene extends Phaser.Scene {
     this.worldCamera.centerOn(this.cameraRig.x, this.cameraRig.y);
     this.worldCamera.setZoom(this.cameraRig.zoom);
     this.input.on("wheel", this.handleWheelZoom, this);
+    this.input.on("pointerdown", this.handlePointerDown, this);
+    this.input.on("pointermove", this.handlePointerMove, this);
+    this.input.on("pointerup", this.handlePointerUp, this);
 
     this.input.keyboard.on("keydown-ESC", () => {
       this.fadeOutScene(400);
@@ -141,6 +151,9 @@ export default class FlightScene extends Phaser.Scene {
   teardownThreeBackdrop() {
     this.scale.off("resize", this.handleResize, this);
     this.input.off("wheel", this.handleWheelZoom, this);
+    this.input.off("pointerdown", this.handlePointerDown, this);
+    this.input.off("pointermove", this.handlePointerMove, this);
+    this.input.off("pointerup", this.handlePointerUp, this);
     this.threeBackdrop?.destroy();
     this.threeBackdrop = null;
   }
@@ -519,9 +532,11 @@ export default class FlightScene extends Phaser.Scene {
       Phaser.Math.Clamp(state.altitude / 140, 0, 1),
     );
     const targetCenterY = state.altitude < 120 ? cinematicCenterY : orbitalCenterY;
+    const manualTargetCenterX = targetCenterX + this.cameraPan.x;
+    const manualTargetCenterY = targetCenterY + this.cameraPan.y;
 
-    this.cameraRig.x = Phaser.Math.Linear(this.cameraRig.x, targetCenterX, 0.08);
-    this.cameraRig.y = Phaser.Math.Linear(this.cameraRig.y, targetCenterY, 0.08);
+    this.cameraRig.x = Phaser.Math.Linear(this.cameraRig.x, manualTargetCenterX, 0.08);
+    this.cameraRig.y = Phaser.Math.Linear(this.cameraRig.y, manualTargetCenterY, 0.08);
     this.cameraRig.zoom = Phaser.Math.Linear(this.cameraRig.zoom, targetZoom, 0.08);
 
     this.worldCamera.centerOn(this.cameraRig.x, this.cameraRig.y);
@@ -1020,12 +1035,67 @@ export default class FlightScene extends Phaser.Scene {
     }
   }
 
+  handlePointerDown(pointer, currentlyOver) {
+    if (this.isPointerOverUi(currentlyOver)) {
+      return;
+    }
+
+    if (pointer.rightButtonDown()) {
+      this.resetCameraManualOffset();
+      return;
+    }
+
+    if (!pointer.leftButtonDown()) {
+      return;
+    }
+
+    this.cameraDrag.active = true;
+    this.cameraDrag.pointerId = pointer.id;
+    this.cameraDrag.lastX = pointer.x;
+    this.cameraDrag.lastY = pointer.y;
+  }
+
+  handlePointerMove(pointer) {
+    if (!this.cameraDrag.active || this.cameraDrag.pointerId !== pointer.id) {
+      return;
+    }
+
+    const zoom = Math.max(this.cameraRig.zoom, 0.001);
+    const deltaX = (pointer.x - this.cameraDrag.lastX) / zoom;
+    const deltaY = (pointer.y - this.cameraDrag.lastY) / zoom;
+
+    this.cameraPan.x -= deltaX;
+    this.cameraPan.y -= deltaY;
+    this.cameraDrag.lastX = pointer.x;
+    this.cameraDrag.lastY = pointer.y;
+  }
+
+  handlePointerUp(pointer) {
+    if (this.cameraDrag.pointerId !== pointer.id) {
+      return;
+    }
+
+    this.cameraDrag.active = false;
+    this.cameraDrag.pointerId = null;
+  }
+
   adjustManualZoom(delta) {
     this.manualZoomOffset = Phaser.Math.Clamp(
       this.manualZoomOffset + delta,
       this.zoomSettings.min - 1.1,
       this.zoomSettings.max - 0.34,
     );
+  }
+
+  resetCameraManualOffset() {
+    this.cameraPan.x = 0;
+    this.cameraPan.y = 0;
+    this.cameraDrag.active = false;
+    this.cameraDrag.pointerId = null;
+  }
+
+  isPointerOverUi(currentlyOver = []) {
+    return currentlyOver.some((object) => this.uiObjects.includes(object));
   }
 
   getWorldObjects() {

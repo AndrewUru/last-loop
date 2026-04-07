@@ -38,7 +38,8 @@ export default class FlightHud {
           "[F/Space] Begin launch  [Shift] Full burn",
           "[A/D or arrows] Steer  [W/S or arrows] Cruise",
           "[Wheel or Q/E] Zoom  [R] Reset view  [Esc] Return",
-          "Mouse stays UI-only during flight",
+          "[LMB drag] Pan camera  [RMB] Recenter view",
+          "Mouse does not steer the ship",
         ].join("\n"),
         {
           fontSize: "14px",
