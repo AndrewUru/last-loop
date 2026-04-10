@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="ocean" cx="36%" cy="30%" r="72%">
+      <stop offset="0%" stop-color="#7ed5ff"/>
+      <stop offset="35%" stop-color="#4ea6eb"/>
+      <stop offset="72%" stop-color="#1d5fa8"/>
+      <stop offset="100%" stop-color="#0a254d"/>
+    </radialGradient>
+    <radialGradient id="rim" cx="50%" cy="18%" r="78%">
+      <stop offset="76%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="92%" stop-color="#c9efff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#9fdcff" stop-opacity="0.34"/>
+    </radialGradient>
+    <linearGradient id="night" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#031125" stop-opacity="0.58"/>
+      <stop offset="26%" stop-color="#092346" stop-opacity="0.32"/>
+      <stop offset="52%" stop-color="#0b2d54" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="landA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#88c86d"/>
+      <stop offset="100%" stop-color="#4f8f44"/>
+    </linearGradient>
+    <linearGradient id="landB" x1="10%" y1="0%" x2="100%" y2="90%">
+      <stop offset="0%" stop-color="#74b85f"/>
+      <stop offset="100%" stop-color="#3f7b37"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="512" cy="512" r="492" fill="url(#ocean)"/>
+
+  <g opacity="0.96">
+    <path d="M168 424c34-76 115-132 212-124 42 3 90 26 118 48 26 20 60 26 90 42 38 20 64 53 58 90-8 50-48 80-86 104-40 25-77 58-126 72-64 18-141 15-196-26-60-44-95-117-70-206z" fill="url(#landA)"/>
+    <path d="M526 250c70-54 176-58 252-8 68 44 106 120 98 198-8 74-54 134-114 170-60 36-124 48-192 34-58-12-122-54-138-112-14-52 18-95 52-130 40-42 54-100 42-152z" fill="url(#landB)"/>
+    <path d="M282 660c42-32 98-46 152-28 42 14 72 42 110 64 44 26 104 36 126 84 16 34 4 74-24 100-32 30-80 42-124 44-74 3-148-20-194-76-44-54-70-142-46-188z" fill="url(#landB)"/>
+    <ellipse cx="742" cy="674" rx="110" ry="72" fill="url(#landA)" transform="rotate(-12 742 674)"/>
+  </g>
+
+  <g opacity="0.18" fill="#d6ffd0">
+    <ellipse cx="332" cy="368" rx="102" ry="36" transform="rotate(-18 332 368)"/>
+    <ellipse cx="668" cy="346" rx="126" ry="46" transform="rotate(18 668 346)"/>
+    <ellipse cx="402" cy="758" rx="140" ry="54" transform="rotate(10 402 758)"/>
+  </g>
+
+  <g opacity="0.12" fill="#ffffff">
+    <ellipse cx="514" cy="164" rx="144" ry="52"/>
+    <ellipse cx="264" cy="556" rx="118" ry="42" transform="rotate(-14 264 556)"/>
+    <ellipse cx="784" cy="520" rx="124" ry="40" transform="rotate(16 784 520)"/>
+    <ellipse cx="640" cy="816" rx="164" ry="58" transform="rotate(-8 640 816)"/>
+  </g>
+
+  <circle cx="512" cy="512" r="492" fill="url(#night)"/>
+  <circle cx="512" cy="512" r="492" fill="url(#rim)"/>
+</svg>

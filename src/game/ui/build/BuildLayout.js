@@ -1,8 +1,11 @@
 import Phaser from "phaser";
 import { SHIP_PARTS } from "../../data/parts.js";
+import { getBuildTheme } from "./BuildTheme.js";
 
 export function computeBuildLayout({ width, height, grid, gridZoom }) {
   const compactUi = width < 1500 || height < 920;
+  const theme = getBuildTheme(compactUi);
+  const { spacing, toolbar } = theme;
   const outerPadding = Math.max(28, Math.round(width * 0.018));
   const panelGap = Math.max(26, Math.round(width * 0.014));
   const leftPanelWidth = Phaser.Math.Clamp(
@@ -11,9 +14,9 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
     360,
   );
   const rightPanelWidth = Phaser.Math.Clamp(
-    Math.round(width * 0.21),
-    300,
-    390,
+    Math.round(width * 0.22),
+    312,
+    398,
   );
   const centerStartX = outerPadding + leftPanelWidth + panelGap;
   const centerEndX = width - outerPadding - rightPanelWidth - panelGap;
@@ -30,16 +33,18 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
   const gridX = centerStartX + (centerWidth - gridWidth) / 2;
   const gridY = Math.max(178, Math.round((height - gridHeight) / 2));
   const panelTop = 162;
-  const leftPanelBottom = height - 32;
-  const buttonHeight = 56;
-  const buttonGap = 12;
-  const buttonStackHeight = buttonHeight * 3 + buttonGap * 2;
-  const controlsTextHeight = compactUi ? 88 : 112;
-  const controlsY =
-    leftPanelBottom - buttonStackHeight - controlsTextHeight - 18;
+  const panelHeight = height - 170;
+  const leftPanelBottom = height - spacing.xl;
+  const buttonHeight = toolbar.buttonHeight;
+  const buttonGap = toolbar.buttonGap;
+  const buttonStackHeight = buttonHeight * 2 + buttonGap;
+  const controlsTextHeight = compactUi ? 82 : 92;
+  const toolbarHeight = toolbar.toolbarHeight;
+  const toolbarY = leftPanelBottom - toolbarHeight;
+  const controlsY = toolbarY - controlsTextHeight - spacing.lg;
   const paletteTopY = panelTop + 82;
-  const paletteBottomY = controlsY - 18;
-  const paletteGap = compactUi ? 10 : 14;
+  const paletteBottomY = controlsY - spacing.lg;
+  const paletteGap = compactUi ? spacing.xs : spacing.sm;
   const availablePaletteHeight = Math.max(
     360,
     paletteBottomY - paletteTopY - paletteGap * (SHIP_PARTS.length - 1),
@@ -51,11 +56,21 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
   );
   const cardGapY = cardHeight + paletteGap;
   const cardStartY = paletteTopY + cardHeight / 2;
-  const rightInnerTop = panelTop + 34;
-  const stackBlockHeight = compactUi ? 154 : 190;
-  const validationBlockHeight = compactUi ? 138 : 170;
-  const focusBlockTop =
-    rightInnerTop + stackBlockHeight + validationBlockHeight + 74;
+  const rightColumnX = width - outerPadding - rightPanelWidth + 26;
+  const rightColumnY = panelTop + 34;
+  const rightColumnWidth = rightPanelWidth - 52;
+  const rightColumnHeight = panelHeight - 68;
+  const statsPanelHeight = Phaser.Math.Clamp(
+    Math.round(rightColumnHeight * (compactUi ? 0.57 : 0.55)),
+    compactUi ? 360 : 372,
+    compactUi ? 392 : 410,
+  );
+  const inspectorPanelY = rightColumnY + statsPanelHeight + spacing.lg;
+  const inspectorPanelHeight = Math.max(
+    compactUi ? 208 : 228,
+    rightColumnHeight - statsPanelHeight - spacing.lg,
+  );
+  const toastWidth = Math.min(theme.toast.maxWidth, centerWidth - spacing.xl);
 
   return {
     grid: {
@@ -66,6 +81,7 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
     },
     baseGridCellSize: cellSize,
     gridZoom: gridZoom ?? 1,
+    theme,
     layout: {
       width,
       height,
@@ -84,11 +100,11 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
       leftPanelX: outerPadding + leftPanelWidth / 2,
       rightPanelX: width - outerPadding - rightPanelWidth / 2,
       panelY: height / 2 + 20,
-      panelHeight: height - 170,
+      panelHeight,
       panelTop,
       centerPanelX: centerStartX + centerWidth / 2,
       centerPanelWidth: centerWidth + 36,
-      centerPanelHeight: gridHeight + 70,
+      centerPanelHeight: gridHeight + 88,
       titleX: outerPadding + 18,
       cardWidth: leftPanelWidth - 42,
       cardHeight,
@@ -98,27 +114,36 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
       paletteTopY,
       paletteBottomY,
       paletteIconCellSize: compactUi ? 19 : 22,
-      paletteTitleSize: compactUi ? 16 : 18,
-      paletteMetaSize: compactUi ? 12 : 13,
-      paletteHintSize: compactUi ? 11 : 12,
       controlsX: outerPadding + 18,
       controlsY,
-      launchButtonX: outerPadding + 44,
-      launchButtonY: leftPanelBottom - buttonStackHeight,
-      sideButtonWidth: leftPanelWidth - 88,
-      sideButtonGap: buttonGap,
-      sideButtonHeight: 56,
-      rightTextX: width - outerPadding - rightPanelWidth + 26,
-      rightInnerTop,
-      statsTitleY: rightInnerTop,
-      statsBodyY: rightInnerTop + 36,
-      validationTitleY: rightInnerTop + stackBlockHeight + 22,
-      validationBodyY: rightInnerTop + stackBlockHeight + 58,
-      focusTitleY: focusBlockTop,
-      focusBodyY: focusBlockTop + 36,
-      rightWrapWidth: rightPanelWidth - 52,
-      messageX: gridX,
-      messageY: gridY + gridHeight + 26,
+      toolbarX: outerPadding + 18,
+      toolbarY,
+      toolbarWidth: leftPanelWidth - 36,
+      toolbarHeight,
+      primaryButtonX: outerPadding + 18,
+      primaryButtonY: toolbarY + 78,
+      primaryButtonWidth: leftPanelWidth - 36,
+      primaryButtonHeight: buttonHeight,
+      secondaryButtonX: outerPadding + 18,
+      secondaryButtonY: toolbarY + 78 + buttonHeight + buttonGap,
+      secondaryButtonWidth:
+        Math.floor((leftPanelWidth - 36 - buttonGap) / 2),
+      secondaryButtonGap: buttonGap,
+      rightColumnX,
+      rightColumnY,
+      rightColumnWidth,
+      rightColumnHeight,
+      statsPanelX: rightColumnX,
+      statsPanelY: rightColumnY,
+      statsPanelWidth: rightColumnWidth,
+      statsPanelHeight,
+      inspectorPanelX: rightColumnX,
+      inspectorPanelY,
+      inspectorPanelWidth: rightColumnWidth,
+      inspectorPanelHeight,
+      messageX: centerStartX + centerWidth / 2,
+      messageY: gridY + gridHeight + spacing.xl,
+      toastWidth,
     },
   };
 }

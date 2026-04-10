@@ -161,6 +161,10 @@ export default class ThreeFlightBackdrop {
     });
     this.starField = new THREE.Points(starGeometry, starMaterial);
     this.scene.add(this.starField);
+
+    // The main Earth view is now rendered inside Phaser with authored art.
+    this.planetGroup.visible = false;
+    this.moonMesh.visible = false;
   }
 
   resize(width, height) {
