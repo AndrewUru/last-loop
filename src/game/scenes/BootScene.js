@@ -160,6 +160,8 @@ export default class BootScene extends Phaser.Scene {
   createRocketShowcase(width, height) {
     const stageX = width * 0.74;
     const stageY = height * 0.44;
+    const showcaseCellSize = 62;
+    const stackOverlap = 4;
 
     this.add
       .rectangle(stageX, stageY, 320, 420, 0x091723, 0.82)
@@ -170,21 +172,40 @@ export default class BootScene extends Phaser.Scene {
       .ellipse(stageX, stageY + 158, 320, 58, 0x8fd7ff, 0.06);
 
     const showcase = this.add.container(stageX, stageY + 10);
-    const parts = [
-      { id: "capsule", y: -88 },
-      { id: "fuel_tank_large", y: -6 },
-      { id: "engine_main", y: 104 },
-    ];
+    const parts = ["capsule", "fuel_tank_large", "engine_main"];
+    const partViews = [];
+    let engineView = null;
+    let engineDefinition = null;
 
-    parts.forEach((part) => {
-      const definition = PARTS_BY_ID[part.id];
-      const view = new ShipPart(this, 0, part.y, definition, {
-        cellSize: 62,
+    parts.forEach((partId) => {
+      const definition = PARTS_BY_ID[partId];
+      const view = new ShipPart(this, 0, 0, definition, {
+        cellSize: showcaseCellSize,
         padding: 0,
         showLabel: false,
         showPlate: false,
       });
+
+      const visualHeight = view.sprite?.displayHeight ?? definition.gridHeight * showcaseCellSize;
+      const visualWidth = view.sprite?.displayWidth ?? definition.gridWidth * showcaseCellSize;
+      partViews.push({ view, definition, visualHeight, visualWidth });
       showcase.add(view);
+
+      if (partId === "engine_main") {
+        engineView = view;
+        engineDefinition = definition;
+      }
+    });
+
+    const totalHeight =
+      partViews.reduce((sum, part) => sum + part.visualHeight, 0) -
+      stackOverlap * Math.max(0, partViews.length - 1);
+    let currentTop = -totalHeight / 2;
+
+    partViews.forEach((part) => {
+      const centerY = currentTop + part.visualHeight / 2;
+      part.view.setPosition(0, centerY);
+      currentTop += part.visualHeight - stackOverlap;
     });
 
     const flame = this.add.graphics();
@@ -204,11 +225,40 @@ export default class BootScene extends Phaser.Scene {
       loop: true,
       callback: () => {
         flame.clear();
+        if (!engineView) {
+          return;
+        }
+
+        const engineHeight =
+          engineView.sprite?.displayHeight ??
+          engineDefinition.gridHeight * showcaseCellSize;
+        const engineWidth =
+          engineView.sprite?.displayWidth ??
+          engineDefinition.gridWidth * showcaseCellSize;
+        const exhaustY =
+          engineView.y + engineHeight * (engineDefinition.exhaustOffsetY ?? 0.42);
+        const innerHalfWidth = Math.max(10, engineWidth * 0.18);
+        const outerHalfWidth = Math.max(16, engineWidth * 0.3);
         const pulse = 1 + Math.sin(this.time.now / 110) * 0.12;
+
         flame.fillStyle(0xfff0aa, 0.92);
-        flame.fillTriangle(-14, 124, 14, 124, 0, 124 + 54 * pulse);
+        flame.fillTriangle(
+          -innerHalfWidth,
+          exhaustY,
+          innerHalfWidth,
+          exhaustY,
+          0,
+          exhaustY + 54 * pulse,
+        );
         flame.fillStyle(0xff8b3d, 0.62);
-        flame.fillTriangle(-24, 124, 24, 124, 0, 124 + 82 * pulse);
+        flame.fillTriangle(
+          -outerHalfWidth,
+          exhaustY,
+          outerHalfWidth,
+          exhaustY,
+          0,
+          exhaustY + 82 * pulse,
+        );
       },
     });
 

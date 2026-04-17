@@ -183,7 +183,7 @@ export default class BuildSurface {
       .setLineWidth(2)
       .setDepth(2);
 
-    this.gridCaption = this.scene.add.text(0, 0, "Zoom the grid with the mouse wheel.", {
+    this.gridCaption = this.scene.add.text(0, 0, "Drag modules onto the grid or click an empty cell to place the selected one.", {
       fontSize: `${this.theme.fontSizes.caption}px`,
       color: colors.textMuted,
     });

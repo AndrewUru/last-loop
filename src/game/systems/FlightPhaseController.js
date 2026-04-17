@@ -136,8 +136,8 @@ export default class FlightPhaseController {
     const pitchDegrees = radToDeg(state.localOrientation);
     const inOrbitWindow =
       altitude >= world.orbitMinAltitude &&
-      altitude <= world.earthEscapeAltitude &&
-      horizontalSpeed >= world.orbitTargetHorizontalSpeed &&
+      altitude <= world.targetOrbitAltitude + 70 &&
+      horizontalSpeed >= world.orbitTargetHorizontalSpeed * 0.96 &&
       Math.abs(verticalSpeed) <= world.orbitVerticalTolerance &&
       pitchDegrees >= world.orbitAngleMin &&
       pitchDegrees <= world.orbitAngleMax;
@@ -232,7 +232,10 @@ export default class FlightPhaseController {
       nextPhase = FLIGHT_PHASES.LIFTOFF;
     } else if (altitude < world.turnStartAltitude) {
       nextPhase = FLIGHT_PHASES.ASCENT;
-    } else if (altitude < world.orbitMinAltitude) {
+    } else if (
+      altitude < world.orbitMinAltitude ||
+      horizontalSpeed < world.orbitTargetHorizontalSpeed * 0.72
+    ) {
       nextPhase = FLIGHT_PHASES.GRAVITY_TURN;
     } else if (state.orbitHoldTime > 0.08 || state.orbitAchieved) {
       nextPhase = FLIGHT_PHASES.ORBIT;

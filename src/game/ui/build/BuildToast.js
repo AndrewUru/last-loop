@@ -57,7 +57,25 @@ export default class BuildToast {
   }
 
   show(message) {
-    this.text.setText(message);
+    const payload =
+      typeof message === "string"
+        ? {
+            tone: "neutral",
+            label: "NOTICE",
+            message,
+          }
+        : {
+            tone: message?.tone || "neutral",
+            label: message?.label || "NOTICE",
+            message: message?.message || "",
+          };
+    const tone = this.theme.status[payload.tone] || this.theme.status.neutral;
+
+    this.label.setText(payload.label);
+    this.text.setText(payload.message);
+    this.background.setFillStyle(tone.fill, this.theme.alpha.toastFill);
+    this.background.setStrokeStyle(2, tone.stroke, 0.32);
+    this.accent.setFillStyle(tone.stroke, 0.96);
     this.scene.tweens.killTweensOf(this.root);
     this.root.setVisible(true);
     this.root.setAlpha(0);

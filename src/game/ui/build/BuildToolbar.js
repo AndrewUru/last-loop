@@ -5,7 +5,7 @@ function toColor(hexColor) {
 }
 
 export default class BuildToolbar {
-  constructor(scene, { layout, theme, onLaunch, onClear, onRemove }) {
+  constructor(scene, { layout, theme, onLaunch, onClear, onRemove, onReset }) {
     this.scene = scene;
     this.layout = layout;
     this.theme = theme;
@@ -43,6 +43,15 @@ export default class BuildToolbar {
       callback: onRemove,
       eyebrow: "Secondary",
     });
+    this.resetButton = this.createButton({
+      label: "Reset to Default",
+      variant: theme.toolbar.buttons.secondary,
+      x: layout.tertiaryButtonX,
+      y: layout.tertiaryButtonY,
+      width: layout.tertiaryButtonWidth,
+      callback: onReset,
+      eyebrow: "Starter",
+    });
 
     this.setRemoveEnabled(false);
   }
@@ -58,7 +67,7 @@ export default class BuildToolbar {
     this.scene.add.text(
       this.layout.controlsX,
       this.layout.controlsY + spacing.lg,
-      "Drag modules from the catalog to add them.\nClick to select a placed part, drag to reposition it, and right click for part actions.",
+      "Drag modules from the catalog to add them.\nClick to select a placed part, drag to reposition it, and use Reset to restore the starter rocket.",
       {
         fontSize: `${toolbar.bodySize}px`,
         color: colors.textSecondary,
@@ -267,5 +276,9 @@ export default class BuildToolbar {
 
   setRemoveEnabled(enabled) {
     this.removeButton.setDisabled(!enabled);
+  }
+
+  setLaunchEnabled(enabled) {
+    this.launchButton.setDisabled(!enabled);
   }
 }

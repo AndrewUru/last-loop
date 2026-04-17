@@ -71,6 +71,7 @@ export const SHIP_PARTS = [
     gridHeight: 1,
     iconScale: 0.98,
     displayScale: 0.98,
+    exhaustOffsetY: 0.34,
     mass: 14,
     fuel: 0,
     thrust: 58,

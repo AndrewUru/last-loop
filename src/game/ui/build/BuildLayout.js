@@ -37,9 +37,12 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
   const leftPanelBottom = height - spacing.xl;
   const buttonHeight = toolbar.buttonHeight;
   const buttonGap = toolbar.buttonGap;
-  const buttonStackHeight = buttonHeight * 2 + buttonGap;
+  const toolbarButtonStartOffset = 78;
+  const toolbarHeight = Math.max(
+    toolbar.toolbarHeight,
+    toolbarButtonStartOffset + buttonHeight * 3 + buttonGap * 2 + spacing.md,
+  );
   const controlsTextHeight = compactUi ? 82 : 92;
-  const toolbarHeight = toolbar.toolbarHeight;
   const toolbarY = leftPanelBottom - toolbarHeight;
   const controlsY = toolbarY - controlsTextHeight - spacing.lg;
   const paletteTopY = panelTop + 82;
@@ -129,6 +132,9 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
       secondaryButtonWidth:
         Math.floor((leftPanelWidth - 36 - buttonGap) / 2),
       secondaryButtonGap: buttonGap,
+      tertiaryButtonX: outerPadding + 18,
+      tertiaryButtonY: toolbarY + 78 + (buttonHeight + buttonGap) * 2,
+      tertiaryButtonWidth: leftPanelWidth - 36,
       rightColumnX,
       rightColumnY,
       rightColumnWidth,

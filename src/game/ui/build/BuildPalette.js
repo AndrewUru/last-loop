@@ -12,6 +12,7 @@ export function createBuildPalette(scene) {
     paletteIconCellSize,
   } = scene.layout;
   const { colors, palette, spacing, chips } = scene.theme;
+  scene.paletteCards = new Map();
 
   SHIP_PARTS.forEach((part, index) => {
     const card = scene.add.container(cardX, cardStartY + index * cardGapY);
@@ -109,6 +110,17 @@ export function createBuildPalette(scene) {
     );
 
     const originalScale = card.scale;
+    scene.paletteCards.set(part.id, {
+      card,
+      background,
+      inner,
+      accentStrip,
+      title,
+      meta,
+      hint,
+      roleChip,
+      originalScale,
+    });
     card.on("pointerdown", (pointer) => scene.beginPaletteDrag(part, pointer));
     card.on("pointerover", () => {
       scene.setHoveredInfo({ source: "palette", partId: part.id });
@@ -123,14 +135,9 @@ export function createBuildPalette(scene) {
     });
     card.on("pointerout", () => {
       scene.clearHoveredInfo("palette", part.id);
-      background.setStrokeStyle(2, part.color, 0.3);
-      inner.setFillStyle(colors.cardFillAlt, 0.5);
-      scene.tweens.add({
-        targets: card,
-        scale: originalScale,
-        duration: 150,
-        ease: "Quad.easeOut",
-      });
+      scene.syncPaletteSelection?.();
     });
   });
+
+  scene.syncPaletteSelection?.();
 }
