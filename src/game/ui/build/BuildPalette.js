@@ -12,6 +12,7 @@ export function createBuildPalette(scene) {
     paletteIconCellSize,
   } = scene.layout;
   const { colors, palette, spacing, chips } = scene.theme;
+  const compact = scene.layout.compactUi;
   scene.paletteCards = new Map();
 
   SHIP_PARTS.forEach((part, index) => {
@@ -33,18 +34,19 @@ export function createBuildPalette(scene) {
       part.color,
       0.96,
     );
+    const iconCenterX = -cardWidth / 2 + (compact ? 32 : 50);
+    const textStartX = -cardWidth / 2 + (compact ? 58 : 92);
     const iconRing = scene.add
       .rectangle(
-        -cardWidth / 2 + 50,
+        iconCenterX,
         0,
-        58,
-        58,
+        compact ? 38 : 58,
+        compact ? 38 : 58,
         colors.panelInsetAlt,
         0.92,
       )
       .setStrokeStyle(1, part.color, 0.22);
-
-    const icon = new ShipPart(scene, -cardWidth / 2 + 50, 0, part, {
+    const icon = new ShipPart(scene, iconCenterX, 0, part, {
       cellSize: paletteIconCellSize,
       padding: 1,
       showLabel: false,
@@ -52,7 +54,7 @@ export function createBuildPalette(scene) {
       iconMode: true,
     });
     const title = scene.add
-      .text(-cardWidth / 2 + 92, -26, part.name, {
+      .text(textStartX, compact ? -10 : -26, part.name, {
         fontSize: `${palette.titleSize}px`,
         color: colors.textPrimary,
         fontStyle: "bold",
@@ -60,25 +62,27 @@ export function createBuildPalette(scene) {
       .setOrigin(0, 0.5);
     const meta = scene.add
       .text(
-        -cardWidth / 2 + 92,
-        0,
-        `M ${part.mass}   F ${part.fuel}   T ${part.thrust}`,
+        textStartX,
+        compact ? 10 : 0,
+        compact
+          ? `M ${part.mass}  F ${part.fuel}  T ${part.thrust}`
+          : `M ${part.mass}   F ${part.fuel}   T ${part.thrust}`,
         {
           fontSize: `${palette.metaSize}px`,
           color: colors.textMuted,
-          wordWrap: { width: cardWidth - 114 },
+          wordWrap: { width: compact ? cardWidth - 72 : cardWidth - 114 },
         },
       )
       .setOrigin(0, 0.5);
     const hint = scene.add
-      .text(-cardWidth / 2 + 92, 28, part.description, {
+      .text(textStartX, compact ? 24 : 28, compact ? "" : part.description, {
         fontSize: `${palette.hintSize}px`,
         color: colors.textSecondary,
-        wordWrap: { width: cardWidth - 114 },
+        wordWrap: { width: compact ? cardWidth - 72 : cardWidth - 114 },
       })
       .setOrigin(0, 0.5);
     const roleChip = scene.add
-      .text(cardWidth / 2 - spacing.md, -26, part.role.toUpperCase(), {
+      .text(cardWidth / 2 - spacing.md, compact ? -10 : -26, compact ? part.shortLabel : part.role.toUpperCase(), {
         fontSize: `${palette.roleChipSize}px`,
         color: colors.chipText,
         backgroundColor: colors.chipFill,

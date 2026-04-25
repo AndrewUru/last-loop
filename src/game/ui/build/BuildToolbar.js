@@ -20,19 +20,19 @@ export default class BuildToolbar {
       y: layout.primaryButtonY,
       width: layout.primaryButtonWidth,
       callback: onLaunch,
-      eyebrow: "Primary Action",
+      eyebrow: "PRIMARY",
     });
     this.clearButton = this.createButton({
-      label: "Clear Build",
+      label: "Clear",
       variant: theme.toolbar.buttons.clear,
       x: layout.secondaryButtonX,
       y: layout.secondaryButtonY,
       width: layout.secondaryButtonWidth,
       callback: onClear,
-      eyebrow: "Secondary",
+      eyebrow: "UTILITY",
     });
     this.removeButton = this.createButton({
-      label: "Remove Selected",
+      label: "Remove",
       variant: theme.toolbar.buttons.remove,
       x:
         layout.secondaryButtonX +
@@ -41,16 +41,16 @@ export default class BuildToolbar {
       y: layout.secondaryButtonY,
       width: layout.secondaryButtonWidth,
       callback: onRemove,
-      eyebrow: "Secondary",
+      eyebrow: "UTILITY",
     });
     this.resetButton = this.createButton({
-      label: "Reset to Default",
+      label: "Restore",
       variant: theme.toolbar.buttons.secondary,
       x: layout.tertiaryButtonX,
       y: layout.tertiaryButtonY,
       width: layout.tertiaryButtonWidth,
       callback: onReset,
-      eyebrow: "Starter",
+      eyebrow: "DEFAULT",
     });
 
     this.setRemoveEnabled(false);
@@ -58,8 +58,9 @@ export default class BuildToolbar {
 
   createInstructions() {
     const { colors, toolbar, spacing, chips } = this.theme;
+    const compact = this.layout.compactUi;
 
-    this.scene.add.text(this.layout.controlsX, this.layout.controlsY, "Control Notes", {
+    this.scene.add.text(this.layout.controlsX, this.layout.controlsY, "Build Notes", {
       fontSize: `${toolbar.titleSize}px`,
       color: colors.textPrimary,
       fontStyle: "bold",
@@ -67,19 +68,21 @@ export default class BuildToolbar {
     this.scene.add.text(
       this.layout.controlsX,
       this.layout.controlsY + spacing.lg,
-      "Drag modules from the catalog to add them.\nClick to select a placed part, drag to reposition it, and use Reset to restore the starter rocket.",
+      compact
+        ? "Drag to add. Drag placed parts to move.\nRestore reloads the baseline ship."
+        : "Drag modules from the catalog to add them.\nSelect a placed part to inspect it, drag to reposition it, and use Restore to recover the baseline vehicle.",
       {
         fontSize: `${toolbar.bodySize}px`,
         color: colors.textSecondary,
-        lineSpacing: 5,
-        wordWrap: { width: this.layout.leftPanelWidth - 42 },
+        lineSpacing: compact ? 2 : 5,
+        wordWrap: { width: this.layout.leftPanelWidth - (compact ? 20 : 42) },
       },
     );
     this.scene.add
       .text(
         this.layout.controlsX,
         this.layout.controlsY - spacing.md,
-        "Toolbar",
+        "COMMANDS",
         {
           fontSize: `${toolbar.sectionLabelSize}px`,
           color: colors.textAccent,
@@ -91,7 +94,8 @@ export default class BuildToolbar {
   }
 
   createToolbarShell() {
-    const { colors, spacing, radii } = this.theme;
+    const { colors, spacing } = this.theme;
+    const compact = this.layout.compactUi;
 
     this.toolbarShadow = this.scene.add
       .rectangle(
@@ -126,7 +130,7 @@ export default class BuildToolbar {
     this.toolbarTitle = this.scene.add.text(
       this.layout.toolbarX + spacing.md,
       this.layout.toolbarY + spacing.md,
-      "Command Toolbar",
+      "Pad Controls",
       {
         fontSize: `${this.theme.toolbar.titleSize}px`,
         color: colors.textPrimary,
@@ -135,8 +139,10 @@ export default class BuildToolbar {
     );
     this.toolbarBody = this.scene.add.text(
       this.layout.toolbarX + spacing.md,
-      this.layout.toolbarY + spacing.md + 24,
-      "Launch is the primary action. Utility controls stay grouped below for quick iteration.",
+      this.layout.toolbarY + spacing.md + (compact ? 16 : 24),
+      compact
+        ? "Launch uses the current build."
+        : "Launch commits the current vehicle. Utility controls stay grouped below for rapid rebuild cycles.",
       {
         fontSize: `${this.theme.toolbar.bodySize}px`,
         color: colors.textMuted,
@@ -147,6 +153,7 @@ export default class BuildToolbar {
 
   createButton({ label, variant, x, y, width, callback, eyebrow }) {
     const { buttons, toolbar, colors, spacing, fontSizes } = this.theme;
+    const compact = this.layout.compactUi;
     const fillColor = toColor(variant.fill);
     const fillHoverColor = toColor(variant.fillHover);
     const strokeColor = toColor(variant.stroke);
@@ -186,7 +193,7 @@ export default class BuildToolbar {
       .setStrokeStyle(buttons.borderWidth, strokeColor, buttons.baseStrokeAlpha)
       .setInteractive({ useHandCursor: true });
     const eyebrowText = this.scene.add
-      .text(spacing.sm, spacing.xs, eyebrow, {
+      .text(spacing.sm, compact ? 4 : spacing.xs, eyebrow, {
         fontSize: `${fontSizes.micro}px`,
         color: colors.textMuted,
         fontStyle: "bold",
@@ -194,7 +201,7 @@ export default class BuildToolbar {
       })
       .setAlpha(0.9);
     const labelText = this.scene.add
-      .text(spacing.sm, this.layout.primaryButtonHeight / 2 + 4, label, {
+      .text(spacing.sm, this.layout.primaryButtonHeight / 2 + (compact ? 1 : 4), label, {
         fontSize: `${toolbar.buttonTextSize}px`,
         color: colors.textPrimary,
         fontStyle: "bold",

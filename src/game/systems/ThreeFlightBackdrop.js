@@ -165,7 +165,32 @@ export default class ThreeFlightBackdrop {
     // The main Earth view is now rendered inside Phaser with authored art.
     this.planetGroup.visible = false;
     this.moonMesh.visible = false;
-  }
+
+    // Nuevo: Sistema de partículas para humo y fuego
+    this.smokeParticles = new THREE.Group();
+    this.scene.add(this.smokeParticles);
+
+    this.fireParticles = new THREE.Group();
+    this.scene.add(this.fireParticles);
+
+    // Geometría y material para humo
+    this.smokeGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+    this.smokeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xcccccc,
+      transparent: true,
+      opacity: 0.6,
+    });
+
+    // Geometría y material para fuego
+    this.fireGeometry = new THREE.SphereGeometry(0.05, 6, 6);
+    this.fireMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff4500,
+      transparent: true,
+      opacity: 0.8,
+    });
+
+    this.particlePool = [];  // Pool para reutilizar partículas
+    this.maxParticles = 100;
 
   resize(width, height) {
     this.camera.aspect = width / height;
@@ -208,6 +233,27 @@ export default class ThreeFlightBackdrop {
     );
 
     this.starField.rotation.y += 0.00018;
+
+    // Nuevo: Emitir partículas de humo y fuego durante lanzamiento para sensación de velocidad
+    const isLaunching = state.altitude < 50 && state.thrust > 0;
+    if (isLaunching) {
+      // Emitir humo: más partículas para densidad y expansión rápida
+      for (let i = 0; i < 8; i++) {  // Aumentado de 5 a 8 para más densidad
+        this.emitParticle(this.smokeParticles, this.smokeGeometry, this.smokeMaterial, 
+          { x: 0, y: -5, z: 0 }, 
+          { x: Math.random() * 0.2 - 0.1, y: Math.random() * 0.3 + 0.1, z: Math.random() * 0.2 - 0.1 });
+      }
+      // Emitir fuego: más intenso y rápido para sensación de potencia
+      for (let i = 0; i < 15; i++) {  // Aumentado de 10 a 15 para más intensidad
+        this.emitParticle(this.fireParticles, this.fireGeometry, this.fireMaterial, 
+          { x: 0, y: -5, z: 0 }, 
+          { x: Math.random() * 0.3 - 0.15, y: Math.random() * 0.8 + 0.3, z: Math.random() * 0.3 - 0.15 });
+      }
+    }
+
+    // Actualizar partículas
+    this.updateParticles();
+
     this.renderer.render(this.scene, this.camera);
   }
 

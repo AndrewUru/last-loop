@@ -38,7 +38,7 @@ export const FLIGHT_WORLD = {
   thrustScale: 0.2,
   fuelBurnScale: 0.32,
   fuelMassFactor: 0.16,
-  baseTurnAuthority: 1.35,
+  baseTurnAuthority: 3.1,
   angularDamping: 4.2,
   dragBase: 0.0078,
   dragWidthPenalty: 0.001,
@@ -185,13 +185,6 @@ export default class FlightModel {
     return degToRad(-16);
   }
 
-  getManualTargetAngle(state) {
-    const manualRange = degToRad(
-      clamp(16 - state.altitude * 0.025, 5, 16) * (0.9 + (1 - this.guidance) * 0.15),
-    );
-    return this.getStabilityTargetAngle(state) + state.steerInput * manualRange;
-  }
-
   getLaunchAssistMultiplier(state) {
     const assistProgress = clamp(
       state.altitude / Math.max(FLIGHT_WORLD.launchAssistAltitude, 1),
@@ -207,17 +200,33 @@ export default class FlightModel {
   }
 
   updateOrientation(state, dt) {
-    const targetAngle = this.getManualTargetAngle(state);
-    const maxTurnRate = degToRad(24 + this.guidance * 18);
-    const delta = angleDifference(targetAngle, state.localOrientation);
-    const appliedTurn = clamp(delta, -maxTurnRate * dt, maxTurnRate * dt);
+    const controlAuthority = degToRad(130 + this.guidance * 42) * this.turnAuthority;
+    const angularDrag = 1.35 - this.guidance * 0.28;
+    const maxTurnRate = degToRad(110 + this.guidance * 34);
 
-    state.angularVelocity = appliedTurn / Math.max(dt, 0.0001);
+    if (Math.abs(state.steerInput) > 0.001) {
+      state.angularVelocity += state.steerInput * controlAuthority * dt;
+    } else {
+      state.angularVelocity *= Math.max(0, 1 - dt * angularDrag);
+    }
+
+    state.angularVelocity = clamp(
+      state.angularVelocity,
+      -maxTurnRate,
+      maxTurnRate,
+    );
     state.localOrientation = clamp(
-      state.localOrientation + appliedTurn,
+      state.localOrientation + state.angularVelocity * dt,
       this.maxPitchUp,
       this.maxPitchDown,
     );
+
+    if (
+      (state.localOrientation === this.maxPitchUp && state.angularVelocity < 0) ||
+      (state.localOrientation === this.maxPitchDown && state.angularVelocity > 0)
+    ) {
+      state.angularVelocity = 0;
+    }
   }
 
   buildWorldPose(

@@ -1,5 +1,3 @@
-import Phaser from "phaser";
-
 export default class BuildSurface {
   constructor(scene, { layout, grid, theme }) {
     this.scene = scene;
@@ -14,54 +12,105 @@ export default class BuildSurface {
 
   createBackground() {
     const { width, height, titleX } = this.layout;
-    const { colors, depth, stars, title } = this.theme;
+    const { colors, depth, title, surface } = this.theme;
+    const compact = this.layout.compactUi;
+    const kickerY = compact ? 16 : 26;
+    const headlineY = compact ? 28 : 42;
+    const descriptionY = compact ? 56 : 88;
 
-    this.nebula = this.scene.add.graphics().setDepth(depth.background);
-    this.nebula.fillGradientStyle(
-      colors.backgroundTopLeft,
+    this.paper = this.scene.add.graphics().setDepth(depth.background);
+    this.paper.fillStyle(colors.paperBackground, 1);
+    this.paper.fillRect(0, 0, width, height);
+    this.paper.fillGradientStyle(
+      colors.paperInnerGlow,
       colors.backgroundTopRight,
       colors.backgroundBottomRight,
       colors.backgroundBottomLeft,
-      1,
+      surface.innerGlowAlpha,
     );
-    this.nebula.fillRect(0, 0, width, height);
-    this.nebula.fillStyle(colors.nebulaBlue, 0.18);
-    this.nebula.fillCircle(width * 0.78, height * 0.18, 160);
-    this.nebula.fillStyle(colors.nebulaOrange, 0.08);
-    this.nebula.fillCircle(width * 0.22, height * 0.82, 220);
+    this.paper.fillRect(0, 0, width, height);
 
-    for (let index = 0; index < stars.count; index += 1) {
-      this.scene.add
-        .circle(
-          Phaser.Math.Between(0, width),
-          Phaser.Math.Between(0, height),
-          Phaser.Math.FloatBetween(stars.minRadius, stars.maxRadius),
-          Phaser.Math.Between(0xb6dfff, 0xffffff),
-          Phaser.Math.FloatBetween(stars.minAlpha, stars.maxAlpha),
-        )
-        .setDepth(depth.stars);
-    }
+    this.drawPaperGrid(width, height);
 
-    this.kickerText = this.scene.add.text(titleX, 26, "Assembly & Validation Deck", {
+    this.kickerText = this.scene.add.text(titleX, kickerY, "VEHICLE ASSEMBLY", {
       fontSize: `${title.kickerSize}px`,
       color: colors.textSuccess,
       fontStyle: "bold",
       letterSpacing: 1.2,
     });
-    this.headlineText = this.scene.add.text(titleX, 42, "Orbital Yard", {
+    this.headlineText = this.scene.add.text(titleX, headlineY, "Launch Vehicle", {
       fontSize: `${title.headlineSize}px`,
       color: colors.textPrimary,
       fontStyle: "bold",
     });
     this.descriptionText = this.scene.add.text(
       titleX,
-      88,
-      "Drag modules onto the grid, rebalance the stack, then send it to orbit.",
+      descriptionY,
+      compact
+        ? "Assemble, validate, launch."
+        : "Assemble the stack, verify stability, then commit the vehicle to launch.",
       {
         fontSize: `${title.descriptionSize}px`,
         color: colors.textAccent,
       },
     );
+  }
+
+  drawPaperGrid(width, height) {
+    const { colors, surface } = this.theme;
+    const gap = surface.minorGap;
+    const frame = surface.frameInset;
+    const majorEvery = surface.majorEvery;
+    const crossSize = surface.crossSize;
+
+    this.paper.lineStyle(1, colors.paperMinor, 0.08);
+    for (let x = frame, column = 0; x <= width - frame; x += gap, column += 1) {
+      if (column % majorEvery === 0) {
+        continue;
+      }
+      this.paper.lineBetween(x, frame, x, height - frame);
+    }
+    for (let y = frame, row = 0; y <= height - frame; y += gap, row += 1) {
+      if (row % majorEvery === 0) {
+        continue;
+      }
+      this.paper.lineBetween(frame, y, width - frame, y);
+    }
+
+    this.paper.lineStyle(1, colors.paperMajor, 0.2);
+    for (let x = frame, column = 0; x <= width - frame; x += gap, column += 1) {
+      if (column % majorEvery === 0) {
+        this.paper.lineBetween(x, frame, x, height - frame);
+      }
+    }
+    for (let y = frame, row = 0; y <= height - frame; y += gap, row += 1) {
+      if (row % majorEvery === 0) {
+        this.paper.lineBetween(frame, y, width - frame, y);
+      }
+    }
+
+    this.paper.lineStyle(1, colors.paperCross, 0.34);
+    for (let x = frame, column = 0; x <= width - frame; x += gap, column += 1) {
+      if (column % majorEvery !== 0) {
+        continue;
+      }
+
+      for (let y = frame, row = 0; y <= height - frame; y += gap, row += 1) {
+        if (row % majorEvery !== 0) {
+          continue;
+        }
+
+        this.paper.lineBetween(x - crossSize, y, x + crossSize, y);
+        this.paper.lineBetween(x, y - crossSize, x, y + crossSize);
+        this.paper.fillStyle(colors.paperBackground, 1);
+        this.paper.fillCircle(x, y, 1.5);
+      }
+    }
+
+    this.paper.lineStyle(1, colors.paperCross, 0.36);
+    this.paper.strokeRect(frame, frame, width - frame * 2, height - frame * 2);
+    this.paper.lineStyle(1, colors.paperFrame, 0.5);
+    this.paper.strokeRect(frame + 1, frame + 1, width - frame * 2 - 2, height - frame * 2 - 2);
   }
 
   createPanels() {
@@ -130,37 +179,37 @@ export default class BuildSurface {
       0.94,
     );
 
-    this.partsLabel = this.scene.add.text(0, 0, "Catalog", {
+    this.partsLabel = this.scene.add.text(0, 0, "CATALOG", {
       fontSize: `${this.theme.fontSizes.caption}px`,
       color: colors.textAccent,
       fontStyle: "bold",
       letterSpacing: 1,
     });
-    this.partsHeading = this.scene.add.text(0, 0, "Parts", {
+    this.partsHeading = this.scene.add.text(0, 0, "Modules", {
       fontSize: `${title.panelHeadingSize - 1}px`,
       color: colors.textPrimary,
       fontStyle: "bold",
     });
 
-    this.gridLabel = this.scene.add.text(0, 0, "Workbench", {
+    this.gridLabel = this.scene.add.text(0, 0, "VEHICLE", {
       fontSize: `${this.theme.fontSizes.caption}px`,
       color: colors.textAccent,
       fontStyle: "bold",
       letterSpacing: 1,
     });
-    this.gridHeading = this.scene.add.text(0, 0, "Assembly Grid", {
+    this.gridHeading = this.scene.add.text(0, 0, "Assembly Area", {
       fontSize: `${title.panelHeadingSize - 1}px`,
       color: colors.textPrimary,
       fontStyle: "bold",
     });
 
-    this.readinessLabel = this.scene.add.text(0, 0, "Systems", {
+    this.readinessLabel = this.scene.add.text(0, 0, "FLIGHT", {
       fontSize: `${this.theme.fontSizes.caption}px`,
       color: colors.textAccent,
       fontStyle: "bold",
       letterSpacing: 1,
     });
-    this.readinessHeading = this.scene.add.text(0, 0, "Flight Readiness", {
+    this.readinessHeading = this.scene.add.text(0, 0, "Mission Status", {
       fontSize: `${title.panelHeadingSize}px`,
       color: colors.textPrimary,
       fontStyle: "bold",
@@ -183,7 +232,7 @@ export default class BuildSurface {
       .setLineWidth(2)
       .setDepth(2);
 
-    this.gridCaption = this.scene.add.text(0, 0, "Drag modules onto the grid or click an empty cell to place the selected one.", {
+    this.gridCaption = this.scene.add.text(0, 0, "Drag modules into the assembly area or click an empty cell to place the selected item.", {
       fontSize: `${this.theme.fontSizes.caption}px`,
       color: colors.textMuted,
     });

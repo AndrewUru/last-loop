@@ -60,10 +60,10 @@ export default class BuildScene extends Phaser.Scene {
     this.renderBuild();
     this.toast.show({
       tone: "neutral",
-      label: "HANGAR",
+      label: "VEHICLE BAY",
       message: this.usedStarterBuild
-        ? "Starter Rocket loaded. Tune the stack or launch immediately."
-        : "Drag modules into the workbench or click an empty cell to place the selected part.",
+        ? "Starter vehicle loaded. Adjust the stack or proceed directly to launch."
+        : "Drag modules into the assembly area or click an empty cell to place the selected module.",
     });
   }
 
@@ -581,11 +581,11 @@ export default class BuildScene extends Phaser.Scene {
     this.placedParts.delete(entry.key);
     this.persistBuild();
     this.renderBuild();
-    this.toast.show({
-      tone: "neutral",
-      label: "MODULE REMOVED",
-      message: `${PARTS_BY_ID[entry.partId]?.name || "Module"} detached from the stack.`,
-    });
+      this.toast.show({
+        tone: "neutral",
+        label: "MODULE REMOVED",
+        message: `${PARTS_BY_ID[entry.partId]?.name || "Module"} removed from the vehicle.`,
+      });
   }
 
   removeSelectedPlacedPart() {
@@ -600,8 +600,8 @@ export default class BuildScene extends Phaser.Scene {
   clearBuild(options = {}) {
     const {
       silent = false,
-      label = "WORKBENCH RESET",
-      message = "The current stack was cleared. Start a fresh design whenever you're ready.",
+      label = "VEHICLE CLEARED",
+      message = "The current stack was cleared. Start a fresh build when ready.",
     } = options;
 
     if (this.placedParts.size === 0) {
@@ -717,7 +717,7 @@ export default class BuildScene extends Phaser.Scene {
         label: options.label || "STARTER LOADED",
         message:
           options.message ||
-          `${blueprint?.name || "Default rocket"} restored to the workbench.`,
+          `${blueprint?.name || "Default vehicle"} restored to the assembly area.`,
       });
     }
   }
@@ -725,7 +725,7 @@ export default class BuildScene extends Phaser.Scene {
   loadStarterRocket() {
     this.loadBlueprint(STARTER_ROCKET, {
       label: "STARTER LOADED",
-      message: "Starter Rocket restored. You can tweak it or launch right away.",
+      message: "Starter vehicle restored. You can tune it or launch immediately.",
     });
   }
 

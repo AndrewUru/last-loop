@@ -72,34 +72,41 @@ export default class BootScene extends Phaser.Scene {
     const panelHeight = Math.min(540, height * 0.66);
 
     this.add
-      .rectangle(panelX + 6, panelY + 6, panelWidth, panelHeight, 0x000000, 0.18)
+      .rectangle(
+        panelX + 6,
+        panelY + 6,
+        panelWidth,
+        panelHeight,
+        0x000000,
+        0.18,
+      )
       .setOrigin(0)
-      .setStrokeStyle(2, 0x68d9ff, 0.06);
+      .setStrokeStyle(1, 0xffffff, 0.05);
     this.add
-      .rectangle(panelX, panelY, panelWidth, panelHeight, 0x081624, 0.9)
+      .rectangle(panelX, panelY, panelWidth, panelHeight, 0x12181f, 0.9)
       .setOrigin(0)
-      .setStrokeStyle(2, 0x68d9ff, 0.24);
+      .setStrokeStyle(1, 0xa3b4c7, 0.3);
 
-    this.add.text(panelX + 28, panelY + 28, "GAME JAM MVP", {
+    this.add.text(panelX + 28, panelY + 28, "SIMULATION", {
       fontSize: "16px",
-      color: "#73f7c0",
+      color: "#9eb4ca",
       fontStyle: "bold",
       letterSpacing: 1.2,
     });
 
-    this.add.text(panelX + 28, panelY + 68, "ORBITAL YARD", {
+    this.add.text(panelX + 28, panelY + 68, "SPACE FLIGHT", {
       fontSize: width < 1100 ? "52px" : "66px",
-      color: "#effcff",
+      color: "#f4f7fb",
       fontStyle: "bold",
     });
 
     this.add.text(
       panelX + 28,
       panelY + 146,
-      "Build a simple ship, survive ascent, nail the turn, and slip into orbit.",
+      "Assemble a launch vehicle, survive ascent, and close a stable orbit.",
       {
         fontSize: "24px",
-        color: "#9adfff",
+        color: "#d5dee7",
         wordWrap: { width: panelWidth - 56 },
       },
     );
@@ -107,19 +114,24 @@ export default class BootScene extends Phaser.Scene {
     this.add.text(
       panelX + 28,
       panelY + 218,
-      "No sandbox. No tech demo. Just one clean rocket fantasy for the jam.",
+      "A compact flight loop focused on staging, ascent control and orbital insertion.",
       {
         fontSize: "20px",
-        color: "#dcefff",
+        color: "#aebdcb",
         wordWrap: { width: panelWidth - 56 },
       },
     );
 
-    this.add.text(panelX + 28, panelY + panelHeight - 58, "SPACE or click to enter the hangar", {
-      fontSize: "18px",
-      color: "#73f7c0",
-      fontStyle: "bold",
-    });
+    this.add.text(
+      panelX + 28,
+      panelY + panelHeight - 58,
+      "SPACE or click to enter vehicle assembly",
+      {
+        fontSize: "18px",
+        color: "#9eb4ca",
+        fontStyle: "bold",
+      },
+    );
   }
 
   createLoopSteps(width, height) {
@@ -138,7 +150,11 @@ export default class BootScene extends Phaser.Scene {
       this.add
         .rectangle(x, originY, stepWidth, 118, 0x102233, 0.94)
         .setOrigin(0)
-        .setStrokeStyle(2, index === steps.length - 1 ? 0x73f7c0 : 0x68d9ff, 0.26);
+        .setStrokeStyle(
+          2,
+          index === steps.length - 1 ? 0x73f7c0 : 0x68d9ff,
+          0.26,
+        );
       this.add.text(x + 16, originY + 16, `0${index + 1}`, {
         fontSize: "14px",
         color: "#73f7c0",
@@ -166,10 +182,8 @@ export default class BootScene extends Phaser.Scene {
     this.add
       .rectangle(stageX, stageY, 320, 420, 0x091723, 0.82)
       .setStrokeStyle(2, 0x68d9ff, 0.22);
-    this.add
-      .ellipse(stageX, stageY + 144, 240, 40, 0xffffff, 0.08);
-    this.add
-      .ellipse(stageX, stageY + 158, 320, 58, 0x8fd7ff, 0.06);
+    this.add.ellipse(stageX, stageY + 144, 240, 40, 0xffffff, 0.08);
+    this.add.ellipse(stageX, stageY + 158, 320, 58, 0x8fd7ff, 0.06);
 
     const showcase = this.add.container(stageX, stageY + 10);
     const parts = ["capsule", "fuel_tank_large", "engine_main"];
@@ -186,8 +200,10 @@ export default class BootScene extends Phaser.Scene {
         showPlate: false,
       });
 
-      const visualHeight = view.sprite?.displayHeight ?? definition.gridHeight * showcaseCellSize;
-      const visualWidth = view.sprite?.displayWidth ?? definition.gridWidth * showcaseCellSize;
+      const visualHeight =
+        view.sprite?.displayHeight ?? definition.gridHeight * showcaseCellSize;
+      const visualWidth =
+        view.sprite?.displayWidth ?? definition.gridWidth * showcaseCellSize;
       partViews.push({ view, definition, visualHeight, visualWidth });
       showcase.add(view);
 
@@ -213,8 +229,8 @@ export default class BootScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: showcase,
-      y: showcase.y - 8,
-      duration: 1500,
+      y: showcase.y - 3,
+      duration: 1800,
       ease: "Sine.easeInOut",
       yoyo: true,
       repeat: -1,
@@ -236,7 +252,8 @@ export default class BootScene extends Phaser.Scene {
           engineView.sprite?.displayWidth ??
           engineDefinition.gridWidth * showcaseCellSize;
         const exhaustY =
-          engineView.y + engineHeight * (engineDefinition.exhaustOffsetY ?? 0.42);
+          engineView.y +
+          engineHeight * (engineDefinition.exhaustOffsetY ?? 0.42);
         const innerHalfWidth = Math.max(10, engineWidth * 0.18);
         const outerHalfWidth = Math.max(16, engineWidth * 0.3);
         const pulse = 1 + Math.sin(this.time.now / 110) * 0.12;
@@ -262,15 +279,19 @@ export default class BootScene extends Phaser.Scene {
       },
     });
 
-    this.add.text(stageX, stageY - 182, "One ship. One shot.", {
-      fontSize: "24px",
-      color: "#effcff",
-      fontStyle: "bold",
-    }).setOrigin(0.5);
-    this.add.text(stageX, stageY - 148, "Build small, fly clean, reach fake orbit.", {
-      fontSize: "18px",
-      color: "#8fd7ff",
-    }).setOrigin(0.5);
+    this.add
+      .text(stageX, stageY - 182, "One ship. One shot.", {
+        fontSize: "24px",
+        color: "#effcff",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+    this.add
+      .text(stageX, stageY - 148, "Build small, fly clean, reach fake orbit.", {
+        fontSize: "18px",
+        color: "#8fd7ff",
+      })
+      .setOrigin(0.5);
   }
 
   createLaunchButton(width, height) {
@@ -281,21 +302,23 @@ export default class BootScene extends Phaser.Scene {
       .rectangle(x + 4, y + 4, 230, 58, 0x000000, 0.26)
       .setOrigin(0);
     this.startButton = this.add
-      .rectangle(x, y, 230, 58, 0x183c2d, 0.96)
+      .rectangle(x, y, 230, 58, 0x1b2530, 0.96)
       .setOrigin(0)
-      .setStrokeStyle(2, 0x73f7c0, 0.68)
+      .setStrokeStyle(2, 0x82b6ff, 0.68)
       .setInteractive({ useHandCursor: true });
-    this.startButtonLabel = this.add.text(x + 115, y + 29, "Open Hangar", {
-      fontSize: "22px",
-      color: "#effcff",
-      fontStyle: "bold",
-    }).setOrigin(0.5);
+    this.startButtonLabel = this.add
+      .text(x + 115, y + 29, "Enter Assembly", {
+        fontSize: "22px",
+        color: "#f4f7fb",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
 
     this.startButton.on("pointerover", () => {
-      this.startButton.setStrokeStyle(2, 0x73f7c0, 1);
+      this.startButton.setStrokeStyle(2, 0x82b6ff, 1);
     });
     this.startButton.on("pointerout", () => {
-      this.startButton.setStrokeStyle(2, 0x73f7c0, 0.68);
+      this.startButton.setStrokeStyle(2, 0x82b6ff, 0.68);
     });
   }
 

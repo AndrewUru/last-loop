@@ -110,22 +110,62 @@ export default class BuildGridView {
   redrawGrid() {
     const { columns, rows, cellSize, x, y } = this.grid;
     const { colors, grid: gridTheme } = this.theme;
+    const width = columns * cellSize;
+    const height = rows * cellSize;
 
     this.gridGraphics.clear();
-    this.gridGraphics.fillStyle(colors.panelInsetAlt, 0.24);
-    this.gridGraphics.fillRect(x, y, columns * cellSize, rows * cellSize);
-    this.gridGraphics.lineStyle(2, colors.cardEdge, gridTheme.lineAlphaMinor);
-    this.gridGraphics.strokeRect(x, y, columns * cellSize, rows * cellSize);
-    this.gridGraphics.lineStyle(1, colors.cardEdge, gridTheme.lineAlpha);
+    this.gridGraphics.fillStyle(colors.paperBackground, 0.92);
+    this.gridGraphics.fillRect(x, y, width, height);
+    this.gridGraphics.lineStyle(2, colors.paperFrame, 0.38);
+    this.gridGraphics.strokeRect(x, y, width, height);
+    this.gridGraphics.lineStyle(1, colors.paperMinor, gridTheme.lineAlphaMinor);
 
     for (let column = 0; column <= columns; column += 1) {
       const lineX = x + column * cellSize;
+      if (column % gridTheme.majorEvery === 0) {
+        continue;
+      }
       this.gridGraphics.lineBetween(lineX, y, lineX, y + rows * cellSize);
     }
 
     for (let row = 0; row <= rows; row += 1) {
       const lineY = y + row * cellSize;
+      if (row % gridTheme.majorEvery === 0) {
+        continue;
+      }
       this.gridGraphics.lineBetween(x, lineY, x + columns * cellSize, lineY);
+    }
+
+    this.gridGraphics.lineStyle(1, colors.paperMajor, gridTheme.lineAlphaMajor);
+    for (let column = 0; column <= columns; column += 1) {
+      if (column % gridTheme.majorEvery !== 0) {
+        continue;
+      }
+
+      const lineX = x + column * cellSize;
+      this.gridGraphics.lineBetween(lineX, y, lineX, y + height);
+    }
+
+    for (let row = 0; row <= rows; row += 1) {
+      if (row % gridTheme.majorEvery !== 0) {
+        continue;
+      }
+
+      const lineY = y + row * cellSize;
+      this.gridGraphics.lineBetween(x, lineY, x + width, lineY);
+    }
+
+    this.gridGraphics.lineStyle(1, colors.paperCross, gridTheme.crossAlpha);
+    for (let column = 0; column <= columns; column += gridTheme.majorEvery) {
+      for (let row = 0; row <= rows; row += gridTheme.majorEvery) {
+        const crossX = x + column * cellSize;
+        const crossY = y + row * cellSize;
+
+        this.gridGraphics.lineBetween(crossX - 4, crossY, crossX + 4, crossY);
+        this.gridGraphics.lineBetween(crossX, crossY - 4, crossX, crossY + 4);
+        this.gridGraphics.fillStyle(colors.paperBackground, 1);
+        this.gridGraphics.fillCircle(crossX, crossY, 1.25);
+      }
     }
   }
 
