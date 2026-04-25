@@ -370,8 +370,8 @@ export const flightSceneRuntimeMethods = {
     this.atmosphereShell.setAlpha(0);
     this.launchBackdrop.setAlpha(Phaser.Math.Linear(0.9, 0, 1 - padFade));
     this.launchGround.setAlpha(Phaser.Math.Linear(1, 0, 1 - flatGroundFade));
-    this.pad.setAlpha(0.12 + padFade * 0.72);
-    this.launchTower.setAlpha(0.1 + padFade * 0.8);
+    this.pad.setAlpha(padFade * 0.84);
+    this.launchTower.setAlpha(padFade * 0.9);
 
     this.launchTowerGlow.clear();
     if (padFade > 0.05) {
