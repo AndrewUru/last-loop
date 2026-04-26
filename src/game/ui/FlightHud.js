@@ -213,7 +213,7 @@ export default class FlightHud {
       .setScrollFactor(0)
       .setDepth(textDepth);
 
-    this.helpPanel = this.createPanel(0, 0, 520, 214, overlayDepth);
+    this.helpPanel = this.createPanel(0, 0, 520, 254, overlayDepth);
     this.helpTitle = this.scene.add
       .text(0, 0, "Commands", {
         fontSize: "22px",
@@ -230,7 +230,9 @@ export default class FlightHud {
         0,
         [
           "Space / F  Toggle engine",
+          "G          Toggle stability assist",
           "W / S      Raise or lower cruise throttle",
+          "0-4        Set cruise throttle preset",
           "Shift      Full burn while held",
           "A / D      Steer the rocket",
           "RMB Drag   Pan the camera",
@@ -687,14 +689,14 @@ export default class FlightHud {
     this.bottomHint
       .setPosition(width / 2, height - 18)
       .setWordWrapWidth(width - margin * 2)
-      .setText("W/S throttle  A/D steer  Shift boost  RMB pan  Wheel zoom");
+      .setText("W/S throttle  A/D steer  G assist  Shift boost  RMB pan  Wheel zoom");
 
     const helpWidth = Math.min(520, Math.max(360, width - 80));
     this.helpPanel
-      .setPosition(width / 2 - helpWidth / 2, height - 258)
-      .setSize(helpWidth, 214);
-    this.helpTitle.setPosition(width / 2, height - 236);
-    this.helpText.setPosition(width / 2 - helpWidth / 2 + 28, height - 202);
+      .setPosition(width / 2 - helpWidth / 2, height - 298)
+      .setSize(helpWidth, 254);
+    this.helpTitle.setPosition(width / 2, height - 276);
+    this.helpText.setPosition(width / 2 - helpWidth / 2 + 28, height - 242);
   }
 
   layoutStatusBar(bar, x, y, width, trackOffset = 24, trackHeight = 14) {
@@ -800,17 +802,23 @@ export default class FlightHud {
 
     const corridorDelta = Math.abs(prediction.apoapsis - FLIGHT_WORLD.targetOrbitAltitude);
     const steerHint = this.getSteerHint(state);
+    const targetPitch = radToDegrees(state.assistTargetAngle ?? -Math.PI / 2);
+    const autoThrottleActive = Boolean(uiState.controls?.autoThrottleActive);
+    const assistLabel = state.assistEnabled
+      ? autoThrottleActive
+        ? "AUTO-CUTOFF"
+        : "ON"
+      : "OFF";
     this.guidanceCard.title.setText(mobile ? "Guidance" : "Flight Director");
     this.guidanceCard.body.setText(
       mobile
         ? [
-          phaseMeta.status,
+          `SAS ${assistLabel}  target ${formatSigned(targetPitch, 0)} deg`,
           `Steer ${steerHint}`,
           `Apo ${corridorDelta.toFixed(1)} km off`,
         ].join("\n")
         : [
-          phaseMeta.status,
-          "",
+          `SAS ${assistLabel}  target pitch ${formatSigned(targetPitch, 0)} deg`,
           `Steer cue  ${steerHint}`,
           `Predicted apoapsis error  ${corridorDelta.toFixed(1)} km`,
         ].join("\n"),
@@ -855,7 +863,12 @@ export default class FlightHud {
           ].join("\n"),
     );
 
-    if (state.engineOn) {
+    if (state.engineOn && autoThrottleActive) {
+      this.engineButton.setFillStyle(0x122433, 0.96).setStrokeStyle(2, 0x68d9ff, 0.82);
+      this.engineButtonStatus.setText("SAS Auto-Cutoff");
+      this.engineButtonStatus.setColor("#9adfff");
+      this.engineButtonLabel.setText("Engine Armed");
+    } else if (state.engineOn) {
       this.engineButton.setFillStyle(0x2a1a12, 0.96).setStrokeStyle(2, 0xff9b5d, 0.82);
       this.engineButtonStatus.setText("Engine Active");
       this.engineButtonStatus.setColor("#ffcfb0");
@@ -906,7 +919,7 @@ export default class FlightHud {
         ? "H hide help  Esc hangar"
         : this.isMobile
           ? ""
-          : "W/S throttle  A/D steer  Shift boost  RMB pan  Wheel zoom  H help",
+          : "W/S throttle  A/D steer  G assist  Shift boost  RMB pan  Wheel zoom  H help",
     );
   }
 }

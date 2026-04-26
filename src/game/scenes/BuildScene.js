@@ -50,10 +50,12 @@ export default class BuildScene extends Phaser.Scene {
     this.selectedPlacedKey = null;
     this.hoveredInfo = null;
     this.dragState = null;
+    this.scrollState = null;
     this.currentValidation = BuildValidator.validate([]);
     this.resizePending = false;
 
     this.computeLayout();
+    this.configureCameraBounds();
     this.createInterface();
     this.restoreBuild(this.initialBuild);
     this.registerInput();
@@ -129,6 +131,12 @@ export default class BuildScene extends Phaser.Scene {
     this.syncPaletteSelection();
   }
 
+  configureCameraBounds() {
+    const worldHeight = this.layout.worldHeight || this.scale.height;
+    this.cameras.main.setBounds(0, 0, this.scale.width, worldHeight);
+    this.cameras.main.setScroll(0, 0);
+  }
+
   createGridInputZone() {
     this.gridInput = this.add
       .zone(this.grid.x, this.grid.y, this.layout.gridWidth, this.layout.gridHeight)
@@ -149,6 +157,7 @@ export default class BuildScene extends Phaser.Scene {
     this.input.on("pointermove", this.handlePointerMove, this);
     this.input.on("pointerup", this.handlePointerUp, this);
     this.input.on("pointerdown", this.handleScenePointerDown, this);
+    this.input.on("wheel", this.handleWheel, this);
     this.input.keyboard.on("keydown-DELETE", this.removeSelectedPlacedPart, this);
     this.input.keyboard.on("keydown-BACKSPACE", this.removeSelectedPlacedPart, this);
     this.input.keyboard.on("keydown-R", this.clearBuild, this);
@@ -161,6 +170,7 @@ export default class BuildScene extends Phaser.Scene {
     this.input.off("pointermove", this.handlePointerMove, this);
     this.input.off("pointerup", this.handlePointerUp, this);
     this.input.off("pointerdown", this.handleScenePointerDown, this);
+    this.input.off("wheel", this.handleWheel, this);
     this.input.keyboard.off("keydown-DELETE", this.removeSelectedPlacedPart, this);
     this.input.keyboard.off("keydown-BACKSPACE", this.removeSelectedPlacedPart, this);
     this.input.keyboard.off("keydown-R", this.clearBuild, this);
@@ -204,6 +214,66 @@ export default class BuildScene extends Phaser.Scene {
     if (!this.dragState && !this.gridView.getCellAtWorld(pointer.worldX, pointer.worldY)) {
       this.clearPlacedSelection();
     }
+
+    this.beginScroll(pointer);
+  }
+
+  handleWheel(pointer, over, deltaX, deltaY) {
+    if (!this.layout.scrollable) {
+      return;
+    }
+
+    this.scrollBuild(deltaY * 0.65);
+  }
+
+  beginScroll(pointer) {
+    if (
+      !this.layout.scrollable ||
+      this.dragState ||
+      pointer.rightButtonDown() ||
+      pointer.middleButtonDown() ||
+      this.gridView.getCellAtWorld(pointer.worldX, pointer.worldY)
+    ) {
+      return;
+    }
+
+    this.scrollState = {
+      pointerId: pointer.id,
+      startY: pointer.y,
+      startScrollY: this.cameras.main.scrollY,
+      moved: false,
+    };
+  }
+
+  updateScroll(pointer) {
+    if (!this.scrollState || this.scrollState.pointerId !== pointer.id) {
+      return false;
+    }
+
+    const deltaY = pointer.y - this.scrollState.startY;
+    if (Math.abs(deltaY) > 3) {
+      this.scrollState.moved = true;
+    }
+    this.setBuildScroll(this.scrollState.startScrollY - deltaY);
+    return this.scrollState.moved;
+  }
+
+  endScroll(pointer) {
+    if (this.scrollState?.pointerId === pointer.id) {
+      this.scrollState = null;
+    }
+  }
+
+  scrollBuild(deltaY) {
+    this.setBuildScroll(this.cameras.main.scrollY + deltaY);
+  }
+
+  setBuildScroll(scrollY) {
+    const maxScrollY = Math.max(
+      0,
+      (this.layout.worldHeight || this.scale.height) - this.scale.height,
+    );
+    this.cameras.main.setScroll(0, Phaser.Math.Clamp(scrollY, 0, maxScrollY));
   }
 
   handleGridPointerMove(pointer) {
@@ -264,6 +334,10 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   handlePointerMove(pointer) {
+    if (!this.dragState && this.updateScroll(pointer)) {
+      return;
+    }
+
     if (!this.dragState || this.dragState.pointerId !== pointer.id) {
       return;
     }
@@ -280,6 +354,8 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   handlePointerUp(pointer) {
+    this.endScroll(pointer);
+
     if (!this.dragState || this.dragState.pointerId !== pointer.id) {
       return;
     }

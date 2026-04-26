@@ -9,10 +9,15 @@ export default class ResultScene extends Phaser.Scene {
     this.build = data.build || this.registry.get("rocket-build") || [];
     this.stats = data.stats || {};
     this.result = data.result || "failure";
+    this.titleText = data.title || "";
+    this.reportKicker = data.reportKicker || "MISSION REPORT";
     this.reason = data.reason || "";
     this.altitude = data.altitude || 0;
     this.horizontalVelocity = data.horizontalVelocity || 0;
     this.flightTime = data.time || 0;
+    this.primaryMetricLabel = data.primaryMetricLabel || "Peak altitude";
+    this.speedMetricLabel = data.speedMetricLabel || "Orbital speed";
+    this.extraLines = Array.isArray(data.extraLines) ? data.extraLines : [];
   }
 
   create() {
@@ -27,7 +32,7 @@ export default class ResultScene extends Phaser.Scene {
       .setStrokeStyle(1, accent, 0.46);
 
     this.add
-      .text(width / 2, 152, "MISSION REPORT", {
+      .text(width / 2, 152, this.reportKicker, {
         fontSize: "16px",
         color: "#9eb4ca",
         fontStyle: "bold",
@@ -36,7 +41,7 @@ export default class ResultScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, 192, success ? "Orbit Reached" : "Mission Failed", {
+      .text(width / 2, 192, this.titleText || (success ? "Orbit Reached" : "Mission Failed"), {
         fontSize: "46px",
         color: success ? "#d4f0da" : "#ffbfb6",
         fontStyle: "bold",
@@ -57,12 +62,13 @@ export default class ResultScene extends Phaser.Scene {
         width / 2,
         334,
         [
-          `Peak altitude: ${this.altitude.toFixed(1)} km`,
-          `Orbital speed: ${this.horizontalVelocity.toFixed(2)} km/s`,
+          `${this.primaryMetricLabel}: ${this.altitude.toFixed(1)} km`,
+          `${this.speedMetricLabel}: ${this.horizontalVelocity.toFixed(2)} km/s`,
           `Flight time: ${this.flightTime.toFixed(1)} s`,
           `Rocket mass: ${(this.stats.mass || 0).toFixed(0)}`,
           `Fuel capacity: ${(this.stats.fuel || 0).toFixed(0)}`,
           `Launch TWR: ${(this.stats.twr || 0).toFixed(2)}`,
+          ...this.extraLines,
         ].join("\n"),
         {
           fontSize: "22px",

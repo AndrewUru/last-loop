@@ -11,16 +11,17 @@ export default class BuildSurface {
   }
 
   createBackground() {
-    const { width, height, titleX } = this.layout;
+    const { width, height, titleX, worldHeight } = this.layout;
     const { colors, depth, title, surface } = this.theme;
     const compact = this.layout.compactUi;
     const kickerY = compact ? 16 : 26;
     const headlineY = compact ? 28 : 42;
     const descriptionY = compact ? 56 : 88;
+    const paperHeight = worldHeight || height;
 
     this.paper = this.scene.add.graphics().setDepth(depth.background);
     this.paper.fillStyle(colors.paperBackground, 1);
-    this.paper.fillRect(0, 0, width, height);
+    this.paper.fillRect(0, 0, width, paperHeight);
     this.paper.fillGradientStyle(
       colors.paperInnerGlow,
       colors.backgroundTopRight,
@@ -28,9 +29,9 @@ export default class BuildSurface {
       colors.backgroundBottomLeft,
       surface.innerGlowAlpha,
     );
-    this.paper.fillRect(0, 0, width, height);
+    this.paper.fillRect(0, 0, width, paperHeight);
 
-    this.drawPaperGrid(width, height);
+    this.drawPaperGrid(width, paperHeight);
 
     this.kickerText = this.scene.add.text(titleX, kickerY, "VEHICLE ASSEMBLY", {
       fontSize: `${title.kickerSize}px`,
@@ -250,14 +251,25 @@ export default class BuildSurface {
       panelY,
       panelHeight,
       leftPanelX,
+      leftPanelY,
+      leftPanelHeight,
       leftPanelWidth,
       rightPanelX,
+      rightPanelY,
+      rightPanelHeight,
       rightPanelWidth,
       centerPanelX,
+      centerPanelY,
       centerPanelWidth,
       centerPanelHeight,
       centerStartX,
     } = layout;
+    const resolvedLeftPanelY = leftPanelY ?? panelY;
+    const resolvedLeftPanelHeight = leftPanelHeight ?? panelHeight;
+    const resolvedRightPanelY = rightPanelY ?? panelY;
+    const resolvedRightPanelHeight = rightPanelHeight ?? panelHeight;
+    const resolvedCenterPanelY =
+      centerPanelY ?? grid.y + layout.gridHeight / 2 + 10;
 
     this.updatePanel(
       this.leftPanelGlow,
@@ -266,9 +278,9 @@ export default class BuildSurface {
       this.leftPanelInset,
       this.leftHeaderBar,
       leftPanelX,
-      panelY,
+      resolvedLeftPanelY,
       leftPanelWidth,
-      panelHeight,
+      resolvedLeftPanelHeight,
     );
     this.updatePanel(
       this.centerPanelGlow,
@@ -277,7 +289,7 @@ export default class BuildSurface {
       this.centerPanelInset,
       this.centerHeaderBar,
       centerPanelX,
-      grid.y + layout.gridHeight / 2 + 10,
+      resolvedCenterPanelY,
       centerPanelWidth,
       centerPanelHeight,
     );
@@ -288,44 +300,75 @@ export default class BuildSurface {
       this.rightPanelInset,
       this.rightHeaderBar,
       rightPanelX,
-      panelY,
+      resolvedRightPanelY,
       rightPanelWidth,
-      panelHeight,
+      resolvedRightPanelHeight,
     );
 
-    const headingY = panelTop - 2;
-    const subheadingY = headingY - spacing.md;
-    this.partsLabel.setPosition(outerPadding + spacing.md, subheadingY);
-    this.partsHeading.setPosition(outerPadding + spacing.md, headingY);
+    if (layout.mobileLayout) {
+      const leftPanelTop = resolvedLeftPanelY - resolvedLeftPanelHeight / 2;
+      const rightPanelTop = resolvedRightPanelY - resolvedRightPanelHeight / 2;
+      const centerPanelTop = resolvedCenterPanelY - centerPanelHeight / 2;
+      const headerInset = spacing.md;
 
-    this.gridLabel.setPosition(centerStartX + spacing.md, subheadingY);
-    this.gridHeading.setPosition(centerStartX + spacing.md, headingY);
+      this.gridLabel.setPosition(centerPanelX - centerPanelWidth / 2 + headerInset, centerPanelTop + 8);
+      this.gridHeading.setPosition(centerPanelX - centerPanelWidth / 2 + headerInset, centerPanelTop + 22);
+      this.readinessLabel.setPosition(rightPanelX - rightPanelWidth / 2 + headerInset, rightPanelTop + 8);
+      this.readinessHeading.setPosition(rightPanelX - rightPanelWidth / 2 + headerInset, rightPanelTop + 22);
+      this.partsLabel.setPosition(leftPanelX - leftPanelWidth / 2 + headerInset, leftPanelTop + 8);
+      this.partsHeading.setPosition(leftPanelX - leftPanelWidth / 2 + headerInset, leftPanelTop + 22);
 
-    this.readinessLabel.setPosition(
-      width - outerPadding - rightPanelWidth + spacing.md,
-      subheadingY,
-    );
-    this.readinessHeading.setPosition(
-      width - outerPadding - rightPanelWidth + spacing.md,
-      headingY,
-    );
+      this.leftRule.setTo(
+        leftPanelX,
+        leftPanelTop + panel.headerHeight - 2,
+        -leftPanelWidth / 2 + spacing.md,
+        0,
+        leftPanelWidth / 2 - spacing.md,
+        0,
+      );
+      this.rightRule.setTo(
+        rightPanelX,
+        rightPanelTop + panel.headerHeight - 2,
+        -rightPanelWidth / 2 + spacing.md,
+        0,
+        rightPanelWidth / 2 - spacing.md,
+        0,
+      );
+    } else {
+      const headingY = panelTop - 2;
+      const subheadingY = headingY - spacing.md;
+      this.partsLabel.setPosition(outerPadding + spacing.md, subheadingY);
+      this.partsHeading.setPosition(outerPadding + spacing.md, headingY);
 
-    this.leftRule.setTo(
-      leftPanelX,
-      panelTop - 12,
-      -leftPanelWidth / 2 + spacing.md,
-      0,
-      leftPanelWidth / 2 - spacing.md,
-      0,
-    );
-    this.rightRule.setTo(
-      rightPanelX,
-      panelTop - 12,
-      -rightPanelWidth / 2 + spacing.md,
-      0,
-      rightPanelWidth / 2 - spacing.md,
-      0,
-    );
+      this.gridLabel.setPosition(centerStartX + spacing.md, subheadingY);
+      this.gridHeading.setPosition(centerStartX + spacing.md, headingY);
+
+      this.readinessLabel.setPosition(
+        width - outerPadding - rightPanelWidth + spacing.md,
+        subheadingY,
+      );
+      this.readinessHeading.setPosition(
+        width - outerPadding - rightPanelWidth + spacing.md,
+        headingY,
+      );
+
+      this.leftRule.setTo(
+        leftPanelX,
+        panelTop - 12,
+        -leftPanelWidth / 2 + spacing.md,
+        0,
+        leftPanelWidth / 2 - spacing.md,
+        0,
+      );
+      this.rightRule.setTo(
+        rightPanelX,
+        panelTop - 12,
+        -rightPanelWidth / 2 + spacing.md,
+        0,
+        rightPanelWidth / 2 - spacing.md,
+        0,
+      );
+    }
     this.centerTopRule.setTo(
       centerPanelX,
       grid.y - spacing.md,

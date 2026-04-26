@@ -1,27 +1,44 @@
-import Phaser from "phaser";
 import { SHIP_PARTS } from "../../data/parts.js";
 import { getBuildTheme } from "./BuildTheme.js";
 
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
 export function computeBuildLayout({ width, height, grid, gridZoom }) {
+  const mobileLayout = width < 760 || (width < 920 && height > width * 1.15);
   const compactUi = true;
   const theme = getBuildTheme(compactUi);
   const { spacing, toolbar } = theme;
-  const outerPadding = Phaser.Math.Clamp(
+
+  if (mobileLayout) {
+    return computeMobileBuildLayout({
+      width,
+      height,
+      grid,
+      gridZoom,
+      theme,
+      spacing,
+      toolbar,
+    });
+  }
+
+  const outerPadding = clamp(
     Math.round(Math.min(width, height) * 0.014),
     14,
     22,
   );
-  const panelGap = Phaser.Math.Clamp(
+  const panelGap = clamp(
     Math.round(Math.min(width, height) * 0.012),
     12,
     18,
   );
-  const leftPanelWidth = Phaser.Math.Clamp(
+  const leftPanelWidth = clamp(
     Math.round(width * 0.17),
     232,
     300,
   );
-  const rightPanelWidth = Phaser.Math.Clamp(
+  const rightPanelWidth = clamp(
     Math.round(width * 0.19),
     250,
     330,
@@ -29,7 +46,7 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
   const centerStartX = outerPadding + leftPanelWidth + panelGap;
   const centerEndX = width - outerPadding - rightPanelWidth - panelGap;
   const centerWidth = centerEndX - centerStartX;
-  const cellSize = Phaser.Math.Clamp(
+  const cellSize = clamp(
     Math.floor(
       Math.min((centerWidth - 24) / grid.columns, (height - 170) / grid.rows),
     ),
@@ -61,7 +78,7 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
     220,
     paletteBottomY - paletteTopY - paletteGap * (SHIP_PARTS.length - 1),
   );
-  const cardHeight = Phaser.Math.Clamp(
+  const cardHeight = clamp(
     Math.floor(availablePaletteHeight / SHIP_PARTS.length),
     compactUi ? 54 : 88,
     compactUi ? 72 : 110,
@@ -72,7 +89,7 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
   const rightColumnY = panelTop + 18;
   const rightColumnWidth = rightPanelWidth - 36;
   const rightColumnHeight = panelHeight - 36;
-  const statsPanelHeight = Phaser.Math.Clamp(
+  const statsPanelHeight = clamp(
     Math.round(rightColumnHeight * (compactUi ? 0.53 : 0.55)),
     compactUi ? 236 : 372,
     compactUi ? 300 : 410,
@@ -97,6 +114,9 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
     layout: {
       width,
       height,
+      worldHeight: height,
+      mobileLayout,
+      scrollable: false,
       compactUi,
       outerPadding,
       panelGap,
@@ -111,7 +131,11 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
       gridY,
       leftPanelX: outerPadding + leftPanelWidth / 2,
       rightPanelX: width - outerPadding - rightPanelWidth / 2,
+      rightPanelY: panelTop + panelHeight / 2,
+      rightPanelHeight: panelHeight,
       panelY: panelTop + panelHeight / 2,
+      leftPanelY: panelTop + panelHeight / 2,
+      leftPanelHeight: panelHeight,
       panelHeight,
       panelTop,
       centerPanelX: centerStartX + centerWidth / 2,
@@ -158,6 +182,171 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
       inspectorPanelHeight,
       messageX: centerStartX + centerWidth / 2,
       messageY: gridY + gridHeight + spacing.sm,
+      toastWidth,
+    },
+  };
+}
+
+function computeMobileBuildLayout({
+  width,
+  height,
+  grid,
+  gridZoom,
+  theme,
+  spacing,
+  toolbar,
+}) {
+  const outerPadding = clamp(
+    Math.round(Math.min(width, height) * 0.028),
+    8,
+    14,
+  );
+  const contentWidth = Math.max(260, width - outerPadding * 2);
+  const titleX = outerPadding + 8;
+  const panelGap = 12;
+  const panelTop = 88;
+  const gridCellByWidth = Math.floor((contentWidth - 72) / grid.columns);
+  const gridCellByHeight = Math.floor((height * 0.33) / grid.rows);
+  const cellSize = clamp(
+    Math.floor(Math.min(gridCellByWidth, gridCellByHeight)),
+    26,
+    34,
+  );
+  const gridWidth = grid.columns * cellSize;
+  const gridHeight = grid.rows * cellSize;
+  const centerPanelWidth = Math.min(contentWidth, gridWidth + 64);
+  const centerPanelHeight = gridHeight + 64;
+  const centerPanelX = width / 2;
+  const centerPanelTop = panelTop;
+  const centerPanelY = centerPanelTop + centerPanelHeight / 2;
+  const gridX = centerPanelX - gridWidth / 2;
+  const gridY = centerPanelTop + 44;
+  const rightPanelTop = centerPanelTop + centerPanelHeight + panelGap;
+  const rightPanelWidth = contentWidth;
+  const rightColumnX = outerPadding + 12;
+  const rightColumnWidth = contentWidth - 24;
+  const statsPanelY = rightPanelTop + 18;
+  const statsPanelHeight = 230;
+  const inspectorPanelY = statsPanelY + statsPanelHeight + spacing.sm;
+  const inspectorPanelHeight = 204;
+  const rightPanelHeight =
+    inspectorPanelY + inspectorPanelHeight - rightPanelTop + spacing.md;
+  const rightPanelY = rightPanelTop + rightPanelHeight / 2;
+  const leftPanelTop = rightPanelTop + rightPanelHeight + panelGap;
+  const cardWidth = contentWidth - 24;
+  const cardHeight = 52;
+  const paletteGap = 6;
+  const cardGapY = cardHeight + paletteGap;
+  const paletteTopY = leftPanelTop + 46;
+  const cardStartY = paletteTopY + cardHeight / 2;
+  const paletteBottomY =
+    cardStartY +
+    (SHIP_PARTS.length - 1) * cardGapY +
+    cardHeight / 2;
+  const controlsY = paletteBottomY + 24;
+  const buttonHeight = toolbar.buttonHeight;
+  const buttonGap = toolbar.buttonGap;
+  const toolbarButtonStartOffset = 54;
+  const toolbarHeight = Math.max(
+    toolbar.toolbarHeight,
+    toolbarButtonStartOffset + buttonHeight * 3 + buttonGap * 2 + spacing.md,
+  );
+  const toolbarY = controlsY + 62;
+  const leftPanelBottom = toolbarY + toolbarHeight + spacing.md;
+  const leftPanelHeight = leftPanelBottom - leftPanelTop;
+  const leftPanelWidth = contentWidth;
+  const leftPanelX = width / 2;
+  const leftPanelY = leftPanelTop + leftPanelHeight / 2;
+  const primaryButtonWidth = cardWidth;
+  const secondaryButtonWidth = Math.floor((primaryButtonWidth - buttonGap) / 2);
+  const tertiaryButtonWidth = primaryButtonWidth;
+  const worldHeight = Math.max(height, leftPanelBottom + outerPadding);
+  const toastWidth = Math.min(contentWidth - 24, theme.toast.maxWidth);
+
+  return {
+    grid: {
+      ...grid,
+      cellSize,
+      x: gridX,
+      y: gridY,
+    },
+    baseGridCellSize: cellSize,
+    gridZoom: gridZoom ?? 1,
+    theme,
+    layout: {
+      width,
+      height,
+      worldHeight,
+      mobileLayout: true,
+      scrollable: worldHeight > height + 2,
+      compactUi: true,
+      outerPadding,
+      panelGap,
+      leftPanelWidth,
+      rightPanelWidth,
+      centerStartX: centerPanelX - centerPanelWidth / 2,
+      centerEndX: centerPanelX + centerPanelWidth / 2,
+      centerWidth: centerPanelWidth,
+      gridWidth,
+      gridHeight,
+      gridX,
+      gridY,
+      leftPanelX,
+      leftPanelY,
+      leftPanelHeight,
+      rightPanelX: width / 2,
+      rightPanelY,
+      rightPanelHeight,
+      panelY: leftPanelY,
+      panelHeight: leftPanelHeight,
+      panelTop,
+      centerPanelX,
+      centerPanelY,
+      centerPanelWidth,
+      centerPanelHeight,
+      titleX,
+      cardWidth,
+      cardHeight,
+      cardX: width / 2,
+      cardStartY,
+      cardGapY,
+      paletteTopY,
+      paletteBottomY,
+      paletteColumns: 1,
+      paletteIconCellSize: 14,
+      controlsX: outerPadding + 16,
+      controlsY,
+      toolbarX: outerPadding + 12,
+      toolbarY,
+      toolbarWidth: primaryButtonWidth,
+      toolbarHeight,
+      primaryButtonX: outerPadding + 12,
+      primaryButtonY: toolbarY + toolbarButtonStartOffset,
+      primaryButtonWidth,
+      primaryButtonHeight: buttonHeight,
+      secondaryButtonX: outerPadding + 12,
+      secondaryButtonY:
+        toolbarY + toolbarButtonStartOffset + buttonHeight + buttonGap,
+      secondaryButtonWidth,
+      secondaryButtonGap: buttonGap,
+      tertiaryButtonX: outerPadding + 12,
+      tertiaryButtonY:
+        toolbarY + toolbarButtonStartOffset + (buttonHeight + buttonGap) * 2,
+      tertiaryButtonWidth,
+      rightColumnX,
+      rightColumnY: rightPanelTop + 18,
+      rightColumnWidth,
+      rightColumnHeight: rightPanelHeight - 36,
+      statsPanelX: rightColumnX,
+      statsPanelY,
+      statsPanelWidth: rightColumnWidth,
+      statsPanelHeight,
+      inspectorPanelX: rightColumnX,
+      inspectorPanelY,
+      inspectorPanelWidth: rightColumnWidth,
+      inspectorPanelHeight,
+      messageX: width / 2,
+      messageY: gridY + gridHeight + spacing.lg,
       toastWidth,
     },
   };

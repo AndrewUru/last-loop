@@ -16,6 +16,7 @@ function createFlightControls() {
     throttle: 0,
     cruiseThrottle: 0.85,
     steer: 0,
+    assistEnabled: true,
     engineOn: false,
     source: "Pilot",
   };
@@ -43,7 +44,13 @@ function createFlightKeys(input) {
     s: Phaser.Input.Keyboard.KeyCodes.S,
     d: Phaser.Input.Keyboard.KeyCodes.D,
     f: Phaser.Input.Keyboard.KeyCodes.F,
+    g: Phaser.Input.Keyboard.KeyCodes.G,
     h: Phaser.Input.Keyboard.KeyCodes.H,
+    zero: Phaser.Input.Keyboard.KeyCodes.ZERO,
+    one: Phaser.Input.Keyboard.KeyCodes.ONE,
+    two: Phaser.Input.Keyboard.KeyCodes.TWO,
+    three: Phaser.Input.Keyboard.KeyCodes.THREE,
+    four: Phaser.Input.Keyboard.KeyCodes.FOUR,
     space: Phaser.Input.Keyboard.KeyCodes.SPACE,
     shift: Phaser.Input.Keyboard.KeyCodes.SHIFT,
   });

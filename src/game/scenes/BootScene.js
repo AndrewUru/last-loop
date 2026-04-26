@@ -33,7 +33,7 @@ export default class BootScene extends Phaser.Scene {
   }
 
   createBackdrop(width, height) {
-    const background = this.add.graphics();
+    const background = this.add.graphics().setDepth(-30);
     background.fillGradientStyle(0x061726, 0x0c2741, 0x05111c, 0x02060b, 1);
     background.fillRect(0, 0, width, height);
     background.fillStyle(0x1a537a, 0.16);
@@ -45,12 +45,12 @@ export default class BootScene extends Phaser.Scene {
       .image(width * 0.84, height * 0.9, "earth-atmosphere-sfs")
       .setDisplaySize(560, 560)
       .setAlpha(0.28)
-      .setDepth(-2);
+      .setDepth(-20);
     this.add
       .image(width * 0.84, height * 0.9, "earth-body-sfs")
       .setDisplaySize(460, 460)
       .setAlpha(0.42)
-      .setDepth(-1);
+      .setDepth(-19);
 
     for (let index = 0; index < 90; index += 1) {
       this.add

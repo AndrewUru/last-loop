@@ -125,6 +125,15 @@ export default class BuildValidator {
       );
     }
 
+    if (stats.stability < 0.48 && parts.length > 2) {
+      pushIssue(
+        "warning",
+        "low-stability",
+        "Stability is low. Recenter mass or add an avionics module.",
+        parts.flatMap((part) => getOccupiedCells(part)),
+      );
+    }
+
     return {
       isValid: errors.length === 0,
       errors,

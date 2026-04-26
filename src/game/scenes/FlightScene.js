@@ -47,7 +47,7 @@ class FlightScene extends Phaser.Scene {
     };
     this.onResultRelaunch = () => {
       if (this.finished) {
-        this.restartFlight();
+        this.handleResultPrimaryAction();
       }
     };
     this.onEscapeToBuild = () => {

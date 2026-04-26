@@ -30,7 +30,7 @@ export const FLIGHT_WORLD = {
   atmosphereHeight: 110,
   targetOrbitAltitude: 220,
   earthEscapeAltitude: 430,
-  orbitLockDuration: 4,
+  orbitLockDuration: 3.4,
   missionTimeout: 420,
   // Core jam tuning: lighter gravity, a touch more thrust, and a gentler
   // orbital target make the climb readable without turning the game into a toy.
@@ -47,7 +47,7 @@ export const FLIGHT_WORLD = {
   turnStartAltitude: 120,
   orbitMinAltitude: 170,
   orbitTargetHorizontalSpeed: 1.82,
-  orbitVerticalTolerance: 0.36,
+  orbitVerticalTolerance: 0.42,
   orbitAngleMin: -26,
   orbitAngleMax: 8,
   safeLandingSpeed: 0.46,
@@ -57,6 +57,7 @@ export const FLIGHT_WORLD = {
   outOfFuelFallSpeed: 0.18,
   launchAssistAltitude: 55,
   launchAssistMultiplier: 1.45,
+  assistErrorDeadZone: 0.018,
 };
 
 export const FLIGHT_TARGETS = {
@@ -68,7 +69,9 @@ export default class FlightModel {
   constructor(stats) {
     this.stats = stats;
     this.guidance = clamp(
-      stats.stability * 0.68 + stats.balanceScore * 0.32,
+      stats.stability * 0.68 +
+        stats.balanceScore * 0.32 +
+        (stats.controlAuthority || 0) * 0.2,
       0.18,
       1,
     );
@@ -82,7 +85,8 @@ export default class FlightModel {
         : 0;
     this.dryMass = Math.max(10, stats.mass - stats.fuel * this.fuelMassFactor);
     this.turnAuthority =
-      FLIGHT_WORLD.baseTurnAuthority * (0.75 + this.guidance * 0.55);
+      FLIGHT_WORLD.baseTurnAuthority *
+      (0.75 + this.guidance * 0.55 + (stats.controlAuthority || 0) * 0.24);
     this.dragCoefficient =
       FLIGHT_WORLD.dragBase +
       Math.max(0, (stats.width || 1) - 1) * FLIGHT_WORLD.dragWidthPenalty +
@@ -112,6 +116,12 @@ export default class FlightModel {
       angularVelocity: 0,
       throttle: 0,
       steerInput: 0,
+      pilotSteerInput: 0,
+      assistSteerInput: 0,
+      assistEnabled: true,
+      assistTargetAngle: -Math.PI / 2,
+      assistError: 0,
+      assistStrength: this.guidance,
       engineOn: false,
       launched: false,
       result: null,
@@ -159,7 +169,7 @@ export default class FlightModel {
         0,
         1,
       );
-      return degToRad(-90 + progress * 8);
+      return degToRad(-90 + progress * 18);
     }
 
     if (altitude < FLIGHT_WORLD.orbitMinAltitude) {
@@ -169,7 +179,7 @@ export default class FlightModel {
         0,
         1,
       );
-      return degToRad(-82 + progress * 38);
+      return degToRad(-72 + progress * 58);
     }
 
     if (altitude < FLIGHT_WORLD.targetOrbitAltitude) {
@@ -179,10 +189,10 @@ export default class FlightModel {
         0,
         1,
       );
-      return degToRad(-44 + progress * 28);
+      return degToRad(-14 + progress * 16);
     }
 
-    return degToRad(-16);
+    return degToRad(2);
   }
 
   getLaunchAssistMultiplier(state) {
@@ -203,9 +213,20 @@ export default class FlightModel {
     const controlAuthority = degToRad(130 + this.guidance * 42) * this.turnAuthority;
     const angularDrag = 1.35 - this.guidance * 0.28;
     const maxTurnRate = degToRad(110 + this.guidance * 34);
+    const pilotActive = Math.abs(state.pilotSteerInput) > 0.04;
+    const assistContribution = state.assistEnabled
+      ? state.assistSteerInput * (pilotActive ? 0.38 : 1)
+      : 0;
+    const effectiveSteer = clamp(
+      state.pilotSteerInput + assistContribution,
+      -1,
+      1,
+    );
 
-    if (Math.abs(state.steerInput) > 0.001) {
-      state.angularVelocity += state.steerInput * controlAuthority * dt;
+    state.steerInput = effectiveSteer;
+
+    if (Math.abs(effectiveSteer) > 0.001) {
+      state.angularVelocity += effectiveSteer * controlAuthority * dt;
     } else {
       state.angularVelocity *= Math.max(0, 1 - dt * angularDrag);
     }
@@ -227,6 +248,33 @@ export default class FlightModel {
     ) {
       state.angularVelocity = 0;
     }
+  }
+
+  updateAssistState(state) {
+    state.assistTargetAngle = this.getStabilityTargetAngle(state);
+    state.assistError = angleDifference(
+      state.assistTargetAngle,
+      state.localOrientation,
+    );
+    state.assistStrength = state.assistEnabled ? this.guidance : 0;
+
+    if (!state.assistEnabled) {
+      state.assistSteerInput = 0;
+      return;
+    }
+
+    const deadZone = FLIGHT_WORLD.assistErrorDeadZone;
+    const proportional =
+      Math.abs(state.assistError) < deadZone ? 0 : state.assistError * 1.55;
+    const damping = state.angularVelocity * (0.34 + this.guidance * 0.18);
+    const lowAltitudeBoost =
+      state.altitude < FLIGHT_WORLD.liftoffAltitude ? 1.18 : 1;
+
+    state.assistSteerInput = clamp(
+      (proportional - damping) * lowAltitudeBoost * (0.66 + this.guidance * 0.42),
+      -1,
+      1,
+    );
   }
 
   buildWorldPose(
@@ -305,7 +353,9 @@ export default class FlightModel {
     state.time += dt;
     state.simulationTime += dt;
     state.engineOn = Boolean(controls.engineOn ?? state.engineOn);
-    state.steerInput = clamp(controls.steer ?? 0, -1, 1);
+    state.assistEnabled = Boolean(controls.assistEnabled ?? state.assistEnabled);
+    state.pilotSteerInput = clamp(controls.steer ?? 0, -1, 1);
+    state.steerInput = state.pilotSteerInput;
     state.throttle = state.engineOn
       ? clamp(controls.throttle ?? state.throttle, 0, 1)
       : 0;
@@ -321,6 +371,7 @@ export default class FlightModel {
     );
 
     if (!state.launched) {
+      this.updateAssistState(state);
       state.angularVelocity *= Math.max(0, 1 - dt * (FLIGHT_WORLD.angularDamping + 1));
       state.localOrientation +=
         angleDifference(-Math.PI / 2, state.localOrientation) *
@@ -332,6 +383,7 @@ export default class FlightModel {
       return this.syncDerivedState(state);
     }
 
+    this.updateAssistState(state);
     this.updateOrientation(state, dt);
 
     let throttle = state.throttle;

@@ -1,5 +1,9 @@
 import Phaser from "phaser";
-import { FLIGHT_PHASES, FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
+import {
+  FLIGHT_PHASES,
+  FLIGHT_TARGETS,
+  FLIGHT_WORLD,
+} from "../../systems/FlightSimulator.js";
 import {
   CURVATURE_REVEAL_END_ALTITUDE,
   CURVATURE_REVEAL_START_ALTITUDE,
@@ -135,6 +139,24 @@ export const flightSceneRuntimeMethods = {
     ) {
       this.toggleEngine();
     }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.g)) {
+      this.toggleAssist();
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.zero)) {
+      this.setCruiseThrottle(0);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.one)) {
+      this.setCruiseThrottle(0.35);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.two)) {
+      this.setCruiseThrottle(0.65);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.three)) {
+      this.setCruiseThrottle(0.85);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.four)) {
+      this.setCruiseThrottle(1);
+    }
 
     const upPressed = this.keys.up.isDown || this.keys.w.isDown;
     const downPressed = this.keys.down.isDown || this.keys.s.isDown;
@@ -154,16 +176,69 @@ export const flightSceneRuntimeMethods = {
       );
     }
 
+    if (this.simulator.state.fuelRemaining <= 0.01) {
+      this.controls.engineOn = false;
+    }
+
     this.controls.steer = (rightPressed ? 1 : 0) - (leftPressed ? 1 : 0);
-    this.controls.throttle = this.controls.engineOn
+    const requestedThrottle = this.controls.engineOn
       ? this.keys.shift.isDown
         ? 1
         : this.controls.cruiseThrottle
       : 0;
+
+    this.controls.requestedThrottle = requestedThrottle;
+    this.controls.throttle = this.getAssistedThrottle(requestedThrottle);
   },
 
   toggleEngine() {
     this.controls.engineOn = !this.controls.engineOn;
+  },
+
+  toggleAssist() {
+    this.controls.assistEnabled = !this.controls.assistEnabled;
+  },
+
+  setCruiseThrottle(value) {
+    this.controls.cruiseThrottle = Phaser.Math.Clamp(value, 0, 1);
+  },
+
+  getAssistedThrottle(requestedThrottle) {
+    this.controls.autoThrottleActive = false;
+
+    if (!this.controls.assistEnabled || requestedThrottle <= 0) {
+      return requestedThrottle;
+    }
+
+    const state = this.simulator.state;
+    if (!state?.launched) {
+      return requestedThrottle;
+    }
+
+    const horizontalSpeed = Math.abs(state.horizontalVelocity);
+    const nearOrbitSpeed =
+      horizontalSpeed >= FLIGHT_TARGETS.orbitalVelocity * 1.08;
+    const nearOrbitAltitude =
+      state.altitude >= FLIGHT_WORLD.orbitMinAltitude - 15;
+    const climbingPastTarget =
+      state.altitude >= FLIGHT_WORLD.targetOrbitAltitude + 46 &&
+      state.verticalVelocity > 0;
+
+    if ((nearOrbitSpeed && nearOrbitAltitude) || climbingPastTarget) {
+      this.controls.autoThrottleActive = true;
+      return 0;
+    }
+
+    if (
+      state.altitude >= FLIGHT_WORLD.turnStartAltitude &&
+      state.verticalVelocity > FLIGHT_WORLD.orbitVerticalTolerance * 4
+    ) {
+      const cappedThrottle = Math.min(requestedThrottle, 0.58);
+      this.controls.autoThrottleActive = cappedThrottle < requestedThrottle;
+      return cappedThrottle;
+    }
+
+    return requestedThrottle;
   },
 
   renderFlight(state, prediction, time, delta) {
@@ -180,6 +255,7 @@ export const flightSceneRuntimeMethods = {
     this.hud.update(state, {
       stats: this.stats,
       predictionSummary: prediction,
+      controls: this.controls,
     });
   },
 
@@ -215,8 +291,9 @@ export const flightSceneRuntimeMethods = {
     const snapshot = {
       result: state.result,
       reason: state.reason,
-      altitude: state.altitude,
+      altitude: Math.max(state.altitude, state.apoapsis || 0),
       horizontalVelocity: Math.abs(state.horizontalVelocity),
+      fuelRemaining: state.fuelRemaining,
       time: state.time,
     };
 

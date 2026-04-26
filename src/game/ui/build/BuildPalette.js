@@ -9,14 +9,23 @@ export function createBuildPalette(scene) {
     cardHeight,
     cardStartY,
     cardGapY,
+    paletteColumns = 1,
     paletteIconCellSize,
   } = scene.layout;
   const { colors, palette, spacing, chips } = scene.theme;
   const compact = scene.layout.compactUi;
+  const cardGapX = scene.layout.secondaryButtonGap || spacing.xs;
   scene.paletteCards = new Map();
 
   SHIP_PARTS.forEach((part, index) => {
-    const card = scene.add.container(cardX, cardStartY + index * cardGapY);
+    const column = index % paletteColumns;
+    const row = Math.floor(index / paletteColumns);
+    const x =
+      paletteColumns > 1
+        ? cardX + column * (cardWidth + cardGapX)
+        : cardX;
+    const y = cardStartY + row * cardGapY;
+    const card = scene.add.container(x, y);
     const shadow = scene.add
       .rectangle(0, 3, cardWidth, cardHeight, colors.shadow, 0.28)
       .setStrokeStyle(2, part.color, 0.08);
@@ -60,6 +69,9 @@ export function createBuildPalette(scene) {
         fontStyle: "bold",
       })
       .setOrigin(0, 0.5);
+    if (compact && cardWidth < 210) {
+      title.setWordWrapWidth(cardWidth - 90);
+    }
     const meta = scene.add
       .text(
         textStartX,

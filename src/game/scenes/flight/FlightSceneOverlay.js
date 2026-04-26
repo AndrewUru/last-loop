@@ -58,7 +58,7 @@ export const flightSceneOverlayMethods = {
       height / 2 + 138,
       "Relaunch",
       0x7bc48a,
-      () => this.restartFlight(),
+      () => this.handleResultPrimaryAction(),
     );
 
     this.resultOverlay.add([
@@ -131,21 +131,40 @@ export const flightSceneOverlayMethods = {
     const success = resultData.result === "success";
     const accent = success ? "#9ef6ca" : "#ffb0b0";
     const accentStroke = success ? 0x73f7c0 : 0xff8d8d;
+    this.lastResultData = resultData;
 
     this.resultTitle.setText(success ? "Orbit Reached" : "Mission Failed");
     this.resultTitle.setColor(accent);
-    this.resultBody.setText(resultData.reason);
+    this.resultBody.setText(
+      success
+        ? "Stable Earth orbit achieved. You can now commit the same vehicle to a translunar injection burn."
+        : resultData.reason,
+    );
     this.resultStats.setText(
       [
         `Peak altitude: ${resultData.altitude.toFixed(1)} km`,
         `Horizontal speed: ${resultData.horizontalVelocity.toFixed(2)} km/s`,
+        `Transfer fuel: ${(resultData.fuelRemaining || 0).toFixed(1)}`,
         `Flight time: ${resultData.time.toFixed(1)} s`,
         `Launch TWR: ${(this.stats.twr || 0).toFixed(2)}`,
       ].join("\n"),
     );
+    this.resultHint.setText(
+      success ? "R assembly    SPACE moon transfer" : "R assembly    SPACE relaunch",
+    );
+    this.resultRetryButton.text.setText(success ? "Moon Transfer" : "Relaunch");
     this.resultPanel.setStrokeStyle(2, accentStroke, 0.42);
     this.resultOverlay.setVisible(true);
     this.resultOverlayVisible = true;
+  },
+
+  handleResultPrimaryAction() {
+    if (this.lastResultData?.result === "success") {
+      this.continueToMoon();
+      return;
+    }
+
+    this.restartFlight();
   },
 
   restartFlight() {
@@ -154,5 +173,13 @@ export const flightSceneOverlayMethods = {
 
   returnToBuild() {
     this.scene.start("BuildScene", { build: this.build });
+  },
+
+  continueToMoon() {
+    this.scene.start("DeepSpaceScene", {
+      build: this.build,
+      stats: this.stats,
+      departure: this.lastResultData || {},
+    });
   },
 };

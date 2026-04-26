@@ -137,7 +137,7 @@ export default class FlightPhaseController {
     const inOrbitWindow =
       altitude >= world.orbitMinAltitude &&
       altitude <= world.targetOrbitAltitude + 70 &&
-      horizontalSpeed >= world.orbitTargetHorizontalSpeed * 0.96 &&
+      horizontalSpeed >= world.orbitTargetHorizontalSpeed * 0.92 &&
       Math.abs(verticalSpeed) <= world.orbitVerticalTolerance &&
       pitchDegrees >= world.orbitAngleMin &&
       pitchDegrees <= world.orbitAngleMax;

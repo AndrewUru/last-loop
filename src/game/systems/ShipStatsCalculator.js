@@ -31,6 +31,9 @@ export default class ShipStatsCalculator {
         boosterCount: 0,
         cockpitCount: 0,
         tankCount: 0,
+        controlCount: 0,
+        stabilityBonus: 0,
+        controlAuthority: 0,
       };
     }
 
@@ -60,6 +63,9 @@ export default class ShipStatsCalculator {
     let boosterCount = 0;
     let cockpitCount = 0;
     let tankCount = 0;
+    let controlCount = 0;
+    let stabilityBonus = 0;
+    let controlAuthority = 0;
 
     resolvedParts.forEach((part) => {
       const { definition } = part;
@@ -74,6 +80,8 @@ export default class ShipStatsCalculator {
       weightedY += partCenterY * definition.mass;
       weightedOffset += (partCenterX - centerX) * definition.mass;
       weightedThrustOffset += (partCenterX - centerX) * definition.thrust;
+      stabilityBonus += definition.stabilityBonus || 0;
+      controlAuthority += definition.controlAuthority || 0;
       minX = Math.min(minX, part.cellX);
       maxX = Math.max(maxX, part.cellX + definition.gridWidth);
       minY = Math.min(minY, part.cellY);
@@ -87,6 +95,8 @@ export default class ShipStatsCalculator {
         cockpitCount += 1;
       } else if (definition.type === "fuel") {
         tankCount += 1;
+      } else if (definition.type === "control") {
+        controlCount += 1;
       }
     });
 
@@ -96,7 +106,7 @@ export default class ShipStatsCalculator {
     const thrustOffsetPenalty = Math.abs(weightedThrustOffset) / Math.max(thrust || 1, 1);
     const footprintPenalty = Math.max(0, width - 3) * 0.07 + Math.max(0, height - 7) * 0.03;
     const rawBalance = 1 - massOffsetPenalty * 0.65 - thrustOffsetPenalty * 0.9;
-    const rawStability = rawBalance - footprintPenalty;
+    const rawStability = rawBalance - footprintPenalty + stabilityBonus;
 
     return {
       partCount: resolvedParts.length,
@@ -117,6 +127,9 @@ export default class ShipStatsCalculator {
       boosterCount,
       cockpitCount,
       tankCount,
+      controlCount,
+      stabilityBonus,
+      controlAuthority,
     };
   }
 }
