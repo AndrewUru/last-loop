@@ -1,5 +1,5 @@
 export default class BuildToolbar {
-  constructor(scene, { layout, onLaunch, onClear, onRemove, onReset }) {
+  constructor(scene, { layout, onLaunch, onClear, onRemove, onReset, onSave, onLoad }) {
     this.scene = scene;
     this.layout = layout;
 
@@ -27,6 +27,18 @@ export default class BuildToolbar {
       x: layout.tertiaryButtonX,
       y: layout.tertiaryButtonY,
       callback: onReset,
+    });
+    this.saveButton = this.createIconButton({
+      x: layout.secondaryButtonX + (layout.secondaryButtonWidth + layout.secondaryButtonGap) * 2,
+      y: layout.secondaryButtonY,
+      label: "SAV",
+      callback: onSave,
+    });
+    this.loadButton = this.createIconButton({
+      x: layout.secondaryButtonX + (layout.secondaryButtonWidth + layout.secondaryButtonGap) * 3,
+      y: layout.secondaryButtonY,
+      label: "LOD",
+      callback: onLoad,
     });
 
     this.setRemoveEnabled(false);

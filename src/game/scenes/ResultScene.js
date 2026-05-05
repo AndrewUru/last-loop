@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import MissionSystem from "../systems/MissionSystem.js";
 
 export default class ResultScene extends Phaser.Scene {
   constructor() {
@@ -18,6 +19,7 @@ export default class ResultScene extends Phaser.Scene {
     this.primaryMetricLabel = data.primaryMetricLabel || "Peak altitude";
     this.speedMetricLabel = data.speedMetricLabel || "Orbital speed";
     this.extraLines = Array.isArray(data.extraLines) ? data.extraLines : [];
+    this.partCount = this.build.length;
   }
 
   create() {
@@ -27,12 +29,14 @@ export default class ResultScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor("#0d1217");
 
+    this.missionResults = this.checkMissions();
+
     this.add
-      .rectangle(width / 2, height / 2, 720, 500, 0x151b22, 0.95)
+      .rectangle(width / 2, height / 2, 720, 540, 0x151b22, 0.95)
       .setStrokeStyle(1, accent, 0.46);
 
     this.add
-      .text(width / 2, 152, this.reportKicker, {
+      .text(width / 2, 142, this.reportKicker, {
         fontSize: "16px",
         color: "#9eb4ca",
         fontStyle: "bold",
@@ -41,26 +45,39 @@ export default class ResultScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(width / 2, 192, this.titleText || (success ? "Orbit Reached" : "Mission Failed"), {
-        fontSize: "46px",
+      .text(width / 2, 182, this.titleText || (success ? "Orbit Reached" : "Mission Failed"), {
+        fontSize: "42px",
         color: success ? "#d4f0da" : "#ffbfb6",
         fontStyle: "bold",
       })
       .setOrigin(0.5);
 
+    if (this.missionResults.length > 0) {
+      const missionsText = this.missionResults.map(m => `★ ${m.title} (+${m.reward})`).join("\n");
+      this.add
+        .text(width / 2, 228, missionsText, {
+          fontSize: "16px",
+          color: "#ffd700",
+          align: "center",
+          fontStyle: "bold",
+        })
+        .setOrigin(0.5);
+    }
+
     this.add
-      .text(width / 2, 248, this.reason, {
-        fontSize: "20px",
+      .text(width / 2, success ? (this.missionResults.length > 0 ? 280 : 238) : 238, this.reason, {
+        fontSize: "18px",
         color: "#cad4de",
         align: "center",
         wordWrap: { width: 600 },
       })
       .setOrigin(0.5);
 
+    const statsY = success ? (this.missionResults.length > 0 ? 310 : 270) : 270;
     this.add
       .text(
         width / 2,
-        334,
+        statsY,
         [
           `${this.primaryMetricLabel}: ${this.altitude.toFixed(1)} km`,
           `${this.speedMetricLabel}: ${this.horizontalVelocity.toFixed(2)} km/s`,
@@ -68,28 +85,39 @@ export default class ResultScene extends Phaser.Scene {
           `Rocket mass: ${(this.stats.mass || 0).toFixed(0)}`,
           `Fuel capacity: ${(this.stats.fuel || 0).toFixed(0)}`,
           `Launch TWR: ${(this.stats.twr || 0).toFixed(2)}`,
+          `Parts used: ${this.partCount}`,
           ...this.extraLines,
         ].join("\n"),
         {
-          fontSize: "22px",
+          fontSize: "20px",
           color: "#f4f7fb",
           align: "center",
-          lineSpacing: 12,
+          lineSpacing: 10,
         },
       )
       .setOrigin(0.5);
 
+    const funds = MissionSystem.getFunds();
+    const progress = MissionSystem.getProgress();
     this.add
-      .text(width / 2, 510, "R return to assembly    SPACE relaunch vehicle", {
-        fontSize: "18px",
+      .text(width / 2, 470, `Funds: ${funds} | Launches: ${progress.launches} | Successes: ${progress.successes}`, {
+        fontSize: "16px",
+        color: "#73f7c0",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+
+    this.add
+      .text(width / 2, 500, "R return to assembly    SPACE relaunch vehicle", {
+        fontSize: "16px",
         color: "#9eb4ca",
       })
       .setOrigin(0.5);
 
-    this.createButton(width / 2 - 132, 560, "Assembly", accent, () => {
+    this.createButton(width / 2 - 132, 530, "Assembly", accent, () => {
       this.scene.start("BuildScene", { build: this.build });
     });
-    this.createButton(width / 2 + 12, 560, "Relaunch", accent, () => {
+    this.createButton(width / 2 + 12, 530, "Relaunch", accent, () => {
       this.scene.start("FlightScene", { build: this.build, stats: this.stats });
     });
 
@@ -99,6 +127,19 @@ export default class ResultScene extends Phaser.Scene {
     this.input.keyboard.once("keydown-SPACE", () => {
       this.scene.start("FlightScene", { build: this.build, stats: this.stats });
     });
+  }
+
+  checkMissions() {
+    const missionStats = {
+      result: this.result,
+      altitude: this.altitude,
+      horizontalVelocity: this.horizontalVelocity,
+      fuelRemaining: this.stats.fuelRemaining || 0,
+      partCount: this.partCount,
+      time: this.flightTime,
+    };
+    MissionSystem.recordLaunch(this.result === "success");
+    return MissionSystem.checkMissions(missionStats);
   }
 
   createButton(x, y, label, accent, callback) {

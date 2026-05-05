@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { PARTS_BY_ID } from "../../data/parts.js";
+import ShipStatsCalculator from "../../systems/ShipStatsCalculator.js";
 import {
   FLIGHT_PHASES,
   FLIGHT_WORLD,
@@ -90,6 +92,7 @@ export const flightSceneRuntimeMethods = {
     this.input.keyboard.on("keydown-R", this.onResultRebuild);
     this.input.keyboard.on("keydown-SPACE", this.onResultRelaunch);
     this.input.keyboard.on("keydown-ESC", this.onEscapeToBuild);
+    this.input.keyboard.on("keydown-X", () => this.activateStage());
   },
 
   handleShutdown() {
@@ -103,6 +106,7 @@ export const flightSceneRuntimeMethods = {
     this.input.keyboard.off("keydown-R", this.onResultRebuild);
     this.input.keyboard.off("keydown-SPACE", this.onResultRelaunch);
     this.input.keyboard.off("keydown-ESC", this.onEscapeToBuild);
+    this.input.keyboard.off("keydown-X", () => this.activateStage());
   },
 
   handlePointerDown(pointer) {
@@ -359,6 +363,11 @@ export const flightSceneRuntimeMethods = {
     this.controls.throttle = 0;
     this.controls.steer = 0;
 
+    if (state.result === "crashed") {
+      this.createExplosion(state);
+      this.audio?.playExplosion();
+    }
+
     const snapshot = {
       result: state.result,
       reason: state.reason,
@@ -370,6 +379,80 @@ export const flightSceneRuntimeMethods = {
 
     this.time.delayedCall(state.result === "success" ? 900 : 1200, () => {
       this.showMissionOverlay(snapshot);
+    });
+  },
+
+  createExplosion(state) {
+    this.cameras.main.shake(400, 0.012);
+    const rocketX = state.position.x;
+    const rocketY = state.position.y;
+
+    for (let i = 0; i < 35; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 40 + Math.random() * 120;
+      const size = 2 + Math.random() * 5;
+      const colors = [0xff4500, 0xff8c00, 0xffd700, 0xff6347, 0xffffff];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const debris = this.add.circle(rocketX, rocketY, size, color, 1);
+      debris.setDepth(30);
+      this.tweens.add({
+        targets: debris,
+        x: rocketX + Math.cos(angle) * speed,
+        y: rocketY + Math.sin(angle) * speed - 30,
+        alpha: 0,
+        scale: 0.2,
+        duration: 600 + Math.random() * 800,
+        ease: "Cubic.easeOut",
+        onComplete: () => debris.destroy()
+      });
+    }
+
+    for (let i = 0; i < 20; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 20 + Math.random() * 60;
+      const smoke = this.add.circle(rocketX, rocketY, 4 + Math.random() * 8, 0x333333, 0.6);
+      smoke.setDepth(29);
+      this.tweens.add({
+        targets: smoke,
+        x: rocketX + Math.cos(angle) * speed,
+        y: rocketY + Math.sin(angle) * speed - 50,
+        alpha: 0,
+        scale: 2 + Math.random() * 2,
+        duration: 1000 + Math.random() * 1000,
+        ease: "Quad.easeOut",
+        onComplete: () => smoke.destroy()
+      });
+    }
+
+    this.flashGraphics = this.add.graphics().setDepth(31);
+    this.flashGraphics.fillStyle(0xffffff, 0.8);
+    this.flashGraphics.fillCircle(rocketX, rocketY, 60);
+    this.tweens.add({
+      targets: this.flashGraphics,
+      alpha: 0,
+      duration: 300,
+      onComplete: () => this.flashGraphics.destroy()
+    });
+
+    this.build.forEach((part) => {
+      const def = PARTS_BY_ID[part.partId];
+      if (!def) return;
+      const partX = rocketX + (part.cellX - this.stats.bounds.minX) * 20;
+      const partY = rocketY + (part.cellY - this.stats.bounds.minY) * 20;
+      const chunk = this.add.rectangle(partX, partY, 8, 8, def.color, 0.9);
+      chunk.setDepth(28);
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 30 + Math.random() * 70;
+      this.tweens.add({
+        targets: chunk,
+        x: partX + Math.cos(angle) * speed * 2,
+        y: partY + Math.sin(angle) * speed * 2 + 100,
+        rotation: Math.random() * 6,
+        alpha: 0,
+        duration: 800 + Math.random() * 600,
+        ease: "Quad.easeIn",
+        onComplete: () => chunk.destroy()
+      });
     });
   },
 
@@ -586,6 +669,43 @@ export const flightSceneRuntimeMethods = {
 
     this.launchTowerGlow.clear();
     this.padGlow.clear();
+
+    this.cloudLayers.forEach((layer) => {
+      const dist = Math.abs(state.altitude - layer.altitude);
+      const visibility = dist < 2000 ? 1 - dist / 2000 : 0;
+      layer.graphics.setAlpha(visibility * 0.35);
+    });
+
+    this.updateContrails(state);
+    this.updateHeatingGlow(state);
+  },
+
+  updateContrails(state) {
+    this.contrailGraphics.clear();
+    if (!state.launched || state.altitude > 15000 || state.altitude < 1000) return;
+    const speed = Math.sqrt(state.verticalVelocity ** 2 + state.horizontalVelocity ** 2);
+    if (speed < 0.3) return;
+    const alpha = Phaser.Math.Clamp(speed * 0.15, 0.05, 0.2);
+    this.contrailGraphics.lineStyle(2, 0xffffff, alpha);
+    const trailY = state.position.y + 10;
+    this.contrailGraphics.beginPath();
+    this.contrailGraphics.moveTo(state.position.x - 3, trailY);
+    this.contrailGraphics.lineTo(state.position.x + 3, trailY);
+    this.contrailGraphics.strokePath();
+  },
+
+  updateHeatingGlow(state) {
+    this.heatingGlow.clear();
+    if (!state.launched || state.altitude > 40000) return;
+    const speed = Math.sqrt(state.verticalVelocity ** 2 + state.horizontalVelocity ** 2);
+    const density = Math.max(0, 1 - state.altitude / 40000);
+    const heating = speed * density;
+    if (heating < 0.2) return;
+    const intensity = Phaser.Math.Clamp((heating - 0.2) / 0.8, 0, 1);
+    this.heatingGlow.fillStyle(0xff6600, intensity * 0.15);
+    this.heatingGlow.fillCircle(this.rocket.x, this.rocket.y, 20 + intensity * 15);
+    this.heatingGlow.fillStyle(0xffaa00, intensity * 0.1);
+    this.heatingGlow.fillCircle(this.rocket.x, this.rocket.y, 12 + intensity * 10);
   },
 
   updateTrail(state) {
@@ -1096,5 +1216,83 @@ export const flightSceneRuntimeMethods = {
         particle.size * 0.4,
       );
     }
+  },
+
+  activateStage() {
+    if (this.finished || !this.stages || this.stages.length === 0) return;
+    const nextStage = this.stages[0];
+    const separatedParts = this.build.filter((p) => nextStage.parts.includes(p));
+    if (separatedParts.length === 0) return;
+
+    this.audio?.playStageSeparation();
+    this.cameras.main.shake(200, 0.005);
+
+    separatedParts.forEach((part) => {
+      const def = PARTS_BY_ID[part.partId];
+      if (!def) return;
+      for (let i = 0; i < 12; i++) {
+        const debris = this.add.circle(
+          (part.cellX + def.gridWidth / 2 - this.stats.bounds.minX - (this.stats.bounds.maxX - this.stats.bounds.minX) / 2) * ROCKET_CELL_SIZE + this.rocket.x,
+          (part.cellY + def.gridHeight / 2 - this.stats.bounds.minY - (this.stats.bounds.maxY - this.stats.bounds.minY) / 2) * ROCKET_CELL_SIZE + this.rocket.y,
+          2 + Math.random() * 3,
+          def.color,
+          0.8
+        );
+        debris.setDepth(25);
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 30 + Math.random() * 80;
+        this.tweens.add({
+          targets: debris,
+          x: debris.x + Math.cos(angle) * speed,
+          y: debris.y + Math.sin(angle) * speed - 20,
+          alpha: 0,
+          scale: 0,
+          duration: 400 + Math.random() * 400,
+          onComplete: () => debris.destroy()
+        });
+      }
+    });
+
+    this.build = this.build.filter((p) => !nextStage.parts.includes(p));
+    this.stages.shift();
+    const newStats = ShipStatsCalculator.calculate(this.build);
+    if (newStats) {
+      this.stats = newStats;
+      this.simulator.stats = newStats;
+    }
+    this.rebuildRocket();
+
+    if (this.hud) {
+      this.hud.updateStageIndicator(this.stages.length);
+    }
+  },
+
+  rebuildRocket() {
+    this.rocket.removeAll(true);
+    this.primaryEngineView = null;
+    this.primaryEngineDefinition = null;
+    this.primaryEngineBottom = Number.NEGATIVE_INFINITY;
+    const bounds = this.stats.bounds || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+    const center = getBuildCenter(bounds);
+    this.build.forEach((part) => {
+      const definition = PARTS_BY_ID[part.partId];
+      if (!definition) return;
+      const partView = new ShipPart(
+        this,
+        (part.cellX + definition.gridWidth / 2 - center.x) * ROCKET_CELL_SIZE,
+        (part.cellY + definition.gridHeight / 2 - center.y) * ROCKET_CELL_SIZE,
+        definition,
+        { cellSize: ROCKET_CELL_SIZE, padding: 0, showLabel: false, showPlate: false }
+      );
+      this.rocket.add(partView);
+      if (definition.type === "engine") {
+        const partBottom = part.cellY + definition.gridHeight;
+        if (partBottom > this.primaryEngineBottom) {
+          this.primaryEngineBottom = partBottom;
+          this.primaryEngineView = partView;
+          this.primaryEngineDefinition = definition;
+        }
+      }
+    });
   },
 };

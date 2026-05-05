@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import ShipPart from "../entities/ShipPart.js";
 import { PARTS_BY_ID } from "../data/parts.js";
 import ShipStatsCalculator from "../systems/ShipStatsCalculator.js";
+import TutorialSystem from "../systems/TutorialSystem.js";
 import FlightHud from "../ui/FlightHud.js";
 import FlightTouchControls from "../ui/FlightTouchControls.js";
 import { ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
@@ -21,10 +22,13 @@ class FlightScene extends Phaser.Scene {
   init(data) {
     this.build = data.build || this.registry.get("rocket-build") || [];
     this.stats = data.stats || ShipStatsCalculator.calculate(this.build);
+    this.audio = this.registry.get("audio");
+    this.audio?.resume();
   }
 
   create() {
     this.initializeState();
+    this.initializeStages();
     this.createBackdrop();
     this.createWorld();
     this.createRocket();
@@ -36,6 +40,60 @@ class FlightScene extends Phaser.Scene {
     this.scale.on("resize", this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
     this.handleResize({ width: this.scale.width, height: this.scale.height });
+    this.createFlightTutorial();
+  }
+
+  createFlightTutorial() {
+    const { width, height } = this.scale;
+    this.flightTutorial = new TutorialSystem(this, [
+      {
+        title: "Flight Controls",
+        body: "SPACE/F: Engine on/off. A/D or arrows: Steer. G: Stability assist (SAS). Shift: Full throttle.",
+        panelY: height - 180,
+        waitForKey: true
+      },
+      {
+        title: "Throttle Control",
+        body: "Use 0-4 keys for throttle presets (0%, 35%, 65%, 85%, 100%). Up/Down arrows adjust throttle.",
+        panelY: height - 180,
+        waitForKey: true
+      },
+      {
+        title: "Reach Orbit",
+        body: "Climb vertically, then gradually turn horizontal. Watch the HUD for altitude and speed. Press X to stage if you have decouplers.",
+        panelY: height - 180,
+        waitForKey: true
+      }
+    ]);
+    this.flightTutorial.start();
+  }
+
+  initializeStages() {
+    this.stages = [];
+    let currentStageParts = [];
+    let hasDecoupler = false;
+
+    const sortedBuild = [...this.build].sort((a, b) => b.cellY - a.cellY);
+    for (const part of sortedBuild) {
+      const def = PARTS_BY_ID[part.partId];
+      if (!def) continue;
+
+      if (def.type === "decoupler") {
+        if (currentStageParts.length > 0) {
+          this.stages.push({ parts: [...currentStageParts] });
+          currentStageParts = [];
+        }
+        hasDecoupler = true;
+      } else {
+        currentStageParts.push(part);
+      }
+    }
+    if (currentStageParts.length > 0) {
+      this.stages.push({ parts: [...currentStageParts] });
+    }
+    if (this.stages.length > 1 && this.hud) {
+      this.hud.updateStageIndicator(this.stages.length - 1);
+    }
   }
 
   initializeState() {
@@ -135,6 +193,28 @@ class FlightScene extends Phaser.Scene {
     this.renderFlight(state, prediction, time, delta);
     this.updateHud(state, prediction);
     this.handleMissionEnd(state);
+    this.updateAudio(state);
+  }
+
+  updateAudio(state) {
+    if (!this.audio) return;
+    if (state.throttle > 0) {
+      this.audio.startEngine();
+      this.audio.updateEngine(state.throttle, state.altitude);
+    } else {
+      this.audio.stopEngine();
+    }
+    if (state.altitude > 500 && state.altitude < 15000 && state.verticalVelocity > 0.5) {
+      if (!this.lastWhooshAlt || Math.abs(state.altitude - this.lastWhooshAlt) > 2000) {
+        this.audio.playAtmosphereWhoosh(state.verticalVelocity);
+        this.lastWhooshAlt = state.altitude;
+      }
+    }
+    const speed = Math.sqrt(state.verticalVelocity ** 2 + state.horizontalVelocity ** 2);
+    if (speed > 1.0 && !this.sonicBoomPlayed && state.altitude < 20000) {
+      this.audio.playSonicBoom();
+      this.sonicBoomPlayed = true;
+    }
   }
 }
 

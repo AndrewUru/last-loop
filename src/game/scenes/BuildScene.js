@@ -3,6 +3,8 @@ import { PARTS_BY_ID } from "../data/parts.js";
 import { STARTER_ROCKET, cloneBuildParts, createStarterRocketBuild } from "../data/starterRocket.js";
 import BuildValidator from "../systems/BuildValidator.js";
 import ShipStatsCalculator from "../systems/ShipStatsCalculator.js";
+import BlueprintManager from "../systems/BlueprintManager.js";
+import TutorialSystem from "../systems/TutorialSystem.js";
 import BuildContextMenu from "../ui/build/BuildContextMenu.js";
 import BuildGridView from "../ui/build/BuildGridView.js";
 import BuildInspectorPanel from "../ui/build/BuildInspectorPanel.js";
@@ -45,6 +47,7 @@ export default class BuildScene extends Phaser.Scene {
     });
     this.initialSelectedPartId = data.selectedPartId || "capsule";
     this.buildZoom = Phaser.Math.Clamp(data.buildZoom || 1, BUILD_ZOOM_MIN, BUILD_ZOOM_MAX);
+    this.audio = this.registry.get("audio");
   }
 
   create() {
@@ -113,6 +116,8 @@ export default class BuildScene extends Phaser.Scene {
       onClear: () => this.clearBuild(),
       onRemove: () => this.removeSelectedPlacedPart(),
       onReset: () => this.loadStarterRocket(),
+      onSave: () => this.saveBlueprint(),
+      onLoad: () => this.loadLastBlueprint(),
     });
     this.toast = new BuildToast(this, {
       layout: this.layout,
@@ -127,6 +132,38 @@ export default class BuildScene extends Phaser.Scene {
     this.createGridInputZone();
     createBuildPalette(this);
     this.syncPaletteSelection();
+    this.createTutorial();
+  }
+
+  createTutorial() {
+    const { width, height } = this.scale;
+    this.tutorial = new TutorialSystem(this, [
+      {
+        title: "Welcome to Vehicle Assembly",
+        body: "Build your rocket by dragging parts from the left palette onto the grid. Let's start with the command capsule.",
+        panelY: height - 180,
+        waitForKey: true
+      },
+      {
+        title: "Drag Parts from Palette",
+        body: "Click and drag a part from the palette, then drop it on the grid. Parts must connect to each other.",
+        panelY: height - 180,
+        waitForKey: true
+      },
+      {
+        title: "Build Your Rocket",
+        body: "Add fuel tanks and an engine. You need exactly one capsule. The stats panel shows if your rocket can reach orbit.",
+        panelY: height - 180,
+        waitForKey: true
+      },
+      {
+        title: "Launch When Ready",
+        body: "Click 'Lanzar' or press SPACE to launch. Use SAV/LOD buttons to save and load designs.",
+        panelY: height - 180,
+        waitForKey: true
+      }
+    ]);
+    this.tutorial.start();
   }
 
   configureCameraBounds() {
@@ -340,10 +377,12 @@ export default class BuildScene extends Phaser.Scene {
     );
 
     if (!placement.valid) {
+      this.audio?.playError();
       this.showPlacementToast(placement.reason);
       return;
     }
 
+    this.audio?.playPlace();
     this.addPlacedPart(this.selectedPartId, cell.cellX, cell.cellY);
   }
 
@@ -818,7 +857,8 @@ export default class BuildScene extends Phaser.Scene {
     this.placedParts.delete(entry.key);
     this.persistBuild();
     this.renderBuild();
-      this.toast.show({
+    this.audio?.playClick();
+    this.toast.show({
         tone: "neutral",
         label: "MODULE REMOVED",
         message: `${PARTS_BY_ID[entry.partId]?.name || "Module"} removed from the vehicle.`,
@@ -954,6 +994,60 @@ export default class BuildScene extends Phaser.Scene {
       label: "STARTER LOADED",
       message: "Starter vehicle restored. You can tune it or launch immediately.",
     });
+  }
+
+  saveBlueprint() {
+    const build = this.serializeBuild();
+    if (build.length === 0) {
+      this.audio?.playError();
+      this.toast.show({
+        tone: "blocked",
+        label: "NOTHING TO SAVE",
+        message: "Build something first before saving.",
+      });
+      return;
+    }
+    const meta = BlueprintManager.loadMeta();
+    const saveCount = (meta.saveCount || 0) + 1;
+    const name = `Design ${saveCount}`;
+    const saved = BlueprintManager.save(name, build);
+    if (saved) {
+      meta.saveCount = saveCount;
+      meta.lastSavedId = saved.id;
+      BlueprintManager.saveMeta(meta);
+      this.audio?.playSuccess();
+      this.toast.show({
+        tone: "success",
+        label: "BLUEPRINT SAVED",
+        message: `"${name}" saved to slot ${saveCount}.`,
+      });
+    } else {
+      this.audio?.playError();
+      this.toast.show({
+        tone: "blocked",
+        label: "SAVE FAILED",
+        message: "Could not save blueprint. Storage may be full.",
+      });
+    }
+  }
+
+  loadLastBlueprint() {
+    const blueprints = BlueprintManager.loadAll();
+    if (blueprints.length === 0) {
+      this.audio?.playError();
+      this.toast.show({
+        tone: "blocked",
+        label: "NO BLUEPRINTS",
+        message: "Save a design first before loading.",
+      });
+      return;
+    }
+    const last = blueprints[blueprints.length - 1];
+    this.loadBlueprint({ name: last.name, parts: last.parts }, {
+      label: "BLUEPRINT LOADED",
+      message: `"${last.name}" loaded from storage.`,
+    });
+    this.audio?.playPlace();
   }
 
   serializeBuild() {

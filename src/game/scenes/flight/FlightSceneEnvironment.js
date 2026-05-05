@@ -57,6 +57,9 @@ export const flightSceneEnvironmentMethods = {
     this.pad = this.add.container(0, 0).setDepth(11);
     this.launchTower = this.add.container(0, 0).setDepth(12);
     this.launchSpeedLines = this.add.graphics().setDepth(17);
+    this.cloudLayers = [];
+    this.contrailGraphics = this.add.graphics().setDepth(7);
+    this.heatingGlow = this.add.graphics().setDepth(21);
 
     this.drawPlanetBody();
     this.drawOrbitGuides();
@@ -64,6 +67,24 @@ export const flightSceneEnvironmentMethods = {
     this.drawLaunchBackdrop();
     this.drawLaunchGround();
     this.buildLaunchPad();
+    this.createCloudLayers();
+  },
+
+  createCloudLayers() {
+    const cloudAltitudes = [800, 2000, 4500, 8000, 12000];
+    cloudAltitudes.forEach((alt) => {
+      const cloud = this.add.graphics().setDepth(-8);
+      cloud.fillStyle(0xffffff, 0.25);
+      for (let i = 0; i < 40; i++) {
+        const x = Phaser.Math.Between(-2000, 2000);
+        const y = -FLIGHT_WORLD.planetRadius + alt + Phaser.Math.Between(-20, 20);
+        const w = 30 + Math.random() * 80;
+        const h = 8 + Math.random() * 16;
+        cloud.fillEllipse(x, y, w, h);
+      }
+      cloud.setAlpha(0);
+      this.cloudLayers.push({ graphics: cloud, altitude: alt });
+    });
   },
 
   drawPlanetBody() {

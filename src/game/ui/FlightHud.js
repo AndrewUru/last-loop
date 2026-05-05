@@ -949,4 +949,24 @@ export default class FlightHud {
           : "W/S throttle  A/D steer  G assist  Shift boost  RMB pan  Wheel zoom  H help",
     );
   }
+
+  updateStageIndicator(stagesRemaining) {
+    if (!this.stageIndicator) {
+      this.stageIndicator = this.scene.add
+        .text(this.scene.scale.width / 2, 60, "", {
+          fontSize: "16px",
+          color: "#ffd700",
+          fontStyle: "bold",
+        })
+        .setScrollFactor(0)
+        .setDepth(41)
+        .setOrigin(0.5);
+    }
+    if (stagesRemaining > 0) {
+      this.stageIndicator.setText(`STAGES: ${stagesRemaining} [X to separate]`);
+      this.stageIndicator.setVisible(true);
+    } else {
+      this.stageIndicator.setVisible(false);
+    }
+  }
 }

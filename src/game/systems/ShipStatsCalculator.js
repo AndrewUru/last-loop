@@ -97,6 +97,8 @@ export default class ShipStatsCalculator {
         tankCount += 1;
       } else if (definition.type === "control") {
         controlCount += 1;
+      } else if (definition.type === "decoupler") {
+      } else if (definition.type === "aerodynamic") {
       }
     });
 

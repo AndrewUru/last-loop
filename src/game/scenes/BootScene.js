@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import ShipPart from "../entities/ShipPart.js";
 import { PARTS_BY_ID } from "../data/parts.js";
+import AudioSystem from "../systems/AudioSystem.js";
 
 export default class BootScene extends Phaser.Scene {
   constructor() {
@@ -23,6 +24,10 @@ export default class BootScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
     this.cameras.main.setBackgroundColor("#040d16");
+
+    this.audio = new AudioSystem();
+    this.audio.init();
+    this.registry.set("audio", this.audio);
 
     this.createBackdrop(width, height);
     this.createHeroPanel(width, height);
@@ -315,10 +320,14 @@ export default class BootScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.startButton.on("pointerover", () => {
+      this.audio.playHover();
       this.startButton.setStrokeStyle(2, 0x82b6ff, 1);
     });
     this.startButton.on("pointerout", () => {
       this.startButton.setStrokeStyle(2, 0x82b6ff, 0.68);
+    });
+    this.startButton.on("pointerdown", () => {
+      this.audio.playClick();
     });
   }
 

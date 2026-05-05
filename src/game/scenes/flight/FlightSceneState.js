@@ -84,5 +84,9 @@ export function createFlightRuntimeState(input, stats) {
     pinchZoom: null,
     touchControls: createTouchControls(),
     keys: createFlightKeys(input),
+    stages: [],
+    explosionGraphics: null,
+    sonicBoomPlayed: false,
+    lastWhooshAlt: null,
   };
 }
