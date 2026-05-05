@@ -39,17 +39,19 @@ export const flightSceneRuntimeMethods = {
     if (!this.primaryEngineView || !this.primaryEngineDefinition) {
       return {
         x: this.rocket.x,
-        y: this.rocket.y + 28,
+        y: this.rocket.y + 28 * this.getRocketVisualScale(),
       };
     }
 
     const engineHeight =
       this.primaryEngineView.sprite?.displayHeight ??
       this.primaryEngineDefinition.gridHeight * ROCKET_CELL_SIZE;
+    const visualScale = this.getRocketVisualScale();
     const localY =
-      this.primaryEngineView.y +
-      engineHeight * (this.primaryEngineDefinition.exhaustOffsetY ?? 0.42);
-    const localX = this.primaryEngineView.x;
+      (this.primaryEngineView.y +
+        engineHeight * (this.primaryEngineDefinition.exhaustOffsetY ?? 0.42)) *
+      visualScale;
+    const localX = this.primaryEngineView.x * visualScale;
     const rotation = this.rocket.rotation;
     const cos = Math.cos(rotation);
     const sin = Math.sin(rotation);
@@ -62,6 +64,18 @@ export const flightSceneRuntimeMethods = {
 
   getVisualOrientation() {
     return this.rocket.rotation - Math.PI / 2;
+  },
+
+  getMapViewProgress() {
+    return Phaser.Math.Clamp(
+      (0.62 - this.cameraState.zoomFactor) / 0.42,
+      0,
+      1,
+    );
+  },
+
+  getRocketVisualScale() {
+    return Phaser.Math.Linear(1, 0.14, this.getMapViewProgress());
   },
 
   registerInput() {
@@ -494,11 +508,7 @@ export const flightSceneRuntimeMethods = {
   },
 
   updateWorldVisuals(state) {
-    const mapViewProgress = Phaser.Math.Clamp(
-      (0.62 - this.cameraState.zoomFactor) / 0.42,
-      0,
-      1,
-    );
+    const mapViewProgress = this.getMapViewProgress();
     const solarViewProgress = Phaser.Math.Clamp(
       (0.22 - this.cameraState.zoomFactor) / 0.14,
       0,
@@ -760,6 +770,7 @@ export const flightSceneRuntimeMethods = {
 
     this.rocket.x = renderPosition.x;
     this.rocket.y = renderPosition.y;
+    this.rocket.setScale(this.getRocketVisualScale());
     this.rocket.rotation =
       angleDifference(targetRotation, 0) * launchPoseProgress;
   },
@@ -775,6 +786,7 @@ export const flightSceneRuntimeMethods = {
 
   updateExhaust(state, time, delta) {
     const thrustVisual = getThrustVisual(state);
+    const visualScale = this.getRocketVisualScale();
     const groundBoost = Phaser.Math.Clamp((80 - state.altitude) / 80, 0, 1);
     const speedFeel = Phaser.Math.Clamp(
       (Math.abs(state.verticalVelocity) + Math.abs(state.horizontalVelocity) * 0.25) / 1.3,
@@ -793,16 +805,18 @@ export const flightSceneRuntimeMethods = {
     this.exhaust.clear();
     this.exhaustFire.clear();
     this.exhaustSmoke.clear();
-    this.updateLaunchParticles(state, delta / 1000);
+    if (this.getMapViewProgress() < 0.6) {
+      this.updateLaunchParticles(state, delta / 1000);
+    }
 
     if (flameLength <= 0) {
       return;
     }
 
-    this.drawExhaustFlame(thrustVisual, flameLength);
+    this.drawExhaustFlame(thrustVisual, flameLength * visualScale, visualScale);
   },
 
-  drawExhaustFlame(thrustVisual, flameLength) {
+  drawExhaustFlame(thrustVisual, flameLength, visualScale = 1) {
     const orientation = this.getVisualOrientation();
     const rear = this.getExhaustAnchor();
     const rearAngle = orientation + Math.PI / 2;
@@ -814,9 +828,9 @@ export const flightSceneRuntimeMethods = {
     const segmentCount = 7;
 
     this.exhaust.fillStyle(0xfff7d6, 0.98);
-    this.exhaust.fillCircle(rear.x, rear.y, 6 + thrustVisual * 4);
+    this.exhaust.fillCircle(rear.x, rear.y, (6 + thrustVisual * 4) * visualScale);
     this.exhaust.fillStyle(0xffe7a8, 0.42);
-    this.exhaust.fillCircle(rear.x, rear.y, 12 + thrustVisual * 6);
+    this.exhaust.fillCircle(rear.x, rear.y, (12 + thrustVisual * 6) * visualScale);
 
     for (let index = 0; index < segmentCount; index += 1) {
       const t = index / (segmentCount - 1);
@@ -825,7 +839,8 @@ export const flightSceneRuntimeMethods = {
         Math.sin(flickerTime + index * 1.35) * (1 - t) * (2.2 + thrustVisual * 2.8);
       const px = rear.x + plumeX * plumeOffset + lateralX * wobble;
       const py = rear.y + plumeY * plumeOffset + lateralY * wobble;
-      const outerRadius = Phaser.Math.Linear(9 + thrustVisual * 4, 2.4, t);
+      const outerRadius =
+        Phaser.Math.Linear(9 + thrustVisual * 4, 2.4, t) * visualScale;
       const midRadius = outerRadius * Phaser.Math.Linear(0.76, 0.58, t);
       const coreRadius = outerRadius * Phaser.Math.Linear(0.42, 0.28, t);
       const alpha = Phaser.Math.Linear(0.72, 0.18, t);
@@ -849,7 +864,7 @@ export const flightSceneRuntimeMethods = {
     const tipX = rear.x + plumeX * (flameLength * 0.98);
     const tipY = rear.y + plumeY * (flameLength * 0.98);
     this.exhaust.fillStyle(0xff8c3b, 0.26);
-    this.exhaust.fillCircle(tipX, tipY, 2 + thrustVisual * 1.2);
+    this.exhaust.fillCircle(tipX, tipY, (2 + thrustVisual * 1.2) * visualScale);
   },
 
   updateLaunchParticles(state, dt) {

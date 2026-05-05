@@ -32,7 +32,9 @@ export function getPresentationAltitude(altitude) {
     0,
     1,
   );
-  const presentationBoost = 1 + (1 - Math.pow(earlyProgress, 0.72)) * 7.5;
+  const padClearanceBoost = Phaser.Math.Clamp(1 - altitude / 24, 0, 1) * 42;
+  const ascentReadabilityBoost = (1 - Math.pow(earlyProgress, 0.72)) * 7.5;
+  const presentationBoost = 1 + padClearanceBoost + ascentReadabilityBoost;
 
   return altitude * presentationBoost;
 }
