@@ -352,6 +352,11 @@ export default class FlightModel {
 
     state.time += dt;
     state.simulationTime += dt;
+
+    if (state.orbitAchieved) {
+      return this.updateStableOrbit(state, dt);
+    }
+
     state.engineOn = Boolean(controls.engineOn ?? state.engineOn);
     state.assistEnabled = Boolean(controls.assistEnabled ?? state.assistEnabled);
     state.pilotSteerInput = clamp(controls.steer ?? 0, -1, 1);
@@ -487,6 +492,68 @@ export default class FlightModel {
     return Math.max(0, state.altitude - descent);
   }
 
+  updateStableOrbit(state, dt) {
+    const targetAltitude = FLIGHT_WORLD.targetOrbitAltitude;
+    const targetVelocity = FLIGHT_TARGETS.orbitalVelocity;
+
+    state.engineOn = false;
+    state.throttle = 0;
+    state.altitude += (targetAltitude - state.altitude) * Math.min(1, dt * 0.8);
+    state.horizontalVelocity +=
+      (targetVelocity - state.horizontalVelocity) * Math.min(1, dt * 0.8);
+    state.verticalVelocity *= Math.max(0, 1 - dt * 2.4);
+    state.downrange += state.horizontalVelocity * dt;
+    state.localOrientation +=
+      angleDifference(0, state.localOrientation) * Math.min(1, dt * 1.4);
+    state.angularVelocity = 0;
+    state.apoapsis = targetAltitude;
+    state.periapsis = targetAltitude;
+    state.currentG = 0;
+    state.atmosphereDensity = 0;
+
+    return this.syncDerivedState(state);
+  }
+
+  predictStableOrbit(state) {
+    const radius = FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude;
+    const currentAngle =
+      state.downrange / Math.max(radius, FLIGHT_WORLD.planetRadius);
+    const points = [];
+    let apoapsisPoint = null;
+    let periapsisPoint = null;
+    let corridorPoint = null;
+    const count = 192;
+
+    for (let index = 0; index <= count; index += 1) {
+      const angle = currentAngle + (Math.PI * 2 * index) / count;
+      const point = {
+        x: Math.sin(angle) * radius,
+        y: -Math.cos(angle) * radius,
+      };
+      points.push(point);
+
+      if (index === Math.floor(count * 0.25)) {
+        apoapsisPoint = point;
+      }
+      if (index === Math.floor(count * 0.75)) {
+        periapsisPoint = point;
+      }
+      if (index === Math.floor(count * 0.08)) {
+        corridorPoint = point;
+      }
+    }
+
+    return {
+      points,
+      apoapsis: FLIGHT_WORLD.targetOrbitAltitude,
+      periapsis: FLIGHT_WORLD.targetOrbitAltitude,
+      apoapsisPoint,
+      periapsisPoint,
+      corridorPoint,
+      completeOrbit: true,
+    };
+  }
+
   predictPath(state) {
     if (!state.launched) {
       return {
@@ -496,11 +563,16 @@ export default class FlightModel {
         apoapsisPoint: null,
         periapsisPoint: null,
         corridorPoint: null,
+        completeOrbit: false,
       };
     }
 
-    const step = 0.08;
-    const steps = 240;
+    if (state.orbitAchieved) {
+      return this.predictStableOrbit(state);
+    }
+
+    const step = state.altitude >= FLIGHT_WORLD.orbitMinAltitude ? 0.6 : 0.12;
+    const steps = state.altitude >= FLIGHT_WORLD.orbitMinAltitude ? 1500 : 420;
     const burnSteps =
       state.engineOn && state.fuelRemaining > 0.01
         ? Math.round(steps * 0.2)
@@ -521,6 +593,7 @@ export default class FlightModel {
     let periapsisPoint = { ...state.position };
     let corridorPoint = null;
     let bestCorridorDelta = Number.POSITIVE_INFINITY;
+    const sampleEvery = state.altitude >= FLIGHT_WORLD.orbitMinAltitude ? 8 : 3;
 
     for (let index = 0; index < steps; index += 1) {
       const atmosphereDensity = clamp(
@@ -579,7 +652,7 @@ export default class FlightModel {
         predicted.verticalVelocity,
       );
 
-      if (index % 3 === 0) {
+      if (index % sampleEvery === 0) {
         points.push({ ...pose.position });
       }
 
@@ -617,6 +690,7 @@ export default class FlightModel {
       apoapsisPoint,
       periapsisPoint,
       corridorPoint,
+      completeOrbit: false,
     };
   }
 }

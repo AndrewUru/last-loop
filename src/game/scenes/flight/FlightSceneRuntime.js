@@ -347,6 +347,11 @@ export const flightSceneRuntimeMethods = {
       predictionSummary: prediction,
       controls: this.controls,
     });
+    this.touchControlsUi.update(state, {
+      stats: this.stats,
+      predictionSummary: prediction,
+      targetAltitude: FLIGHT_WORLD.targetOrbitAltitude,
+    });
   },
 
   handlePhaseTransition(state) {
@@ -394,6 +399,39 @@ export const flightSceneRuntimeMethods = {
 
   updateCamera(state) {
     const renderPosition = getRenderPosition(state);
+    if (state.orbitAchieved) {
+      const minViewport = Math.min(this.scale.width, this.scale.height);
+      const orbitRadius =
+        FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude + 80;
+      const desiredZoom = Phaser.Math.Clamp(
+        (minViewport * 0.44) / orbitRadius * this.cameraState.zoomFactor,
+        MIN_CAMERA_ZOOM,
+        MAX_CAMERA_ZOOM,
+      );
+
+      this.cameraState.centerX = Phaser.Math.Linear(
+        this.cameraState.centerX,
+        this.cameraState.panX,
+        0.08,
+      );
+      this.cameraState.centerY = Phaser.Math.Linear(
+        this.cameraState.centerY,
+        this.cameraState.panY,
+        0.08,
+      );
+      this.cameraState.zoom = Phaser.Math.Linear(
+        this.cameraState.zoom,
+        desiredZoom,
+        0.12,
+      );
+      this.cameras.main.centerOn(
+        this.cameraState.centerX,
+        this.cameraState.centerY,
+      );
+      this.cameras.main.setZoom(this.cameraState.zoom);
+      return;
+    }
+
     const altitudeProgress = Phaser.Math.Clamp(
       renderPosition.altitude / FLIGHT_WORLD.targetOrbitAltitude,
       0,

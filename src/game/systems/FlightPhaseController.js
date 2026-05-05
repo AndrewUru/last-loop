@@ -186,7 +186,6 @@ export default class FlightPhaseController {
 
     if (state.orbitHoldTime >= world.orbitLockDuration) {
       state.orbitAchieved = true;
-      state.result = "success";
       state.reason = "Stable orbit achieved. Mission complete.";
       return this.setPhase(state, FLIGHT_PHASES.ORBIT);
     }
