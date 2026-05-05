@@ -827,12 +827,7 @@ export default class FlightHud {
     const corridorDelta = Math.abs(prediction.apoapsis - FLIGHT_WORLD.targetOrbitAltitude);
     const steerHint = this.getSteerHint(state);
     const targetPitch = radToDegrees(state.assistTargetAngle ?? -Math.PI / 2);
-    const autoThrottleActive = Boolean(uiState.controls?.autoThrottleActive);
-    const assistLabel = state.assistEnabled
-      ? autoThrottleActive
-        ? "AUTO-CUTOFF"
-        : "ON"
-      : "OFF";
+    const assistLabel = state.assistEnabled ? "ON" : "OFF";
     this.guidanceCard.title.setText(mobile ? "Guidance" : "Flight Director");
     this.guidanceCard.body.setText(
       mobile
@@ -900,12 +895,7 @@ export default class FlightHud {
           ].join("\n"),
     );
 
-    if (state.engineOn && autoThrottleActive) {
-      this.engineButton.setFillStyle(0x122433, 0.96).setStrokeStyle(2, 0x68d9ff, 0.82);
-      this.engineButtonStatus.setText("SAS Auto-Cutoff");
-      this.engineButtonStatus.setColor("#9adfff");
-      this.engineButtonLabel.setText("Engine Armed");
-    } else if (state.engineOn) {
+    if (state.engineOn) {
       this.engineButton.setFillStyle(0x2a1a12, 0.96).setStrokeStyle(2, 0xff9b5d, 0.82);
       this.engineButtonStatus.setText("Engine Active");
       this.engineButtonStatus.setColor("#ffcfb0");

@@ -16,7 +16,7 @@ function createFlightControls() {
     throttle: 0,
     cruiseThrottle: 0.85,
     steer: 0,
-    assistEnabled: true,
+    assistEnabled: false,
     engineOn: false,
     source: "Pilot",
   };

@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import {
   FLIGHT_PHASES,
-  FLIGHT_TARGETS,
   FLIGHT_WORLD,
 } from "../../systems/FlightSimulator.js";
 import {
@@ -278,7 +277,8 @@ export const flightSceneRuntimeMethods = {
       : 0;
 
     this.controls.requestedThrottle = requestedThrottle;
-    this.controls.throttle = this.getAssistedThrottle(requestedThrottle);
+    this.controls.autoThrottleActive = false;
+    this.controls.throttle = requestedThrottle;
   },
 
   toggleEngine() {
@@ -291,44 +291,6 @@ export const flightSceneRuntimeMethods = {
 
   setCruiseThrottle(value) {
     this.controls.cruiseThrottle = Phaser.Math.Clamp(value, 0, 1);
-  },
-
-  getAssistedThrottle(requestedThrottle) {
-    this.controls.autoThrottleActive = false;
-
-    if (!this.controls.assistEnabled || requestedThrottle <= 0) {
-      return requestedThrottle;
-    }
-
-    const state = this.simulator.state;
-    if (!state?.launched) {
-      return requestedThrottle;
-    }
-
-    const horizontalSpeed = Math.abs(state.horizontalVelocity);
-    const nearOrbitSpeed =
-      horizontalSpeed >= FLIGHT_TARGETS.orbitalVelocity * 1.08;
-    const nearOrbitAltitude =
-      state.altitude >= FLIGHT_WORLD.orbitMinAltitude - 15;
-    const climbingPastTarget =
-      state.altitude >= FLIGHT_WORLD.targetOrbitAltitude + 46 &&
-      state.verticalVelocity > 0;
-
-    if ((nearOrbitSpeed && nearOrbitAltitude) || climbingPastTarget) {
-      this.controls.autoThrottleActive = true;
-      return 0;
-    }
-
-    if (
-      state.altitude >= FLIGHT_WORLD.turnStartAltitude &&
-      state.verticalVelocity > FLIGHT_WORLD.orbitVerticalTolerance * 4
-    ) {
-      const cappedThrottle = Math.min(requestedThrottle, 0.58);
-      this.controls.autoThrottleActive = cappedThrottle < requestedThrottle;
-      return cappedThrottle;
-    }
-
-    return requestedThrottle;
   },
 
   renderFlight(state, prediction, time, delta) {

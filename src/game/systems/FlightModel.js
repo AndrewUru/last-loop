@@ -118,7 +118,7 @@ export default class FlightModel {
       steerInput: 0,
       pilotSteerInput: 0,
       assistSteerInput: 0,
-      assistEnabled: true,
+      assistEnabled: false,
       assistTargetAngle: -Math.PI / 2,
       assistError: 0,
       assistStrength: this.guidance,
@@ -354,7 +354,7 @@ export default class FlightModel {
     state.simulationTime += dt;
 
     if (state.orbitAchieved) {
-      return this.updateStableOrbit(state, dt);
+      return this.updateStableOrbit(state, dt, controls);
     }
 
     state.engineOn = Boolean(controls.engineOn ?? state.engineOn);
@@ -492,12 +492,30 @@ export default class FlightModel {
     return Math.max(0, state.altitude - descent);
   }
 
-  updateStableOrbit(state, dt) {
+  updateStableOrbit(state, dt, controls = {}) {
     const targetAltitude = FLIGHT_WORLD.targetOrbitAltitude;
     const targetVelocity = FLIGHT_TARGETS.orbitalVelocity;
+    const engineOn = Boolean(controls.engineOn ?? state.engineOn);
+    const throttle = engineOn
+      ? clamp(controls.throttle ?? state.throttle, 0, 1)
+      : 0;
 
-    state.engineOn = false;
-    state.throttle = 0;
+    state.engineOn = engineOn;
+    state.throttle = throttle;
+    if (throttle > 0 && state.fuelRemaining > 0.01) {
+      const mass = Math.max(this.getCurrentMass(state), 1);
+      const thrustAcceleration =
+        (this.stats.thrust * FLIGHT_WORLD.thrustScale * throttle) / mass;
+      state.horizontalVelocity += thrustAcceleration * dt * 0.42;
+      state.fuelRemaining = Math.max(
+        0,
+        state.fuelRemaining - this.burnRate * throttle * dt,
+      );
+    }
+    if (state.fuelRemaining <= 0.01) {
+      state.engineOn = false;
+      state.throttle = 0;
+    }
     state.altitude += (targetAltitude - state.altitude) * Math.min(1, dt * 0.8);
     state.horizontalVelocity +=
       (targetVelocity - state.horizontalVelocity) * Math.min(1, dt * 0.8);
