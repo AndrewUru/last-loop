@@ -41,6 +41,7 @@ export const flightSceneEnvironmentMethods = {
     this.planetLight = this.add.graphics().setDepth(-16);
     this.orbitBand = this.add.graphics().setDepth(-15);
     this.orbitGuides = this.add.graphics().setDepth(-14);
+    this.mapCelestialGraphics = this.add.graphics().setDepth(-13.5);
     this.horizonGlow = this.add.graphics().setDepth(-13);
     this.highAltitudeHorizon = this.add.graphics().setDepth(-12);
     this.atmosphereShell = this.add.graphics().setDepth(-11);
@@ -60,6 +61,7 @@ export const flightSceneEnvironmentMethods = {
 
     this.drawPlanetBody();
     this.drawOrbitGuides();
+    this.drawMapCelestials();
     this.drawLaunchBackdrop();
     this.drawLaunchGround();
     this.buildLaunchPad();
@@ -109,6 +111,34 @@ export const flightSceneEnvironmentMethods = {
     this.orbitGuides.strokeCircle(0, 0, atmosphereRadius);
     this.orbitGuides.lineStyle(2, 0x73f7c0, 0.22);
     this.orbitGuides.strokeCircle(0, 0, visualTargetRadius);
+  },
+
+  drawMapCelestials() {
+    const moonOrbitRadius = 940;
+    const moonAngle = -0.82;
+    const moonX = Math.cos(moonAngle) * moonOrbitRadius;
+    const moonY = Math.sin(moonAngle) * moonOrbitRadius;
+    const sunX = 1780;
+    const sunY = -620;
+
+    this.mapCelestialGraphics.clear();
+    this.mapCelestialGraphics.lineStyle(1.5, 0x9fb8d2, 0.24);
+    this.mapCelestialGraphics.strokeCircle(0, 0, moonOrbitRadius);
+    this.mapCelestialGraphics.fillStyle(0xc8d0d8, 1);
+    this.mapCelestialGraphics.fillCircle(moonX, moonY, 34);
+    this.mapCelestialGraphics.fillStyle(0x8f9ba6, 0.32);
+    this.mapCelestialGraphics.fillCircle(moonX - 8, moonY + 7, 18);
+
+    this.mapCelestialGraphics.lineStyle(1, 0xffd773, 0.14);
+    this.mapCelestialGraphics.beginPath();
+    this.mapCelestialGraphics.moveTo(0, 0);
+    this.mapCelestialGraphics.lineTo(sunX, sunY);
+    this.mapCelestialGraphics.strokePath();
+    this.mapCelestialGraphics.fillStyle(0xffd773, 0.92);
+    this.mapCelestialGraphics.fillCircle(sunX, sunY, 54);
+    this.mapCelestialGraphics.fillStyle(0xfff2bf, 0.18);
+    this.mapCelestialGraphics.fillCircle(sunX, sunY, 112);
+    this.mapCelestialGraphics.setAlpha(0);
   },
 
   createOrbitMarkerLabel(accent) {
@@ -251,6 +281,7 @@ export const flightSceneEnvironmentMethods = {
       this.planetLight,
       this.orbitBand,
       this.orbitGuides,
+      this.mapCelestialGraphics,
       this.horizonGlow,
       this.highAltitudeHorizon,
       this.atmosphereShell,

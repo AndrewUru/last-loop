@@ -480,17 +480,26 @@ export const flightSceneRuntimeMethods = {
       0,
       1,
     );
+    const mapOverviewProgress = Phaser.Math.Clamp(
+      (0.55 - this.cameraState.zoomFactor) / 0.34,
+      0,
+      1,
+    );
+    const cameraOverviewProgress = Math.max(
+      overviewProgress,
+      mapOverviewProgress,
+    );
     const overviewCenterX = this.cameraState.panX;
     const overviewCenterY = this.cameraState.panY;
     const framedCenterX = Phaser.Math.Linear(
       desiredCenterX,
       overviewCenterX,
-      overviewProgress,
+      cameraOverviewProgress,
     );
     const framedCenterY = Phaser.Math.Linear(
       desiredCenterY,
       overviewCenterY,
-      overviewProgress,
+      cameraOverviewProgress,
     );
     const desiredZoom = Phaser.Math.Clamp(
       automaticZoom * this.cameraState.zoomFactor,
@@ -523,6 +532,16 @@ export const flightSceneRuntimeMethods = {
   },
 
   updateWorldVisuals(state) {
+    const mapViewProgress = Phaser.Math.Clamp(
+      (0.62 - this.cameraState.zoomFactor) / 0.42,
+      0,
+      1,
+    );
+    const solarViewProgress = Phaser.Math.Clamp(
+      (0.22 - this.cameraState.zoomFactor) / 0.14,
+      0,
+      1,
+    );
     const dayToSpace = Phaser.Math.Clamp(
       (state.altitude - DAY_SKY_FADE_START_ALTITUDE) /
         (DAY_SKY_FADE_END_ALTITUDE - DAY_SKY_FADE_START_ALTITUDE),
@@ -555,34 +574,46 @@ export const flightSceneRuntimeMethods = {
       0,
       1,
     );
+    const spaceProgress = Math.max(dayToSpace, mapViewProgress * 0.92);
+    const orbitOverlayProgress = Math.max(overlayProgress, mapViewProgress);
+    const planetAlpha = Math.max(
+      Phaser.Math.Linear(0, Phaser.Math.Linear(0.9, 1, planetReveal), curvatureReveal),
+      mapViewProgress,
+    );
+    const atmosphereAlpha = Math.max(
+      Phaser.Math.Linear(0, Phaser.Math.Linear(1, 0.48, dayToSpace), curvatureReveal),
+      mapViewProgress * 0.46,
+    );
+    const launchDetailAlpha = 1 - mapViewProgress;
 
-    this.spaceShade.setAlpha(Phaser.Math.Linear(0, 0.96, dayToSpace));
+    this.spaceShade.setAlpha(Phaser.Math.Linear(0, 0.96, spaceProgress));
     this.stars.forEach((star) => {
-      star.setAlpha(Phaser.Math.Linear(0, 1, dayToSpace * dayToSpace));
+      star.setAlpha(Phaser.Math.Linear(0, 1, spaceProgress * spaceProgress));
     });
 
-    this.orbitBand.setAlpha(Phaser.Math.Linear(0.02, 0.28, overlayProgress));
-    this.orbitGuides.setAlpha(Phaser.Math.Linear(0.04, 0.56, overlayProgress));
-    this.planetBody.setAlpha(
-      Phaser.Math.Linear(0, Phaser.Math.Linear(0.9, 1, planetReveal), curvatureReveal),
-    );
-    this.planetAtmosphere.setAlpha(
-      Phaser.Math.Linear(0, Phaser.Math.Linear(1, 0.48, dayToSpace), curvatureReveal),
-    );
+    this.orbitBand.setAlpha(Phaser.Math.Linear(0.02, 0.28, orbitOverlayProgress));
+    this.orbitGuides.setAlpha(Phaser.Math.Linear(0.04, 0.56, orbitOverlayProgress));
+    this.mapCelestialGraphics.setAlpha(solarViewProgress);
+    this.planetBody.setAlpha(planetAlpha);
+    this.planetAtmosphere.setAlpha(atmosphereAlpha);
     this.planetLight.setAlpha(0);
     this.horizonGlow.setAlpha(0);
     this.highAltitudeHorizon.setAlpha(0);
     this.atmosphereShell.setAlpha(0);
-    this.launchBackdrop.setAlpha(Phaser.Math.Linear(0.9, 0, 1 - padFade));
-    this.launchGround.setAlpha(Phaser.Math.Linear(1, 0, 1 - flatGroundFade));
-    this.pad.setAlpha(padFade * 0.84);
-    this.launchTower.setAlpha(padFade * 0.9);
+    this.launchBackdrop.setAlpha(
+      Phaser.Math.Linear(0.9, 0, 1 - padFade) * launchDetailAlpha,
+    );
+    this.launchGround.setAlpha(
+      Phaser.Math.Linear(1, 0, 1 - flatGroundFade) * launchDetailAlpha,
+    );
+    this.pad.setAlpha(padFade * 0.84 * launchDetailAlpha);
+    this.launchTower.setAlpha(padFade * 0.9 * launchDetailAlpha);
 
     this.launchTowerGlow.clear();
-    if (padFade > 0.05) {
+    if (padFade > 0.05 && launchDetailAlpha > 0.05) {
       this.launchTowerGlow.fillStyle(
         0xffa86d,
-        (0.04 + state.throttle * 0.06) * padFade,
+        (0.04 + state.throttle * 0.06) * padFade * launchDetailAlpha,
       );
       this.launchTowerGlow.fillEllipse(
         -66,
@@ -590,7 +621,7 @@ export const flightSceneRuntimeMethods = {
         44,
         44,
       );
-      this.launchTowerGlow.fillStyle(0x73f7c0, 0.04 * padFade);
+      this.launchTowerGlow.fillStyle(0x73f7c0, 0.04 * padFade * launchDetailAlpha);
       this.launchTowerGlow.fillEllipse(
         -40,
         -FLIGHT_WORLD.planetRadius - 8,
@@ -600,8 +631,16 @@ export const flightSceneRuntimeMethods = {
     }
 
     this.padGlow.clear();
-    if (state.engineOn && state.throttle > 0 && padFade > 0.05) {
-      this.padGlow.fillStyle(0xff9d5c, state.throttle * padFade * 0.16);
+    if (
+      state.engineOn &&
+      state.throttle > 0 &&
+      padFade > 0.05 &&
+      launchDetailAlpha > 0.05
+    ) {
+      this.padGlow.fillStyle(
+        0xff9d5c,
+        state.throttle * padFade * launchDetailAlpha * 0.16,
+      );
       this.padGlow.fillEllipse(0, -FLIGHT_WORLD.planetRadius + 44, 220, 54);
     }
   },
