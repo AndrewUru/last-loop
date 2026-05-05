@@ -494,6 +494,7 @@ export default class FlightModel {
         apoapsis: state.altitude,
         periapsis: state.altitude,
         apoapsisPoint: null,
+        periapsisPoint: null,
         corridorPoint: null,
       };
     }
@@ -517,6 +518,7 @@ export default class FlightModel {
     let apoapsis = state.altitude;
     let periapsis = state.altitude;
     let apoapsisPoint = { ...state.position };
+    let periapsisPoint = { ...state.position };
     let corridorPoint = null;
     let bestCorridorDelta = Number.POSITIVE_INFINITY;
 
@@ -585,7 +587,10 @@ export default class FlightModel {
         apoapsis = predicted.altitude;
         apoapsisPoint = { ...pose.position };
       }
-      periapsis = Math.min(periapsis, predicted.altitude);
+      if (predicted.altitude < periapsis) {
+        periapsis = predicted.altitude;
+        periapsisPoint = { ...pose.position };
+      }
 
       const corridorDelta =
         Math.abs(predicted.altitude - FLIGHT_WORLD.targetOrbitAltitude) +
@@ -610,6 +615,7 @@ export default class FlightModel {
       apoapsis,
       periapsis,
       apoapsisPoint,
+      periapsisPoint,
       corridorPoint,
     };
   }

@@ -14,6 +14,10 @@ function radToDegrees(radians) {
   return (radians * 180) / Math.PI;
 }
 
+function formatOrbitDelta(value, target) {
+  return formatSigned(value - target, 0);
+}
+
 export default class FlightHud {
   constructor(scene, options = {}) {
     this.scene = scene;
@@ -852,18 +856,31 @@ export default class FlightHud {
       0.92,
     );
 
+    const apoDelta = formatOrbitDelta(
+      prediction.apoapsis,
+      FLIGHT_WORLD.targetOrbitAltitude,
+    );
+    const periDelta = formatOrbitDelta(
+      prediction.periapsis,
+      FLIGHT_WORLD.targetOrbitAltitude,
+    );
+    const periapsisSafe = prediction.periapsis >= FLIGHT_WORLD.orbitMinAltitude;
+
+    this.objectiveTitle.setText(mobile ? "Orbit" : "Orbit Shape");
     this.objectiveText.setText(
       mobile
         ? [
-            `Target ${FLIGHT_WORLD.targetOrbitAltitude} km / ${FLIGHT_TARGETS.orbitalVelocity.toFixed(2)} km/s`,
-            `Apo ${prediction.apoapsis.toFixed(1)} km`,
-            `Peri ${prediction.periapsis.toFixed(1)} km`,
+            `AP ${prediction.apoapsis.toFixed(0)} km (${apoDelta})`,
+            `PE ${prediction.periapsis.toFixed(0)} km (${periDelta})`,
+            `${periapsisSafe ? "PE safe" : "PE too low"}  target ${FLIGHT_WORLD.targetOrbitAltitude} km`,
           ].join("\n")
         : [
-            `Target altitude  ${FLIGHT_WORLD.targetOrbitAltitude} km`,
-            `Target speed  ${FLIGHT_TARGETS.orbitalVelocity.toFixed(2)} km/s`,
-            `Pred apoapsis  ${prediction.apoapsis.toFixed(1)} km`,
-            `Pred periapsis  ${prediction.periapsis.toFixed(1)} km`,
+            `Apoapsis   ${prediction.apoapsis.toFixed(0)} km  ${apoDelta} km`,
+            `Periapsis  ${prediction.periapsis.toFixed(0)} km  ${periDelta} km`,
+            `Target     ${FLIGHT_WORLD.targetOrbitAltitude} km / ${FLIGHT_TARGETS.orbitalVelocity.toFixed(2)} km/s`,
+            periapsisSafe
+              ? "Periapsis is inside the orbital corridor"
+              : "Raise periapsis before cutting throttle",
           ].join("\n"),
     );
 

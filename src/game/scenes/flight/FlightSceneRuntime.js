@@ -608,34 +608,106 @@ export const flightSceneRuntimeMethods = {
   updateGuidance(prediction) {
     this.trajectoryGraphics.clear();
     this.markerGraphics.clear();
+    this.apoapsisLabel.setVisible(false);
+    this.periapsisLabel.setVisible(false);
+    this.corridorLabel.setVisible(false);
 
     if (prediction.apoapsis < GUIDANCE_REVEAL_ALTITUDE) {
       return;
     }
 
+    if (prediction.points.length > 1) {
+      this.trajectoryGraphics.lineStyle(2, 0x8fd7ff, 0.34);
+      this.trajectoryGraphics.beginPath();
+      this.trajectoryGraphics.moveTo(prediction.points[0].x, prediction.points[0].y);
+      for (let index = 1; index < prediction.points.length; index += 1) {
+        const point = prediction.points[index];
+        this.trajectoryGraphics.lineTo(point.x, point.y);
+      }
+      this.trajectoryGraphics.strokePath();
+    }
+
     prediction.points.forEach((point, index) => {
+      if (index % 2 !== 0) {
+        return;
+      }
       const progress = index / Math.max(prediction.points.length - 1, 1);
-      this.trajectoryGraphics.fillStyle(0x8fd7ff, 0.08 + progress * 0.22);
-      this.trajectoryGraphics.fillCircle(point.x, point.y, 1.4 + progress);
+      this.trajectoryGraphics.fillStyle(0x8fd7ff, 0.16 + progress * 0.18);
+      this.trajectoryGraphics.fillCircle(point.x, point.y, 1.5 + progress * 1.4);
     });
 
     if (prediction.apoapsisPoint) {
-      this.markerGraphics.lineStyle(1.5, 0xffd773, 0.84);
-      this.markerGraphics.strokeCircle(
-        prediction.apoapsisPoint.x,
-        prediction.apoapsisPoint.y,
-        8,
+      this.drawOrbitMarker(
+        prediction.apoapsisPoint,
+        0xffd773,
+        this.apoapsisLabel,
+        `AP ${prediction.apoapsis.toFixed(0)} km`,
+        12,
+        -22,
+      );
+    }
+
+    if (prediction.periapsisPoint) {
+      const periapsisSafe = prediction.periapsis >= FLIGHT_WORLD.orbitMinAltitude;
+      this.drawOrbitMarker(
+        prediction.periapsisPoint,
+        periapsisSafe ? 0x73f7c0 : 0xff8d8d,
+        this.periapsisLabel,
+        `PE ${prediction.periapsis.toFixed(0)} km`,
+        12,
+        22,
       );
     }
 
     if (prediction.corridorPoint) {
-      this.markerGraphics.lineStyle(1.5, 0x73f7c0, 0.84);
-      this.markerGraphics.strokeCircle(
-        prediction.corridorPoint.x,
-        prediction.corridorPoint.y,
-        6,
+      this.drawCorridorMarker(
+        prediction.corridorPoint,
+        `TARGET ${FLIGHT_WORLD.targetOrbitAltitude} km`,
       );
     }
+  },
+
+  drawOrbitMarker(point, color, label, text, offsetX, offsetY) {
+    this.markerGraphics.lineStyle(2, color, 0.88);
+    this.markerGraphics.strokeCircle(point.x, point.y, 8);
+    this.markerGraphics.lineStyle(1, color, 0.55);
+    this.markerGraphics.beginPath();
+    this.markerGraphics.moveTo(point.x - 12, point.y);
+    this.markerGraphics.lineTo(point.x + 12, point.y);
+    this.markerGraphics.moveTo(point.x, point.y - 12);
+    this.markerGraphics.lineTo(point.x, point.y + 12);
+    this.markerGraphics.moveTo(point.x, point.y);
+    this.markerGraphics.lineTo(point.x + offsetX, point.y + offsetY);
+    this.markerGraphics.strokePath();
+
+    label
+      .setText(text)
+      .setPosition(point.x + offsetX, point.y + offsetY)
+      .setTint(color)
+      .setVisible(true);
+  },
+
+  drawCorridorMarker(point, text) {
+    const size = 8;
+    this.markerGraphics.lineStyle(2, 0x73f7c0, 0.88);
+    this.markerGraphics.beginPath();
+    this.markerGraphics.moveTo(point.x, point.y - size);
+    this.markerGraphics.lineTo(point.x + size, point.y);
+    this.markerGraphics.lineTo(point.x, point.y + size);
+    this.markerGraphics.lineTo(point.x - size, point.y);
+    this.markerGraphics.closePath();
+    this.markerGraphics.strokePath();
+    this.markerGraphics.lineStyle(1, 0x73f7c0, 0.5);
+    this.markerGraphics.beginPath();
+    this.markerGraphics.moveTo(point.x, point.y);
+    this.markerGraphics.lineTo(point.x + 12, point.y - 22);
+    this.markerGraphics.strokePath();
+
+    this.corridorLabel
+      .setText(text)
+      .setPosition(point.x + 12, point.y - 22)
+      .setTint(0x73f7c0)
+      .setVisible(true);
   },
 
   updateRocketPose(state) {

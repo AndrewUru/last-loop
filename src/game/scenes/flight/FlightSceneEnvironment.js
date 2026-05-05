@@ -50,6 +50,9 @@ export const flightSceneEnvironmentMethods = {
     this.trailGraphics = this.add.graphics().setDepth(8);
     this.trajectoryGraphics = this.add.graphics().setDepth(9);
     this.markerGraphics = this.add.graphics().setDepth(10);
+    this.apoapsisLabel = this.createOrbitMarkerLabel(0xffd773);
+    this.periapsisLabel = this.createOrbitMarkerLabel(0xff8d8d);
+    this.corridorLabel = this.createOrbitMarkerLabel(0x73f7c0);
     this.padGlow = this.add.graphics().setDepth(10);
     this.pad = this.add.container(0, 0).setDepth(11);
     this.launchTower = this.add.container(0, 0).setDepth(12);
@@ -106,6 +109,23 @@ export const flightSceneEnvironmentMethods = {
     this.orbitGuides.strokeCircle(0, 0, atmosphereRadius);
     this.orbitGuides.lineStyle(2, 0x73f7c0, 0.22);
     this.orbitGuides.strokeCircle(0, 0, visualTargetRadius);
+  },
+
+  createOrbitMarkerLabel(accent) {
+    return this.add
+      .text(0, 0, "", {
+        fontSize: "12px",
+        color: "#f7fbff",
+        fontStyle: "bold",
+        backgroundColor: "rgba(8, 14, 20, 0.72)",
+        padding: { left: 7, right: 7, top: 4, bottom: 4 },
+      })
+      .setOrigin(0, 0.5)
+      .setStroke("#081019", 3)
+      .setShadow(0, 1, "#000000", 3, true, true)
+      .setTint(accent)
+      .setDepth(11)
+      .setVisible(false);
   },
 
   buildLaunchPad() {
@@ -240,6 +260,9 @@ export const flightSceneEnvironmentMethods = {
       this.trailGraphics,
       this.trajectoryGraphics,
       this.markerGraphics,
+      this.apoapsisLabel,
+      this.periapsisLabel,
+      this.corridorLabel,
       this.padGlow,
       this.pad,
       this.launchTower,
