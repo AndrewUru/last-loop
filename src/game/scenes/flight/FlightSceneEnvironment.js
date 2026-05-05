@@ -144,21 +144,24 @@ export const flightSceneEnvironmentMethods = {
     const padY = -FLIGHT_WORLD.planetRadius;
     const topY = padY + 6;
     const midY = padY + 44;
-    const bottomY = padY + 102;
-    const halfWidth = 760;
-    const innerHalfWidth = 560;
+    const lowerY = padY + 760;
+    const halfWidth = 1180;
+    const innerHalfWidth = 620;
 
     this.launchGround.fillStyle(0x5b7287, 0.96);
-    this.launchGround.fillRect(-halfWidth, topY, halfWidth * 2, bottomY - topY);
+    this.launchGround.fillRect(-halfWidth, topY, halfWidth * 2, lowerY - topY);
 
-    this.launchGround.fillStyle(0x4a5f72, 0.82);
+    this.launchGround.fillStyle(0x3f5365, 0.9);
     this.launchGround.beginPath();
-    this.launchGround.moveTo(-halfWidth, bottomY);
+    this.launchGround.moveTo(-halfWidth, lowerY);
     this.launchGround.lineTo(-innerHalfWidth, midY);
     this.launchGround.lineTo(innerHalfWidth, midY);
-    this.launchGround.lineTo(halfWidth, bottomY);
+    this.launchGround.lineTo(halfWidth, lowerY);
     this.launchGround.closePath();
     this.launchGround.fillPath();
+
+    this.launchGround.fillStyle(0x263744, 0.2);
+    this.launchGround.fillRect(-halfWidth, padY + 94, halfWidth * 2, lowerY - padY - 94);
 
     this.launchGround.lineStyle(4, 0xc8d9e5, 0.28);
     this.launchGround.beginPath();
@@ -169,7 +172,7 @@ export const flightSceneEnvironmentMethods = {
     this.launchGround.fillStyle(0x91a7ba, 0.2);
     this.launchGround.fillRect(-halfWidth, topY + 10, halfWidth * 2, 18);
     this.launchGround.fillStyle(0x263341, 0.18);
-    this.launchGround.fillRect(-halfWidth, midY + 10, halfWidth * 2, 30);
+    this.launchGround.fillRect(-halfWidth, midY + 10, halfWidth * 2, 34);
     this.launchGround.fillStyle(0x70859a, 0.68);
     this.launchGround.fillEllipse(0, padY + 52, 250, 20);
     this.launchGround.fillStyle(0xd9ecf7, 0.16);
