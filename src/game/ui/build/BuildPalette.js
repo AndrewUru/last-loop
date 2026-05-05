@@ -2,11 +2,12 @@ import Phaser from "phaser";
 import ShipPart from "../../entities/ShipPart.js";
 import { SHIP_PARTS } from "../../data/parts.js";
 
-const CATEGORY_LABELS = {
-  command: "Control",
-  control: "Control",
-  fuel: "Tanques\nde Combustible",
-  engine: "Motores",
+const PART_LABELS = {
+  capsule: "Capsula",
+  avionics_ring: "SAS",
+  fuel_tank_small: "Tanque S",
+  fuel_tank_large: "Tanque L",
+  engine_main: "Motor",
 };
 
 export function createBuildPalette(scene) {
@@ -27,8 +28,8 @@ export function createBuildPalette(scene) {
       .rectangle(0, 0, cardWidth, cardHeight, 0x86a9df, 0.92)
       .setStrokeStyle(1, 0x688bc0, 0.45);
     const label = scene.add
-      .text(0, -cardHeight / 2 + 12, CATEGORY_LABELS[part.type] || part.name, {
-        fontSize: part.type === "fuel" ? "10px" : "14px",
+      .text(0, -cardHeight / 2 + 12, PART_LABELS[part.id] || part.name, {
+        fontSize: "12px",
         color: "#ffffff",
         fontStyle: "bold",
         align: "center",

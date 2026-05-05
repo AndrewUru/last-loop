@@ -20,6 +20,9 @@ const GRID_NEIGHBORS = [
   { x: 0, y: 1 },
 ];
 
+const BUILD_ZOOM_MIN = 0.7;
+const BUILD_ZOOM_MAX = 2.15;
+
 function cellKey(cellX, cellY) {
   return `${cellX},${cellY}`;
 }
@@ -33,7 +36,7 @@ export default class BuildScene extends Phaser.Scene {
     };
   }
 
-  init(data) {
+  init(data = {}) {
     const hasExplicitBuild = Array.isArray(data.build);
     const storedBuild = hasExplicitBuild ? data.build : this.registry.get("rocket-build");
     this.usedStarterBuild = !hasExplicitBuild && (!Array.isArray(storedBuild) || storedBuild.length === 0);
@@ -41,6 +44,7 @@ export default class BuildScene extends Phaser.Scene {
       preserveEmpty: hasExplicitBuild,
     });
     this.initialSelectedPartId = data.selectedPartId || "capsule";
+    this.buildZoom = Phaser.Math.Clamp(data.buildZoom || 1, BUILD_ZOOM_MIN, BUILD_ZOOM_MAX);
   }
 
   create() {
@@ -51,6 +55,7 @@ export default class BuildScene extends Phaser.Scene {
     this.hoveredInfo = null;
     this.dragState = null;
     this.scrollState = null;
+    this.pinchState = null;
     this.currentValidation = BuildValidator.validate([]);
     this.resizePending = false;
 
@@ -147,6 +152,7 @@ export default class BuildScene extends Phaser.Scene {
 
   registerInput() {
     this.input.mouse?.disableContextMenu();
+    this.input.addPointer(2);
     this.input.on("pointermove", this.handlePointerMove, this);
     this.input.on("pointerup", this.handlePointerUp, this);
     this.input.on("pointerdown", this.handleScenePointerDown, this);
@@ -181,6 +187,7 @@ export default class BuildScene extends Phaser.Scene {
       this.scene.restart({
         build: this.serializeBuild(),
         selectedPartId: this.selectedPartId,
+        buildZoom: this.buildZoom,
       });
     });
   }
@@ -192,6 +199,11 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   handleScenePointerDown(pointer) {
+    if (this.getDownPointers().length >= 2) {
+      this.beginPinchZoom();
+      return;
+    }
+
     if (this.contextMenu.contains(pointer)) {
       return;
     }
@@ -212,6 +224,15 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   handleWheel(pointer, over, deltaX, deltaY) {
+    if (this.isPointerInsideBuildArea(pointer)) {
+      const direction = deltaY > 0 ? -1 : 1;
+      this.setBuildZoom(this.buildZoom + direction * 0.08, {
+        x: pointer.worldX,
+        y: pointer.worldY,
+      });
+      return;
+    }
+
     if (!this.layout.scrollable) {
       return;
     }
@@ -292,7 +313,7 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   handleGridPointerDown(pointer) {
-    if (pointer.rightButtonDown() || this.dragState) {
+    if (pointer.rightButtonDown() || this.dragState || this.getDownPointers().length >= 2) {
       return;
     }
 
@@ -327,6 +348,10 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   handlePointerMove(pointer) {
+    if (this.updatePinchZoom()) {
+      return;
+    }
+
     if (!this.dragState && this.updateScroll(pointer)) {
       return;
     }
@@ -347,6 +372,10 @@ export default class BuildScene extends Phaser.Scene {
   }
 
   handlePointerUp(pointer) {
+    if (this.getDownPointers().length < 2) {
+      this.pinchState = null;
+    }
+
     this.endScroll(pointer);
 
     if (!this.dragState || this.dragState.pointerId !== pointer.id) {
@@ -382,6 +411,144 @@ export default class BuildScene extends Phaser.Scene {
       this.showPlacementToast(drag.candidate.reason);
     }
     this.selectPlacedPart(entry);
+  }
+
+  getDownPointers() {
+    return this.input.manager.pointers.filter((candidate) => candidate?.isDown);
+  }
+
+  isPointerInsideBuildArea(pointer) {
+    return (
+      pointer.x >= this.layout.paletteWidth &&
+      pointer.y >= this.layout.topBarHeight &&
+      pointer.y <= this.layout.height - this.layout.bottomBarHeight
+    );
+  }
+
+  getPinchMetrics() {
+    const pointers = this.getDownPointers().slice(0, 2);
+    if (pointers.length < 2) {
+      return null;
+    }
+
+    const [a, b] = pointers;
+    const distance = Phaser.Math.Distance.Between(a.x, a.y, b.x, b.y);
+    return {
+      distance,
+      x: (a.worldX + b.worldX) / 2,
+      y: (a.worldY + b.worldY) / 2,
+    };
+  }
+
+  beginPinchZoom() {
+    const metrics = this.getPinchMetrics();
+    if (!metrics || metrics.distance <= 4) {
+      return;
+    }
+
+    this.dragState = null;
+    this.scrollState = null;
+    this.gridView.clearPlacementCandidate();
+    this.pinchState = {
+      startDistance: metrics.distance,
+      startZoom: this.buildZoom,
+      lastX: metrics.x,
+      lastY: metrics.y,
+    };
+  }
+
+  updatePinchZoom() {
+    if (!this.pinchState) {
+      return false;
+    }
+
+    const metrics = this.getPinchMetrics();
+    if (!metrics || metrics.distance <= 4) {
+      this.pinchState = null;
+      return false;
+    }
+
+    const nextZoom =
+      this.pinchState.startZoom * (metrics.distance / this.pinchState.startDistance);
+    const previousZoom = this.buildZoom;
+    this.setBuildZoom(nextZoom, metrics);
+    if (Math.abs(previousZoom - this.buildZoom) < 0.001) {
+      this.panBuildGrid(metrics.x - this.pinchState.lastX, metrics.y - this.pinchState.lastY);
+    }
+    this.pinchState.lastX = metrics.x;
+    this.pinchState.lastY = metrics.y;
+    return true;
+  }
+
+  setBuildZoom(zoom, focalPoint = null) {
+    const nextZoom = Phaser.Math.Clamp(zoom, BUILD_ZOOM_MIN, BUILD_ZOOM_MAX);
+    if (Math.abs(nextZoom - this.buildZoom) < 0.001) {
+      return;
+    }
+
+    const previousGrid = { ...this.grid };
+    const focus = focalPoint || {
+      x: previousGrid.x + this.layout.gridWidth / 2,
+      y: previousGrid.y + this.layout.gridHeight / 2,
+    };
+    const focusCellX = (focus.x - previousGrid.x) / previousGrid.cellSize;
+    const focusCellY = (focus.y - previousGrid.y) / previousGrid.cellSize;
+
+    this.buildZoom = nextZoom;
+    this.computeLayout();
+    this.grid.x = focus.x - focusCellX * this.grid.cellSize;
+    this.grid.y = focus.y - focusCellY * this.grid.cellSize;
+    this.constrainGridPosition();
+    this.refreshGridScale();
+  }
+
+  panBuildGrid(deltaX, deltaY) {
+    if (Math.abs(deltaX) < 0.1 && Math.abs(deltaY) < 0.1) {
+      return;
+    }
+
+    this.grid.x += deltaX;
+    this.grid.y += deltaY;
+    this.constrainGridPosition();
+    this.refreshGridScale();
+  }
+
+  constrainGridPosition() {
+    const { width, height, paletteWidth, topBarHeight, bottomBarHeight } = this.layout;
+    const gridWidth = this.grid.columns * this.grid.cellSize;
+    const gridHeight = this.grid.rows * this.grid.cellSize;
+    const minX = width - gridWidth - 4;
+    const maxX = paletteWidth + 4;
+    const minY = height - bottomBarHeight - gridHeight - 4;
+    const maxY = topBarHeight + 4;
+
+    this.layout.gridWidth = gridWidth;
+    this.layout.gridHeight = gridHeight;
+    this.grid.x =
+      gridWidth <= width - paletteWidth
+        ? paletteWidth + (width - paletteWidth - gridWidth) / 2
+        : Phaser.Math.Clamp(this.grid.x, minX, maxX);
+    this.grid.y =
+      gridHeight <= height - topBarHeight - bottomBarHeight
+        ? topBarHeight + (height - topBarHeight - bottomBarHeight - gridHeight) / 2
+        : Phaser.Math.Clamp(this.grid.y, minY, maxY);
+  }
+
+  refreshGridScale() {
+    this.gridView.updateLayout({ grid: this.grid, layout: this.layout });
+    this.gridInput
+      .setPosition(this.grid.x, this.grid.y)
+      .setSize(this.layout.gridWidth, this.layout.gridHeight)
+      .setInteractive(
+        new Phaser.Geom.Rectangle(0, 0, this.layout.gridWidth, this.layout.gridHeight),
+        Phaser.Geom.Rectangle.Contains,
+      );
+
+    this.placedParts.forEach((entry) => {
+      this.gridView.positionPartView(entry);
+      this.attachPlacedPartInteraction(entry);
+    });
+    this.renderBuild();
   }
 
   updateDragCandidate(pointer) {
@@ -470,6 +637,7 @@ export default class BuildScene extends Phaser.Scene {
     const width = definition.gridWidth * this.grid.cellSize;
     const height = definition.gridHeight * this.grid.cellSize;
 
+    entry.view.removeAllListeners();
     entry.view.setSize(width, height);
     entry.view.setInteractive(
       new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),

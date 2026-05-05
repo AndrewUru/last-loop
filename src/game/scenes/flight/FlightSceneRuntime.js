@@ -434,6 +434,7 @@ export const flightSceneRuntimeMethods = {
       Phaser.Math.Clamp(state.altitude / 92, 0, 1),
       1.65,
     );
+    const mapViewProgress = this.getMapViewProgress();
     const framingY = Phaser.Math.Linear(28, 102, orbitBlend);
     const automaticZoom = Phaser.Math.Linear(
       INITIAL_CAMERA_ZOOM,
@@ -441,9 +442,14 @@ export const flightSceneRuntimeMethods = {
       orbitBlend,
     );
     const desiredCenterX = renderPosition.x + this.cameraState.panX;
+    const launchSurfaceOffset = Phaser.Math.Linear(
+      -6,
+      LAUNCH_CAMERA_CENTER_OFFSET,
+      mapViewProgress,
+    );
     const launchCenterY =
       -FLIGHT_WORLD.planetRadius +
-      LAUNCH_CAMERA_CENTER_OFFSET +
+      launchSurfaceOffset +
       this.cameraState.panY;
     const followCenterY = renderPosition.y + framingY + this.cameraState.panY;
     const desiredCenterY = Phaser.Math.Linear(
@@ -456,14 +462,9 @@ export const flightSceneRuntimeMethods = {
       0,
       1,
     );
-    const mapOverviewProgress = Phaser.Math.Clamp(
-      (0.55 - this.cameraState.zoomFactor) / 0.34,
-      0,
-      1,
-    );
     const cameraOverviewProgress = Math.max(
       overviewProgress,
-      mapOverviewProgress,
+      mapViewProgress,
     );
     const overviewCenterX = this.cameraState.panX;
     const overviewCenterY = this.cameraState.panY;

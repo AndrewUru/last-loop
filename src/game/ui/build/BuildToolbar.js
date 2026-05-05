@@ -14,13 +14,13 @@ export default class BuildToolbar {
     this.clearButton = this.createIconButton({
       x: layout.secondaryButtonX,
       y: layout.secondaryButtonY,
-      label: "-",
+      label: "CLR",
       callback: onClear,
     });
     this.removeButton = this.createIconButton({
       x: layout.secondaryButtonX + layout.secondaryButtonWidth + layout.secondaryButtonGap,
       y: layout.secondaryButtonY,
-      label: "|",
+      label: "DEL",
       callback: onRemove,
     });
     this.resetButton = this.createUndoButton({
@@ -69,7 +69,7 @@ export default class BuildToolbar {
       .setInteractive({ useHandCursor: true });
     const text = this.scene.add
       .text(x + size / 2, y + size / 2, label, {
-        fontSize: "34px",
+        fontSize: "17px",
         color: "#ffffff",
         fontStyle: "bold",
       })
@@ -104,8 +104,15 @@ export default class BuildToolbar {
     icon.beginPath();
     icon.arc(x + 38, y + height / 2 + 4, 20, -1.55, 0.72, false);
     icon.strokePath();
+    const label = this.scene.add
+      .text(x + width / 2, y + height - 9, "RST", {
+        fontSize: "10px",
+        color: "#ffffff",
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
     background.on("pointerdown", () => callback?.());
-    return { background, text: icon, setDisabled() {} };
+    return { background, text: [icon, label], setDisabled() {} };
   }
 
   setRemoveEnabled(enabled) {

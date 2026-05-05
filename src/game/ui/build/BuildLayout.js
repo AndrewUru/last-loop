@@ -8,16 +8,18 @@ function clamp(value, min, max) {
 export function computeBuildLayout({ width, height, grid, gridZoom }) {
   const theme = getBuildTheme(true);
   const mobileLayout = width < 760 || (width < 920 && height > width * 1.15);
+  const zoom = clamp(gridZoom ?? 1, 0.7, 2.15);
   const paletteWidth = mobileLayout ? 82 : 92;
   const topBarHeight = mobileLayout ? 60 : 64;
   const bottomBarHeight = mobileLayout ? 92 : 76;
   const gridAreaWidth = width - paletteWidth;
   const gridAreaHeight = height - topBarHeight - bottomBarHeight;
-  const cellSize = clamp(
+  const baseCellSize = clamp(
     Math.floor(Math.min(gridAreaWidth / grid.columns, gridAreaHeight / grid.rows)),
     mobileLayout ? 18 : 20,
     mobileLayout ? 34 : 44,
   );
+  const cellSize = Math.round(baseCellSize * zoom);
   const gridWidth = grid.columns * cellSize;
   const gridHeight = grid.rows * cellSize;
   const gridX = paletteWidth + Math.floor((gridAreaWidth - gridWidth) / 2);
@@ -35,8 +37,8 @@ export function computeBuildLayout({ width, height, grid, gridZoom }) {
       x: gridX,
       y: gridY,
     },
-    baseGridCellSize: cellSize,
-    gridZoom: gridZoom ?? 1,
+    baseGridCellSize: baseCellSize,
+    gridZoom: zoom,
     theme,
     layout: {
       width,
