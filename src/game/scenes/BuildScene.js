@@ -28,8 +28,8 @@ export default class BuildScene extends Phaser.Scene {
   constructor() {
     super({ key: "BuildScene" });
     this.baseGrid = {
-      columns: 7,
-      rows: 10,
+      columns: 24,
+      rows: 28,
     };
   }
 
@@ -60,13 +60,6 @@ export default class BuildScene extends Phaser.Scene {
     this.restoreBuild(this.initialBuild);
     this.registerInput();
     this.renderBuild();
-    this.toast.show({
-      tone: "neutral",
-      label: "VEHICLE BAY",
-      message: this.usedStarterBuild
-        ? "Starter vehicle loaded. Adjust the stack or proceed directly to launch."
-        : "Drag modules into the assembly area or click an empty cell to place the selected module.",
-    });
   }
 
   resolveInitialBuild(build, { preserveEmpty = false } = {}) {
@@ -708,19 +701,9 @@ export default class BuildScene extends Phaser.Scene {
   syncPaletteSelection() {
     this.paletteCards.forEach((card, partId) => {
       const selected = partId === this.selectedPartId;
-      const part = PARTS_BY_ID[partId];
-
-      card.background.setStrokeStyle(2, part.color, selected ? 0.9 : 0.3);
-      card.background.setFillStyle(
-        selected ? this.theme.colors.cardFillRaised : this.theme.colors.cardFill,
-        0.98,
-      );
-      card.inner.setFillStyle(
-        selected ? this.theme.focusState.palette : this.theme.colors.cardFillAlt,
-        selected ? 0.72 : 0.5,
-      );
-      card.accentStrip.setAlpha(selected ? 1 : 0.96);
-      card.title.setColor(selected ? this.theme.colors.textSuccess : this.theme.colors.textPrimary);
+      card.background.setStrokeStyle(2, selected ? 0xffffff : 0x688bc0, selected ? 0.95 : 0.45);
+      card.background.setFillStyle(selected ? 0x9ab9ea : 0x86a9df, selected ? 1 : 0.92);
+      card.title.setColor("#ffffff");
       this.tweens.add({
         targets: card.card,
         scale: card.originalScale,

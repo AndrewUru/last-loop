@@ -114,11 +114,11 @@ export default class BuildGridView {
     const height = rows * cellSize;
 
     this.gridGraphics.clear();
-    this.gridGraphics.fillStyle(colors.paperBackground, 0.92);
+    this.gridGraphics.fillStyle(0x41679b, 0.96);
     this.gridGraphics.fillRect(x, y, width, height);
-    this.gridGraphics.lineStyle(2, colors.paperFrame, 0.38);
+    this.gridGraphics.lineStyle(2, 0x315784, 0.55);
     this.gridGraphics.strokeRect(x, y, width, height);
-    this.gridGraphics.lineStyle(1, colors.paperMinor, gridTheme.lineAlphaMinor);
+    this.gridGraphics.lineStyle(1, 0x315784, 0.34);
 
     for (let column = 0; column <= columns; column += 1) {
       const lineX = x + column * cellSize;
@@ -136,7 +136,7 @@ export default class BuildGridView {
       this.gridGraphics.lineBetween(x, lineY, x + columns * cellSize, lineY);
     }
 
-    this.gridGraphics.lineStyle(1, colors.paperMajor, gridTheme.lineAlphaMajor);
+    this.gridGraphics.lineStyle(3, 0x315784, 0.48);
     for (let column = 0; column <= columns; column += 1) {
       if (column % gridTheme.majorEvery !== 0) {
         continue;
@@ -155,7 +155,7 @@ export default class BuildGridView {
       this.gridGraphics.lineBetween(x, lineY, x + width, lineY);
     }
 
-    this.gridGraphics.lineStyle(1, colors.paperCross, gridTheme.crossAlpha);
+    this.gridGraphics.lineStyle(1, 0x2e527f, 0.28);
     for (let column = 0; column <= columns; column += gridTheme.majorEvery) {
       for (let row = 0; row <= rows; row += gridTheme.majorEvery) {
         const crossX = x + column * cellSize;
@@ -163,7 +163,7 @@ export default class BuildGridView {
 
         this.gridGraphics.lineBetween(crossX - 4, crossY, crossX + 4, crossY);
         this.gridGraphics.lineBetween(crossX, crossY - 4, crossX, crossY + 4);
-        this.gridGraphics.fillStyle(colors.paperBackground, 1);
+        this.gridGraphics.fillStyle(0x41679b, 1);
         this.gridGraphics.fillCircle(crossX, crossY, 1.25);
       }
     }
