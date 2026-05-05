@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 import {
-  LAUNCH_PAD_COLORS,
   STAR_COUNT,
   VISUAL_TARGET_ORBIT_OFFSET,
 } from "./FlightSceneConstants.js";
@@ -159,30 +158,8 @@ export const flightSceneEnvironmentMethods = {
   },
 
   buildLaunchPad() {
-    const padY = -FLIGHT_WORLD.planetRadius;
-
-    this.pad.add([
-      this.add.rectangle(0, padY + 54, 140, 14, LAUNCH_PAD_COLORS.baseDark, 0.95),
-      this.add.rectangle(0, padY + 42, 200, 16, LAUNCH_PAD_COLORS.baseMed, 0.94),
-      this.add.rectangle(0, padY + 31, 260, 6, LAUNCH_PAD_COLORS.baseLight, 0.85),
-      this.add.rectangle(0, padY + 37, 60, 6, LAUNCH_PAD_COLORS.baseDark, 0.8),
-      this.add.rectangle(0, padY + 22, 34, 12, LAUNCH_PAD_COLORS.highlight, 0.5),
-    ]);
-
-    this.launchTower.add([
-      this.add.rectangle(-66, padY - 20, 28, 150, LAUNCH_PAD_COLORS.baseMed, 0.98),
-      this.add.rectangle(-58, padY - 20, 4, 140, LAUNCH_PAD_COLORS.baseDark, 0.6),
-      this.add.rectangle(-66, padY + 40, 28, 10, LAUNCH_PAD_COLORS.accent, 0.9),
-      this.add.rectangle(-66, padY - 110, 4, 40, LAUNCH_PAD_COLORS.baseLight, 0.7),
-      this.add.rectangle(-40, padY - 60, 60, 12, LAUNCH_PAD_COLORS.baseMed, 0.85),
-      this.add.rectangle(-34, padY - 15, 70, 10, LAUNCH_PAD_COLORS.baseLight, 0.8),
-      this.add.rectangle(-12, padY - 60, 8, 26, LAUNCH_PAD_COLORS.baseDark, 0.9),
-      this.add.rectangle(-2, padY - 15, 10, 22, LAUNCH_PAD_COLORS.baseDark, 0.9),
-      this.add.circle(-66, padY - 132, 4, LAUNCH_PAD_COLORS.lightWarn, 1),
-      this.add.circle(-66, padY - 80, 5, LAUNCH_PAD_COLORS.lightBlink, 0.9),
-      this.add.circle(-66, padY - 30, 4, LAUNCH_PAD_COLORS.lightBlink, 0.8),
-      this.add.circle(-12, padY - 75, 3, LAUNCH_PAD_COLORS.lightWarn, 0.9),
-    ]);
+    this.pad.removeAll(true);
+    this.launchTower.removeAll(true);
   },
 
   drawLaunchBackdrop() {
@@ -191,42 +168,6 @@ export const flightSceneEnvironmentMethods = {
 
   drawLaunchGround() {
     this.launchGround.clear();
-    const padY = -FLIGHT_WORLD.planetRadius;
-    const topY = padY + 6;
-    const midY = padY + 44;
-    const lowerY = padY + 760;
-    const halfWidth = 1180;
-    const innerHalfWidth = 620;
-
-    this.launchGround.fillStyle(0x5b7287, 0.96);
-    this.launchGround.fillRect(-halfWidth, topY, halfWidth * 2, lowerY - topY);
-
-    this.launchGround.fillStyle(0x3f5365, 0.9);
-    this.launchGround.beginPath();
-    this.launchGround.moveTo(-halfWidth, lowerY);
-    this.launchGround.lineTo(-innerHalfWidth, midY);
-    this.launchGround.lineTo(innerHalfWidth, midY);
-    this.launchGround.lineTo(halfWidth, lowerY);
-    this.launchGround.closePath();
-    this.launchGround.fillPath();
-
-    this.launchGround.fillStyle(0x263744, 0.2);
-    this.launchGround.fillRect(-halfWidth, padY + 94, halfWidth * 2, lowerY - padY - 94);
-
-    this.launchGround.lineStyle(4, 0xc8d9e5, 0.28);
-    this.launchGround.beginPath();
-    this.launchGround.moveTo(-halfWidth, topY + 2);
-    this.launchGround.lineTo(halfWidth, topY + 2);
-    this.launchGround.strokePath();
-
-    this.launchGround.fillStyle(0x91a7ba, 0.2);
-    this.launchGround.fillRect(-halfWidth, topY + 10, halfWidth * 2, 18);
-    this.launchGround.fillStyle(0x263341, 0.18);
-    this.launchGround.fillRect(-halfWidth, midY + 10, halfWidth * 2, 34);
-    this.launchGround.fillStyle(0x70859a, 0.68);
-    this.launchGround.fillEllipse(0, padY + 52, 250, 20);
-    this.launchGround.fillStyle(0xd9ecf7, 0.16);
-    this.launchGround.fillEllipse(0, padY + 46, 210, 6);
   },
 
   createUiCamera() {

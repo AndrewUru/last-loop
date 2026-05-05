@@ -1,4 +1,4 @@
-export const ROCKET_CELL_SIZE = 12;
+export const ROCKET_CELL_SIZE = 5;
 export const TRAIL_LIMIT = 180;
 export const STAR_COUNT = 130;
 export const LAUNCH_PRESENTATION_ALTITUDE = 180;
