@@ -22,6 +22,15 @@ function createFlightControls() {
   };
 }
 
+function createTouchControls() {
+  return {
+    steerLeft: false,
+    steerRight: false,
+    throttleUp: false,
+    throttleDown: false,
+  };
+}
+
 function createFlightCameraState() {
   return {
     centerX: 0,
@@ -71,6 +80,9 @@ export function createFlightRuntimeState(input, stats) {
     controls: createFlightControls(),
     cameraState: createFlightCameraState(),
     cameraDrag: null,
+    activeTouchPointers: new Map(),
+    pinchZoom: null,
+    touchControls: createTouchControls(),
     keys: createFlightKeys(input),
   };
 }

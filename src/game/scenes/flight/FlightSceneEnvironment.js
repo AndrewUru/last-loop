@@ -249,7 +249,11 @@ export const flightSceneEnvironmentMethods = {
   },
 
   getUiObjects() {
-    return [...this.hud.getObjects(), this.resultOverlay];
+    return [
+      ...this.hud.getObjects(),
+      ...this.touchControlsUi.getObjects(),
+      this.resultOverlay,
+    ];
   },
 
   handleResize(gameSize) {
@@ -276,6 +280,7 @@ export const flightSceneEnvironmentMethods = {
     this.uiCamera.setSize(width, height);
     this.uiCamera.setViewport(0, 0, width, height);
     this.hud.resize(width, height);
+    this.touchControlsUi.resize(width, height);
     this.layoutMissionOverlay(width, height);
   },
 };

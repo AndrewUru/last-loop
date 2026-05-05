@@ -15,8 +15,10 @@ import {
   LAUNCH_CAMERA_CENTER_OFFSET,
   LAUNCH_PARTICLE_ALTITUDE,
   MAX_CAMERA_ZOOM,
+  MAX_ZOOM_FACTOR,
   MIN_CAMERA_ZOOM,
   MIN_ORBIT_CAMERA_ZOOM,
+  MIN_ZOOM_FACTOR,
   ORBIT_CAMERA_END_ALTITUDE,
   ORBIT_CAMERA_START_ALTITUDE,
   PAD_FADE_ALTITUDE,
@@ -65,9 +67,11 @@ export const flightSceneRuntimeMethods = {
 
   registerInput() {
     this.input.mouse?.disableContextMenu();
+    this.input.addPointer(2);
     this.input.on("pointerdown", this.handlePointerDown, this);
     this.input.on("pointermove", this.handlePointerMove, this);
     this.input.on("pointerup", this.handlePointerUp, this);
+    this.input.on("pointerupoutside", this.handlePointerUp, this);
     this.input.on("wheel", this.handleMouseWheel, this);
     this.input.keyboard.on("keydown-H", this.onToggleHelp);
     this.input.keyboard.on("keydown-R", this.onResultRebuild);
@@ -80,6 +84,7 @@ export const flightSceneRuntimeMethods = {
     this.input.off("pointerdown", this.handlePointerDown, this);
     this.input.off("pointermove", this.handlePointerMove, this);
     this.input.off("pointerup", this.handlePointerUp, this);
+    this.input.off("pointerupoutside", this.handlePointerUp, this);
     this.input.off("wheel", this.handleMouseWheel, this);
     this.input.keyboard.off("keydown-H", this.onToggleHelp);
     this.input.keyboard.off("keydown-R", this.onResultRebuild);
@@ -88,6 +93,11 @@ export const flightSceneRuntimeMethods = {
   },
 
   handlePointerDown(pointer) {
+    if (pointer.pointerType === "touch") {
+      this.trackTouchPointer(pointer);
+      return;
+    }
+
     if (!pointer.rightButtonDown() && !pointer.middleButtonDown()) {
       return;
     }
@@ -102,6 +112,12 @@ export const flightSceneRuntimeMethods = {
   },
 
   handlePointerMove(pointer) {
+    if (pointer.pointerType === "touch") {
+      this.updateTouchPointer(pointer);
+      this.updatePinchZoom();
+      return;
+    }
+
     if (!this.cameraDrag || this.cameraDrag.pointerId !== pointer.id) {
       return;
     }
@@ -114,9 +130,75 @@ export const flightSceneRuntimeMethods = {
   },
 
   handlePointerUp(pointer) {
+    if (pointer.pointerType === "touch") {
+      this.releaseTouchPointer(pointer);
+      return;
+    }
+
     if (this.cameraDrag?.pointerId === pointer.id) {
       this.cameraDrag = null;
     }
+  },
+
+  trackTouchPointer(pointer) {
+    this.activeTouchPointers.set(pointer.id, {
+      x: pointer.x,
+      y: pointer.y,
+    });
+
+    if (this.activeTouchPointers.size === 2) {
+      this.pinchZoom = {
+        distance: this.getPinchDistance(),
+        zoomFactor: this.cameraState.zoomFactor,
+      };
+    }
+  },
+
+  updateTouchPointer(pointer) {
+    if (!this.activeTouchPointers.has(pointer.id)) {
+      return;
+    }
+
+    this.activeTouchPointers.set(pointer.id, {
+      x: pointer.x,
+      y: pointer.y,
+    });
+  },
+
+  releaseTouchPointer(pointer) {
+    this.activeTouchPointers.delete(pointer.id);
+    this.pinchZoom = null;
+  },
+
+  getPinchDistance() {
+    const touches = Array.from(this.activeTouchPointers.values());
+    if (touches.length < 2) {
+      return 0;
+    }
+
+    return Phaser.Math.Distance.Between(
+      touches[0].x,
+      touches[0].y,
+      touches[1].x,
+      touches[1].y,
+    );
+  },
+
+  updatePinchZoom() {
+    if (!this.pinchZoom || this.activeTouchPointers.size < 2) {
+      return;
+    }
+
+    const distance = this.getPinchDistance();
+    if (distance <= 0 || this.pinchZoom.distance <= 0) {
+      return;
+    }
+
+    this.cameraState.zoomFactor = Phaser.Math.Clamp(
+      this.pinchZoom.zoomFactor * (distance / this.pinchZoom.distance),
+      MIN_ZOOM_FACTOR,
+      MAX_ZOOM_FACTOR,
+    );
   },
 
   handleMouseWheel(pointer, over, deltaX, deltaY) {
@@ -158,12 +240,17 @@ export const flightSceneRuntimeMethods = {
       this.setCruiseThrottle(1);
     }
 
-    const upPressed = this.keys.up.isDown || this.keys.w.isDown;
-    const downPressed = this.keys.down.isDown || this.keys.s.isDown;
-    const leftPressed = this.keys.left.isDown || this.keys.a.isDown;
-    const rightPressed = this.keys.right.isDown || this.keys.d.isDown;
+    const upPressed =
+      this.keys.up.isDown || this.keys.w.isDown || this.touchControls.throttleUp;
+    const downPressed =
+      this.keys.down.isDown || this.keys.s.isDown || this.touchControls.throttleDown;
+    const leftPressed =
+      this.keys.left.isDown || this.keys.a.isDown || this.touchControls.steerLeft;
+    const rightPressed =
+      this.keys.right.isDown || this.keys.d.isDown || this.touchControls.steerRight;
 
     if (upPressed) {
+      this.controls.engineOn = true;
       this.controls.cruiseThrottle = Math.min(
         1,
         this.controls.cruiseThrottle + delta * 0.001,
@@ -174,6 +261,9 @@ export const flightSceneRuntimeMethods = {
         0,
         this.controls.cruiseThrottle - delta * 0.001,
       );
+    }
+    if (this.touchControls.throttleDown && this.controls.cruiseThrottle <= 0.01) {
+      this.controls.engineOn = false;
     }
 
     if (this.simulator.state.fuelRemaining <= 0.01) {

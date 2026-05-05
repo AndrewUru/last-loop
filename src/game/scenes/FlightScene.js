@@ -3,6 +3,7 @@ import ShipPart from "../entities/ShipPart.js";
 import { PARTS_BY_ID } from "../data/parts.js";
 import ShipStatsCalculator from "../systems/ShipStatsCalculator.js";
 import FlightHud from "../ui/FlightHud.js";
+import FlightTouchControls from "../ui/FlightTouchControls.js";
 import { ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
 import {
   flightSceneEnvironmentMethods,
@@ -103,6 +104,22 @@ class FlightScene extends Phaser.Scene {
       onEngineToggle: () => this.toggleEngine(),
     });
     this.hud.create();
+
+    this.touchControlsUi = new FlightTouchControls(this, {
+      onSteerLeft: (active) => {
+        this.touchControls.steerLeft = active;
+      },
+      onSteerRight: (active) => {
+        this.touchControls.steerRight = active;
+      },
+      onThrottleUp: (active) => {
+        this.touchControls.throttleUp = active;
+      },
+      onThrottleDown: (active) => {
+        this.touchControls.throttleDown = active;
+      },
+    });
+    this.touchControlsUi.create();
   }
 
   update(time, delta) {

@@ -502,12 +502,32 @@ export default class FlightHud {
     return this.objects;
   }
 
+  syncVisibilityForLayout() {
+    if (this.isMobile) {
+      this.objects.forEach((object) => object.setVisible(false));
+      this.helpVisible = false;
+      return false;
+    }
+
+    this.objects.forEach((object) => object.setVisible(true));
+    this.leftSubheading.setVisible(false);
+    this.rightSubheading.setVisible(false);
+    this.bottomHint.setVisible(!this.useStackedLayout);
+    this.helpPanel.setVisible(this.helpVisible);
+    this.helpTitle.setVisible(this.helpVisible);
+    this.helpText.setVisible(this.helpVisible);
+    return true;
+  }
+
   resize(width, height) {
     this.useStackedLayout =
       width < 1100 && (width < 760 || height > width * 0.9);
     this.isMobile = width < 760 || (width < 920 && height > width * 1.15);
     this.isCompact = this.useStackedLayout || width < 1240;
     this.applyResponsiveStyles();
+    if (!this.syncVisibilityForLayout()) {
+      return;
+    }
 
     if (this.useStackedLayout) {
       const margin = this.isMobile ? 12 : 16;
