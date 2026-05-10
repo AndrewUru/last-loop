@@ -45,16 +45,21 @@ class FlightScene extends Phaser.Scene {
 
   createFlightTutorial() {
     const { width, height } = this.scale;
+    const mobile = width < 760 || (width < 920 && height > width * 1.15);
     this.flightTutorial = new TutorialSystem(this, [
       {
         title: "Flight Controls",
-        body: "SPACE/F: Engine on/off. A/D or arrows: Steer. G: Stability assist (SAS). Shift: Full throttle.",
+        body: mobile
+          ? "Use the touch pads to steer and change throttle. SAS helps stabilize the rocket; STG separates stages."
+          : "SPACE/F: Engine on/off. A/D or arrows: Steer. G: Stability assist (SAS). Shift: Full throttle.",
         panelY: height - 180,
         waitForKey: true
       },
       {
         title: "Throttle Control",
-        body: "Use 0-4 keys for throttle presets (0%, 35%, 65%, 85%, 100%). Up/Down arrows adjust throttle.",
+        body: mobile
+          ? "Hold + to ignite and raise throttle. Hold - to reduce throttle; at zero it cuts the engine."
+          : "Use 0-4 keys for throttle presets (0%, 35%, 65%, 85%, 100%). Up/Down arrows adjust throttle.",
         panelY: height - 180,
         waitForKey: true
       },
@@ -176,6 +181,8 @@ class FlightScene extends Phaser.Scene {
       onThrottleDown: (active) => {
         this.touchControls.throttleDown = active;
       },
+      onAssistToggle: () => this.toggleAssist(),
+      onStageActivate: () => this.activateStage(),
     });
     this.touchControlsUi.create();
   }

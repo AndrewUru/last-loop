@@ -994,8 +994,12 @@ export const flightSceneRuntimeMethods = {
       1,
     );
     const intensity = thrustVisual * (1.15 + groundBoost * 1.6);
-    const smokeCount = Math.round(Phaser.Math.Clamp(3 + intensity * 3, 3, 8));
-    const fireCount = Math.round(Phaser.Math.Clamp(2 + intensity * 2.5, 2, 6));
+    const mobile =
+      this.scale.width < 760 ||
+      (this.scale.width < 920 && this.scale.height > this.scale.width * 1.15);
+    const particleScale = mobile ? 0.58 : 1;
+    const smokeCount = Math.round(Phaser.Math.Clamp((3 + intensity * 3) * particleScale, 2, 8));
+    const fireCount = Math.round(Phaser.Math.Clamp((2 + intensity * 2.5) * particleScale, 1, 6));
 
     for (let index = 0; index < smokeCount; index += 1) {
       const particle = acquireParticle(this.smokeParticlePool);

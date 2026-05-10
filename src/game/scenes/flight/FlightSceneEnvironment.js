@@ -8,6 +8,8 @@ import {
 export const flightSceneEnvironmentMethods = {
   createBackdrop() {
     const { width, height } = this.scale;
+    const mobile = width < 760 || (width < 920 && height > width * 1.15);
+    const starCount = mobile ? Math.ceil(STAR_COUNT * 0.55) : STAR_COUNT;
 
     this.cameras.main.setBackgroundColor("#79c4ff");
 
@@ -20,7 +22,7 @@ export const flightSceneEnvironmentMethods = {
     this.spaceShade.fillRect(0, 0, width, height);
     this.spaceShade.setAlpha(0);
 
-    this.stars = Array.from({ length: STAR_COUNT }, () =>
+    this.stars = Array.from({ length: starCount }, () =>
       this.add
         .circle(
           Phaser.Math.Between(-width, width * 2),
@@ -72,10 +74,14 @@ export const flightSceneEnvironmentMethods = {
 
   createCloudLayers() {
     const cloudAltitudes = [800, 2000, 4500, 8000, 12000];
+    const mobile =
+      this.scale.width < 760 ||
+      (this.scale.width < 920 && this.scale.height > this.scale.width * 1.15);
+    const cloudCount = mobile ? 18 : 40;
     cloudAltitudes.forEach((alt) => {
       const cloud = this.add.graphics().setDepth(-8);
       cloud.fillStyle(0xffffff, 0.25);
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0; i < cloudCount; i++) {
         const x = Phaser.Math.Between(-2000, 2000);
         const y = -FLIGHT_WORLD.planetRadius + alt + Phaser.Math.Between(-20, 20);
         const w = 30 + Math.random() * 80;

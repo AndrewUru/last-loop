@@ -83,6 +83,7 @@ export default class BuildScene extends Phaser.Scene {
       width: this.scale.width,
       height: this.scale.height,
       grid: this.baseGrid,
+      gridZoom: this.buildZoom,
     });
 
     this.theme = metrics.theme;

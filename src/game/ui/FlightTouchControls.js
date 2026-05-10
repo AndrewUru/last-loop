@@ -55,11 +55,15 @@ export default class FlightTouchControls {
     this.throttleDownButton = this.createButton("-", 0x241b18, 0xffb26b, controlDepth);
     this.leftButton = this.createButton("<", 0x101820, 0x8fd7ff, controlDepth);
     this.rightButton = this.createButton(">", 0x101820, 0x8fd7ff, controlDepth);
+    this.assistButton = this.createButton("SAS", 0x162335, 0x9fd7ff, controlDepth);
+    this.stageButton = this.createButton("STG", 0x2a1d1a, 0xffb26b, controlDepth);
 
     this.bindHold(this.leftButton, (active) => this.options.onSteerLeft?.(active));
     this.bindHold(this.rightButton, (active) => this.options.onSteerRight?.(active));
     this.bindHold(this.throttleUpButton, (active) => this.options.onThrottleUp?.(active));
     this.bindHold(this.throttleDownButton, (active) => this.options.onThrottleDown?.(active));
+    this.bindTap(this.assistButton, () => this.options.onAssistToggle?.());
+    this.bindTap(this.stageButton, () => this.options.onStageActivate?.());
 
     this.objects.push(
       this.topPanel,
@@ -139,6 +143,21 @@ export default class FlightTouchControls {
     button.background.on("pointerupoutside", () => setActive(false));
   }
 
+  bindTap(button, callback) {
+    button.background.on("pointerdown", (pointer, localX, localY, event) => {
+      event?.stopPropagation();
+      callback();
+      this.scene.tweens.add({
+        targets: [button.background, button.text],
+        scaleX: 1.08,
+        scaleY: 1.08,
+        duration: 80,
+        yoyo: true,
+        ease: "Quad.easeOut",
+      });
+    });
+  }
+
   resize(width, height) {
     this.visible = width < 920 || height > width * 1.05;
 
@@ -154,6 +173,7 @@ export default class FlightTouchControls {
     const trackBottom = bottom - radius * 1.65;
     const steerRightX = width - margin - radius;
     const steerLeftX = steerRightX - radius * 2.25;
+    const actionY = bottom - radius * 2.35;
 
     this.layout.throttleTrackHeight = trackHeight;
     this.layout.throttleTrackY = trackBottom;
@@ -174,6 +194,8 @@ export default class FlightTouchControls {
     this.layoutButton(this.throttleDownButton, throttleX, bottom, radius);
     this.layoutButton(this.leftButton, steerLeftX, bottom, radius);
     this.layoutButton(this.rightButton, steerRightX, bottom, radius);
+    this.layoutButton(this.assistButton, steerLeftX, actionY, radius * 0.72);
+    this.layoutButton(this.stageButton, steerRightX, actionY, radius * 0.72);
 
     this.objects.forEach((object) => object.setVisible(this.visible));
   }
@@ -182,7 +204,8 @@ export default class FlightTouchControls {
     button.shadow.setPosition(x + 2, y + 3).setRadius(radius);
     button.background.setPosition(x, y).setRadius(radius);
     button.background.input.hitArea.setTo(0, 0, radius);
-    button.text.setPosition(x, y - 1).setFontSize(`${Math.round(radius * 0.9)}px`);
+    const fontScale = button.text.text.length > 1 ? 0.45 : 0.9;
+    button.text.setPosition(x, y - 1).setFontSize(`${Math.round(radius * fontScale)}px`);
   }
 
   update(state, uiState = {}) {
@@ -202,6 +225,11 @@ export default class FlightTouchControls {
     this.throttleText.setText(`${Math.round(throttlePct * 100)}%`);
     this.fuelText.setText(`FUEL ${Math.round(fuelPct * 100)}%`);
     this.throttleFill.height = this.layout.throttleTrackHeight * throttlePct;
+    this.assistButton.background.setStrokeStyle(
+      2,
+      state.assistEnabled ? 0x73f7c0 : this.assistButton.accent,
+      state.assistEnabled ? 1 : 0.86,
+    );
   }
 
   getObjects() {

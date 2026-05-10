@@ -72,10 +72,13 @@ export default class TutorialSystem {
 
   createPanel(step) {
     const { width, height } = this.scene.scale;
-    const panelW = 320;
-    const panelH = 140;
+    const panelW = Math.min(320, width - 24);
+    const panelH = width < 520 ? 154 : 140;
     const x = step.panelX || (width - panelW) / 2;
-    const y = step.panelY || height - panelH - 40;
+    const y = Math.min(
+      step.panelY || height - panelH - 40,
+      height - panelH - 16,
+    );
 
     this.panel = this.scene.add.container(x, y).setDepth(1000).setScrollFactor(0);
 
@@ -92,14 +95,14 @@ export default class TutorialSystem {
     this.panel.add(stepNum);
 
     const title = this.scene.add.text(16, 32, step.title, {
-      fontSize: "18px",
+      fontSize: width < 520 ? "16px" : "18px",
       color: "#f4f7fb",
       fontStyle: "bold"
     });
     this.panel.add(title);
 
     const body = this.scene.add.text(16, 60, step.body, {
-      fontSize: "14px",
+      fontSize: width < 520 ? "13px" : "14px",
       color: "#aebdcb",
       wordWrap: { width: panelW - 32 }
     });
@@ -152,11 +155,13 @@ export default class TutorialSystem {
   }
 
   waitForInput(callback) {
-    const handler = this.scene.input.keyboard.on("keydown", () => {
-      handler.destroy();
+    const onKeyDown = () => {
+      this.scene.input.keyboard.off("keydown", onKeyDown);
       callback();
-    });
+    };
+    this.scene.input.keyboard.on("keydown", onKeyDown);
     this.overlay?.once("pointerdown", () => {
+      this.scene.input.keyboard.off("keydown", onKeyDown);
       callback();
     });
   }

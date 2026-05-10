@@ -24,6 +24,18 @@ export default {
   parent: "game-container",
   backgroundColor: "#edf2f8",
   transparent: true,
+  fps: {
+    target: 60,
+    min: 30,
+    forceSetTimeOut: false,
+  },
+  input: {
+    activePointers: 3,
+  },
+  render: {
+    antialias: false,
+    powerPreference: "high-performance",
+  },
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
