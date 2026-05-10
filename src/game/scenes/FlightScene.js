@@ -50,7 +50,7 @@ class FlightScene extends Phaser.Scene {
       {
         title: "Flight Controls",
         body: mobile
-          ? "Use the touch pads to steer and change throttle. SAS helps stabilize the rocket; STG separates stages."
+          ? "Tap IGN to light the engine. Use the touch pads to steer and change throttle. SAS stabilizes; STG separates stages."
           : "SPACE/F: Engine on/off. A/D or arrows: Steer. G: Stability assist (SAS). Shift: Full throttle.",
         panelY: height - 180,
         waitForKey: true
@@ -181,6 +181,7 @@ class FlightScene extends Phaser.Scene {
       onThrottleDown: (active) => {
         this.touchControls.throttleDown = active;
       },
+      onEngineToggle: () => this.toggleEngine(),
       onAssistToggle: () => this.toggleAssist(),
       onStageActivate: () => this.activateStage(),
     });

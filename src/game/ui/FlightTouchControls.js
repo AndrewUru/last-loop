@@ -55,6 +55,7 @@ export default class FlightTouchControls {
     this.throttleDownButton = this.createButton("-", 0x241b18, 0xffb26b, controlDepth);
     this.leftButton = this.createButton("<", 0x101820, 0x8fd7ff, controlDepth);
     this.rightButton = this.createButton(">", 0x101820, 0x8fd7ff, controlDepth);
+    this.engineButton = this.createButton("IGN", 0x1f2a18, 0x73f7c0, controlDepth);
     this.assistButton = this.createButton("SAS", 0x162335, 0x9fd7ff, controlDepth);
     this.stageButton = this.createButton("STG", 0x2a1d1a, 0xffb26b, controlDepth);
 
@@ -62,6 +63,7 @@ export default class FlightTouchControls {
     this.bindHold(this.rightButton, (active) => this.options.onSteerRight?.(active));
     this.bindHold(this.throttleUpButton, (active) => this.options.onThrottleUp?.(active));
     this.bindHold(this.throttleDownButton, (active) => this.options.onThrottleDown?.(active));
+    this.bindTap(this.engineButton, () => this.options.onEngineToggle?.());
     this.bindTap(this.assistButton, () => this.options.onAssistToggle?.());
     this.bindTap(this.stageButton, () => this.options.onStageActivate?.());
 
@@ -174,6 +176,8 @@ export default class FlightTouchControls {
     const steerRightX = width - margin - radius;
     const steerLeftX = steerRightX - radius * 2.25;
     const actionY = bottom - radius * 2.35;
+    const engineX = width / 2;
+    const engineY = bottom;
 
     this.layout.throttleTrackHeight = trackHeight;
     this.layout.throttleTrackY = trackBottom;
@@ -194,6 +198,7 @@ export default class FlightTouchControls {
     this.layoutButton(this.throttleDownButton, throttleX, bottom, radius);
     this.layoutButton(this.leftButton, steerLeftX, bottom, radius);
     this.layoutButton(this.rightButton, steerRightX, bottom, radius);
+    this.layoutButton(this.engineButton, engineX, engineY, radius * 0.92);
     this.layoutButton(this.assistButton, steerLeftX, actionY, radius * 0.72);
     this.layoutButton(this.stageButton, steerRightX, actionY, radius * 0.72);
 
@@ -225,6 +230,10 @@ export default class FlightTouchControls {
     this.throttleText.setText(`${Math.round(throttlePct * 100)}%`);
     this.fuelText.setText(`FUEL ${Math.round(fuelPct * 100)}%`);
     this.throttleFill.height = this.layout.throttleTrackHeight * throttlePct;
+    this.engineButton.text.setText(state.engineOn ? "CUT" : "IGN");
+    this.engineButton.background
+      .setFillStyle(state.engineOn ? 0x3a1d12 : 0x1f2a18, state.engineOn ? 0.96 : 0.74)
+      .setStrokeStyle(2, state.engineOn ? 0xff9b5d : this.engineButton.accent, state.engineOn ? 1 : 0.86);
     this.assistButton.background.setStrokeStyle(
       2,
       state.assistEnabled ? 0x73f7c0 : this.assistButton.accent,
