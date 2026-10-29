@@ -28,6 +28,7 @@ import {
 } from "./FlightSceneConstants.js";
 import {
   acquireParticle,
+  fillDot,
   getRenderPosition,
   getThrustVisual,
   releaseParticle,
@@ -639,7 +640,7 @@ export const flightSceneRuntimeMethods = {
       }
       const fade = 1 - index / prediction.points.length;
       this.trajectoryGraphics.fillStyle(color, 0.2 + fade * 0.6);
-      this.trajectoryGraphics.fillCircle(point.x, point.y, 2.2 / zoom);
+      fillDot(this.trajectoryGraphics, point.x, point.y, 2.2 / zoom);
     });
   },
 
@@ -738,9 +739,9 @@ export const flightSceneRuntimeMethods = {
     const segmentCount = 7;
 
     this.exhaust.fillStyle(0xfff7d6, 0.98);
-    this.exhaust.fillCircle(rear.x, rear.y, (6 + thrustVisual * 4) * visualScale);
+    fillDot(this.exhaust, rear.x, rear.y, (6 + thrustVisual * 4) * visualScale);
     this.exhaust.fillStyle(0xffe7a8, 0.42);
-    this.exhaust.fillCircle(rear.x, rear.y, (12 + thrustVisual * 6) * visualScale);
+    fillDot(this.exhaust, rear.x, rear.y, (12 + thrustVisual * 6) * visualScale);
 
     for (let index = 0; index < segmentCount; index += 1) {
       const t = index / (segmentCount - 1);
@@ -756,15 +757,17 @@ export const flightSceneRuntimeMethods = {
       const alpha = Phaser.Math.Linear(0.72, 0.18, t);
 
       this.exhaust.fillStyle(0xff7b2f, alpha * 0.9);
-      this.exhaust.fillCircle(px, py, outerRadius);
+      fillDot(this.exhaust, px, py, outerRadius);
       this.exhaust.fillStyle(0xffb347, alpha * 0.95);
-      this.exhaust.fillCircle(
+      fillDot(
+        this.exhaust,
         px - plumeX * outerRadius * 0.1,
         py - plumeY * outerRadius * 0.1,
         midRadius,
       );
       this.exhaust.fillStyle(0xfff2bf, Phaser.Math.Linear(0.8, 0.14, t));
-      this.exhaust.fillCircle(
+      fillDot(
+        this.exhaust,
         px - plumeX * outerRadius * 0.18,
         py - plumeY * outerRadius * 0.18,
         coreRadius,
@@ -774,7 +777,7 @@ export const flightSceneRuntimeMethods = {
     const tipX = rear.x + plumeX * (flameLength * 0.98);
     const tipY = rear.y + plumeY * (flameLength * 0.98);
     this.exhaust.fillStyle(0xff8c3b, 0.26);
-    this.exhaust.fillCircle(tipX, tipY, (2 + thrustVisual * 1.2) * visualScale);
+    fillDot(this.exhaust, tipX, tipY, (2 + thrustVisual * 1.2) * visualScale);
   },
 
   updateLaunchParticles(state, dt) {
@@ -971,17 +974,19 @@ export const flightSceneRuntimeMethods = {
       }
 
       this.exhaustSmoke.fillStyle(edgeColor, alpha * 0.7);
-      this.exhaustSmoke.fillCircle(particle.x, particle.y, particle.size);
+      fillDot(this.exhaustSmoke, particle.x, particle.y, particle.size);
 
       this.exhaustSmoke.fillStyle(midColor, alpha * 0.9);
-      this.exhaustSmoke.fillCircle(
+      fillDot(
+        this.exhaustSmoke,
         particle.x + particle.size * 0.06,
         particle.y + particle.size * 0.04,
         particle.size * 0.74,
       );
 
       this.exhaustSmoke.fillStyle(coreColor, alpha);
-      this.exhaustSmoke.fillCircle(
+      fillDot(
+        this.exhaustSmoke,
         particle.x - particle.size * 0.04,
         particle.y - particle.size * 0.02,
         particle.size * 0.45,
@@ -1024,16 +1029,17 @@ export const flightSceneRuntimeMethods = {
       }
 
       this.exhaustFire.fillStyle(colorEdge, alpha * 0.4);
-      this.exhaustFire.fillCircle(particle.x, particle.y, particle.size * 1.2);
+      fillDot(this.exhaustFire, particle.x, particle.y, particle.size * 1.2);
 
       this.exhaustFire.fillStyle(colorMid, alpha * 0.8);
-      this.exhaustFire.fillCircle(particle.x, particle.y, particle.size * 0.8);
+      fillDot(this.exhaustFire, particle.x, particle.y, particle.size * 0.8);
 
       const offsetX = particle.vx * 0.02;
       const offsetY = particle.vy * 0.02;
 
       this.exhaustFire.fillStyle(colorCore, alpha);
-      this.exhaustFire.fillCircle(
+      fillDot(
+        this.exhaustFire,
         particle.x - offsetX,
         particle.y - offsetY,
         particle.size * 0.4,

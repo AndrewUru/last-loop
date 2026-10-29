@@ -26,6 +26,28 @@ export function getBuildCenter(bounds) {
   };
 }
 
+// Phaser's WebGL renderer turns every Graphics circle into ~100 points and
+// re-triangulates it on the CPU each frame. Particles and flames draw hundreds
+// of them, so they use a 12-sided triangle fan instead.
+const DOT_SIDES = 12;
+const DOT_COS = Array.from({ length: DOT_SIDES }, (_, i) => Math.cos((i / DOT_SIDES) * Math.PI * 2));
+const DOT_SIN = Array.from({ length: DOT_SIDES }, (_, i) => Math.sin((i / DOT_SIDES) * Math.PI * 2));
+
+export function fillDot(graphics, x, y, radius) {
+  const x0 = x + DOT_COS[0] * radius;
+  const y0 = y + DOT_SIN[0] * radius;
+  for (let i = 1; i < DOT_SIDES - 1; i += 1) {
+    graphics.fillTriangle(
+      x0,
+      y0,
+      x + DOT_COS[i] * radius,
+      y + DOT_SIN[i] * radius,
+      x + DOT_COS[i + 1] * radius,
+      y + DOT_SIN[i + 1] * radius,
+    );
+  }
+}
+
 export function getPresentationAltitude(altitude) {
   const earlyProgress = Phaser.Math.Clamp(
     altitude / LAUNCH_PRESENTATION_ALTITUDE,
