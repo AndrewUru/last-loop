@@ -1,12 +1,7 @@
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
+import Phaser from "phaser";
 
-function formatSigned(value) {
-  const prefix = value > 0 ? "+" : "";
-  return `${prefix}${value.toFixed(0)}`;
-}
-
+// Three on-screen buttons for phones and tablets: steer left/right with the
+// left thumb, hold IMPULSO with the right thumb.
 export default class FlightTouchControls {
   constructor(scene, options = {}) {
     this.scene = scene;
@@ -14,231 +9,101 @@ export default class FlightTouchControls {
     this.objects = [];
     this.buttons = [];
     this.visible = false;
-    this.layout = {
-      throttleTrackHeight: 180,
-      throttleTrackY: 0,
-    };
   }
 
   create() {
-    const panelDepth = 50;
-    const textDepth = 51;
-    const controlDepth = 54;
-
-    this.topPanel = this.scene.add
-      .rectangle(0, 0, 320, 92, 0x07111a, 0.58)
-      .setOrigin(0.5, 0)
-      .setStrokeStyle(1, 0x9fd7ff, 0.22)
-      .setScrollFactor(0)
-      .setDepth(panelDepth);
-    this.altitudeText = this.createHudText("ALT 0 km", 15, textDepth);
-    this.speedText = this.createHudText("VEL 0.00 km/s", 15, textDepth);
-    this.apoapsisText = this.createHudText("AP 0", 12, textDepth);
-    this.periapsisText = this.createHudText("PE 0", 12, textDepth);
-    this.orbitHintText = this.createHudText("Target orbit", 11, textDepth);
-
-    this.throttleTrack = this.scene.add
-      .rectangle(0, 0, 12, 180, 0x07111a, 0.68)
-      .setOrigin(0.5, 1)
-      .setStrokeStyle(1, 0xb7c8d6, 0.3)
-      .setScrollFactor(0)
-      .setDepth(panelDepth);
-    this.throttleFill = this.scene.add
-      .rectangle(0, 0, 12, 0, 0x73f7c0, 0.9)
-      .setOrigin(0.5, 1)
-      .setScrollFactor(0)
-      .setDepth(panelDepth + 1);
-    this.throttleText = this.createHudText("0%", 13, textDepth);
-    this.fuelText = this.createHudText("FUEL 100%", 11, textDepth);
-
-    this.throttleUpButton = this.createButton("+", 0x18241f, 0x73f7c0, controlDepth);
-    this.throttleDownButton = this.createButton("-", 0x241b18, 0xffb26b, controlDepth);
-    this.leftButton = this.createButton("<", 0x101820, 0x8fd7ff, controlDepth);
-    this.rightButton = this.createButton(">", 0x101820, 0x8fd7ff, controlDepth);
-    this.engineButton = this.createButton("IGN", 0x1f2a18, 0x73f7c0, controlDepth);
-    this.assistButton = this.createButton("SAS", 0x162335, 0x9fd7ff, controlDepth);
-    this.stageButton = this.createButton("STG", 0x2a1d1a, 0xffb26b, controlDepth);
+    this.leftButton = this.createButton("◀", 0x8fd7ff);
+    this.rightButton = this.createButton("▶", 0x8fd7ff);
+    this.thrustButton = this.createButton("IMPULSO", 0xffb26b);
 
     this.bindHold(this.leftButton, (active) => this.options.onSteerLeft?.(active));
     this.bindHold(this.rightButton, (active) => this.options.onSteerRight?.(active));
-    this.bindHold(this.throttleUpButton, (active) => this.options.onThrottleUp?.(active));
-    this.bindHold(this.throttleDownButton, (active) => this.options.onThrottleDown?.(active));
-    this.bindTap(this.engineButton, () => this.options.onEngineToggle?.());
-    this.bindTap(this.assistButton, () => this.options.onAssistToggle?.());
-    this.bindTap(this.stageButton, () => this.options.onStageActivate?.());
+    this.bindHold(this.thrustButton, (active) => this.options.onThrust?.(active));
 
-    this.objects.push(
-      this.topPanel,
-      this.altitudeText,
-      this.speedText,
-      this.apoapsisText,
-      this.periapsisText,
-      this.orbitHintText,
-      this.throttleTrack,
-      this.throttleFill,
-      this.throttleText,
-      this.fuelText,
-    );
+    // A finger can slide off a button before lifting, so releases are matched
+    // by pointer id anywhere on screen.
+    this.releasePointer = (pointer) => {
+      this.buttons.forEach((button) => {
+        if (button.pointerId === pointer.id) {
+          button.setActive(false);
+        }
+      });
+    };
+    this.scene.input.on("pointerup", this.releasePointer);
+    this.scene.input.on("pointerupoutside", this.releasePointer);
+    this.scene.events.once("shutdown", () => {
+      this.scene.input.off("pointerup", this.releasePointer);
+      this.scene.input.off("pointerupoutside", this.releasePointer);
+    });
 
     this.resize(this.scene.scale.width, this.scene.scale.height);
   }
 
-  createHudText(text, size, depth) {
-    return this.scene.add
-      .text(0, 0, text, {
-        fontSize: `${size}px`,
-        color: "#f7fbff",
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(depth);
-  }
-
-  createButton(label, fill, accent, depth) {
-    const shadow = this.scene.add
-      .circle(0, 0, 32, 0x000000, 0.22)
-      .setScrollFactor(0)
-      .setDepth(depth - 1);
+  createButton(label, accent) {
+    const depth = 54;
     const background = this.scene.add
-      .circle(0, 0, 32, fill, 0.74)
-      .setStrokeStyle(2, accent, 0.86)
+      .circle(0, 0, 32, 0x0b121a, 0.62)
+      .setStrokeStyle(3, accent, 0.9)
       .setScrollFactor(0)
       .setDepth(depth)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive(new Phaser.Geom.Circle(32, 32, 32), Phaser.Geom.Circle.Contains);
     const text = this.scene.add
       .text(0, 0, label, {
-        fontSize: "28px",
+        fontSize: "26px",
         color: "#f7fbff",
         fontStyle: "bold",
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(depth + 1);
-    const button = { shadow, background, text, accent };
+    const button = { background, text, accent, active: false, pointerId: null };
 
     this.buttons.push(button);
-    this.objects.push(shadow, background, text);
+    this.objects.push(background, text);
     return button;
   }
 
   bindHold(button, callback) {
-    const setActive = (active) => {
+    button.setActive = (active, pointerId = null) => {
+      button.pointerId = active ? pointerId : null;
+      if (button.active === active) {
+        return;
+      }
+      button.active = active;
       callback(active);
-      button.background.setFillStyle(button.background.fillColor, active ? 0.96 : 0.74);
-      button.background.setStrokeStyle(2, button.accent, active ? 1 : 0.86);
-      button.text.setAlpha(active ? 1 : 0.9);
-    };
-    const stop = (event) => {
-      event?.stopPropagation();
+      button.background.setFillStyle(active ? button.accent : 0x0b121a, active ? 0.45 : 0.62);
     };
 
-    button.background.on("pointerdown", (pointer, localX, localY, event) => {
-      stop(event);
-      setActive(true);
-    });
-    button.background.on("pointerup", (pointer, localX, localY, event) => {
-      stop(event);
-      setActive(false);
-    });
-    button.background.on("pointerout", () => setActive(false));
-    button.background.on("pointerupoutside", () => setActive(false));
-  }
-
-  bindTap(button, callback) {
-    button.background.on("pointerdown", (pointer, localX, localY, event) => {
-      event?.stopPropagation();
-      callback();
-      this.scene.tweens.add({
-        targets: [button.background, button.text],
-        scaleX: 1.08,
-        scaleY: 1.08,
-        duration: 80,
-        yoyo: true,
-        ease: "Quad.easeOut",
-      });
-    });
+    button.background.on("pointerdown", (pointer) => button.setActive(true, pointer.id));
   }
 
   resize(width, height) {
-    this.visible = width < 920 || height > width * 1.05;
+    const touchDevice = Boolean(this.scene.sys.game.device.input.touch);
+    this.visible = touchDevice || width < 760;
 
     const minSide = Math.min(width, height);
-    const radius = Math.round(Math.max(28, Math.min(38, minSide * 0.078)));
-    const margin = Math.max(14, Math.round(minSide * 0.04));
-    const topSafe = margin;
-    const topWidth = Math.min(width - margin * 2, Math.max(280, width * 0.72));
-    const topHeight = Math.max(76, Math.min(92, height * 0.13));
-    const throttleX = margin + radius;
+    const radius = Math.round(Math.max(34, Math.min(48, minSide * 0.09)));
+    const margin = Math.max(18, Math.round(minSide * 0.05));
     const bottom = height - margin - radius;
-    const trackHeight = Math.max(132, Math.min(210, height * 0.28));
-    const trackBottom = bottom - radius * 1.65;
-    const steerRightX = width - margin - radius;
-    const steerLeftX = steerRightX - radius * 2.25;
-    const actionY = bottom - radius * 2.35;
-    const engineX = width / 2;
-    const engineY = bottom;
 
-    this.layout.throttleTrackHeight = trackHeight;
-    this.layout.throttleTrackY = trackBottom;
-
-    this.topPanel.setPosition(width / 2, topSafe).setSize(topWidth, topHeight);
-    this.altitudeText.setPosition(width / 2, topSafe + 18).setFontSize("15px");
-    this.speedText.setPosition(width / 2, topSafe + 38).setFontSize("15px");
-    this.apoapsisText.setPosition(width / 2 - topWidth * 0.22, topSafe + topHeight - 18);
-    this.periapsisText.setPosition(width / 2 + topWidth * 0.22, topSafe + topHeight - 18);
-    this.orbitHintText.setPosition(width / 2, topSafe + topHeight - 18);
-
-    this.throttleTrack.setPosition(throttleX, trackBottom).setSize(12, trackHeight);
-    this.throttleFill.setPosition(throttleX, trackBottom).setSize(12, 0);
-    this.throttleText.setPosition(throttleX, trackBottom - trackHeight - 18);
-    this.fuelText.setPosition(throttleX, trackBottom + 18);
-
-    this.layoutButton(this.throttleUpButton, throttleX, trackBottom - trackHeight - radius - 12, radius);
-    this.layoutButton(this.throttleDownButton, throttleX, bottom, radius);
-    this.layoutButton(this.leftButton, steerLeftX, bottom, radius);
-    this.layoutButton(this.rightButton, steerRightX, bottom, radius);
-    this.layoutButton(this.engineButton, engineX, engineY, radius * 0.92);
-    this.layoutButton(this.assistButton, steerLeftX, actionY, radius * 0.72);
-    this.layoutButton(this.stageButton, steerRightX, actionY, radius * 0.72);
+    this.layoutButton(this.leftButton, margin + radius, bottom, radius, 0.7);
+    this.layoutButton(this.rightButton, margin + radius * 3.4, bottom, radius, 0.7);
+    this.layoutButton(this.thrustButton, width - margin - radius * 1.3, bottom - radius * 0.3, radius * 1.3, 0.26);
 
     this.objects.forEach((object) => object.setVisible(this.visible));
   }
 
-  layoutButton(button, x, y, radius) {
-    button.shadow.setPosition(x + 2, y + 3).setRadius(radius);
+  layoutButton(button, x, y, radius, fontScale) {
     button.background.setPosition(x, y).setRadius(radius);
-    button.background.input.hitArea.setTo(0, 0, radius);
-    const fontScale = button.text.text.length > 1 ? 0.45 : 0.9;
-    button.text.setPosition(x, y - 1).setFontSize(`${Math.round(radius * fontScale)}px`);
+    // Generous hit circle so a thumb slightly off-centre still counts.
+    button.background.input.hitArea.setTo(radius, radius, radius * 1.2);
+    button.text.setPosition(x, y).setFontSize(`${Math.round(radius * fontScale)}px`);
   }
 
-  update(state, uiState = {}) {
-    const prediction = uiState.predictionSummary || state;
-    const targetAltitude = uiState.targetAltitude ?? 0;
-    const fuelPct =
-      uiState.stats?.fuel > 0 ? clamp(state.fuelRemaining / uiState.stats.fuel, 0, 1) : 0;
-    const throttlePct = clamp(state.throttle, 0, 1);
-    const apoDelta = prediction.apoapsis - targetAltitude;
-    const periDelta = prediction.periapsis - targetAltitude;
-
-    this.altitudeText.setText(`ALT ${state.altitude.toFixed(1)} km`);
-    this.speedText.setText(`VEL ${state.speed.toFixed(2)} km/s`);
-    this.apoapsisText.setText(`AP ${prediction.apoapsis.toFixed(0)} (${formatSigned(apoDelta)})`);
-    this.periapsisText.setText(`PE ${prediction.periapsis.toFixed(0)} (${formatSigned(periDelta)})`);
-    this.orbitHintText.setText(`TARGET ${targetAltitude} km`);
-    this.throttleText.setText(`${Math.round(throttlePct * 100)}%`);
-    this.fuelText.setText(`FUEL ${Math.round(fuelPct * 100)}%`);
-    this.throttleFill.height = this.layout.throttleTrackHeight * throttlePct;
-    this.engineButton.text.setText(state.engineOn ? "CUT" : "IGN");
-    this.engineButton.background
-      .setFillStyle(state.engineOn ? 0x3a1d12 : 0x1f2a18, state.engineOn ? 0.96 : 0.74)
-      .setStrokeStyle(2, state.engineOn ? 0xff9b5d : this.engineButton.accent, state.engineOn ? 1 : 0.86);
-    this.assistButton.background.setStrokeStyle(
-      2,
-      state.assistEnabled ? 0x73f7c0 : this.assistButton.accent,
-      state.assistEnabled ? 1 : 0.86,
-    );
+  update(state) {
+    const thrusting = state.engineOn && state.fuelRemaining > 0.01;
+    this.thrustButton.text.setAlpha(state.fuelRemaining > 0.01 && !state.result ? 1 : 0.35);
+    this.thrustButton.background.setStrokeStyle(3, thrusting ? 0xffe0a8 : 0xffb26b, thrusting ? 1 : 0.9);
   }
 
   getObjects() {

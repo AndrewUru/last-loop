@@ -1,10 +1,7 @@
 import FlightModel, { FLIGHT_TARGETS, FLIGHT_WORLD } from "./FlightModel.js";
-import FlightPhaseController, {
-  FLIGHT_PHASES,
-  getPhaseMeta,
-} from "./FlightPhaseController.js";
+import FlightPhaseController, { FLIGHT_PHASES } from "./FlightPhaseController.js";
 
-export { FLIGHT_PHASES, FLIGHT_TARGETS, FLIGHT_WORLD, getPhaseMeta };
+export { FLIGHT_PHASES, FLIGHT_TARGETS, FLIGHT_WORLD };
 
 export default class FlightSimulator {
   constructor(stats) {

@@ -1,113 +1,105 @@
-const MISSIONS_KEY = "last-loop-missions";
-const PROGRESS_KEY = "last-loop-progress";
+const PROGRESS_KEY = "last-loop-progress-v2";
 
-const DEFAULT_MISSIONS = [
+// Missions are tried in order; the first unfinished one is the current goal.
+// Completing a mission can unlock new parts in the hangar.
+export const MISSIONS = [
   {
     id: "first-orbit",
-    title: "First Orbit",
-    description: "Achieve a stable orbit around the planet.",
-    condition: (stats) => stats.result === "success" && stats.altitude >= 70,
-    reward: 100,
-    completed: false,
+    title: "Primera órbita",
+    description: "Pon el cohete en órbita.",
+    unlocks: ["nose_cone", "avionics_ring"],
+    check: (flight) => flight.success,
   },
   {
-    id: "efficient-launch",
-    title: "Efficient Launch",
-    description: "Reach orbit with more than 30% fuel remaining.",
-    condition: (stats) => stats.result === "success" && stats.fuelRemaining > 30,
-    reward: 150,
-    completed: false,
+    id: "fuel-saver",
+    title: "Ahorrador",
+    description: "Llega a la órbita con un 30% de combustible o más.",
+    unlocks: ["solid_booster"],
+    check: (flight) => flight.success && flight.fuelPercent >= 30,
   },
   {
-    id: "speed-demon",
-    title: "Speed Demon",
-    description: "Reach orbit with a speed over 2.5 km/s.",
-    condition: (stats) => stats.result === "success" && stats.horizontalVelocity > 2.5,
-    reward: 200,
-    completed: false,
+    id: "lightweight",
+    title: "Ligero",
+    description: "Llega a la órbita con solo 3 piezas.",
+    unlocks: [],
+    check: (flight) => flight.success && flight.partCount <= 3,
   },
   {
-    id: "high-orbit",
-    title: "High Orbit",
-    description: "Achieve orbit at 120km or higher.",
-    condition: (stats) => stats.result === "success" && stats.altitude >= 120,
-    reward: 250,
-    completed: false,
+    id: "quick",
+    title: "Exprés",
+    description: "Llega a la órbita en menos de 70 segundos.",
+    unlocks: [],
+    check: (flight) => flight.success && flight.time < 70,
   },
   {
-    id: "minimalist",
-    title: "Minimalist Design",
-    description: "Reach orbit using 4 or fewer parts.",
-    condition: (stats) => stats.result === "success" && stats.partCount <= 4,
-    reward: 300,
-    completed: false,
+    id: "heavy",
+    title: "Carga pesada",
+    description: "Llega a la órbita con 7 piezas o más.",
+    unlocks: [],
+    check: (flight) => flight.success && flight.partCount >= 7,
   },
 ];
 
+export const STARTING_PARTS = ["capsule", "fuel_tank_small", "fuel_tank_large", "engine_main"];
+
+function readProgress() {
+  try {
+    const data = JSON.parse(localStorage.getItem(PROGRESS_KEY));
+    if (data && Array.isArray(data.completed)) {
+      return { launches: 0, orbits: 0, ...data };
+    }
+  } catch (error) {
+    // Private mode or corrupt data: start fresh.
+  }
+  return { completed: [], launches: 0, orbits: 0 };
+}
+
+function writeProgress(progress) {
+  try {
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+  } catch (error) {
+    // Progress just won't persist.
+  }
+}
+
 export default class MissionSystem {
-  static getMissions() {
-    try {
-      const data = localStorage.getItem(MISSIONS_KEY);
-      if (data) return JSON.parse(data);
-    } catch (e) {}
-    return DEFAULT_MISSIONS.map((m) => ({ ...m }));
+  static getProgress() {
+    return readProgress();
   }
 
-  static saveMissions(missions) {
-    try {
-      localStorage.setItem(MISSIONS_KEY, JSON.stringify(missions));
-    } catch (e) {}
+  static isCompleted(missionId) {
+    return readProgress().completed.includes(missionId);
   }
 
-  static checkMissions(stats) {
-    const missions = this.getMissions();
-    const newlyCompleted = [];
-    missions.forEach((m) => {
-      if (!m.completed && m.condition(stats)) {
-        m.completed = true;
-        newlyCompleted.push(m);
+  static getCurrentMission() {
+    const { completed } = readProgress();
+    return MISSIONS.find((mission) => !completed.includes(mission.id)) || null;
+  }
+
+  static getUnlockedParts() {
+    const { completed } = readProgress();
+    const unlocked = new Set(STARTING_PARTS);
+    MISSIONS.forEach((mission) => {
+      if (completed.includes(mission.id)) {
+        mission.unlocks.forEach((partId) => unlocked.add(partId));
       }
     });
-    if (newlyCompleted.length > 0) {
-      this.saveMissions(missions);
-      this.addFunds(newlyCompleted.reduce((sum, m) => sum + m.reward, 0));
+    return unlocked;
+  }
+
+  // flight: { success, fuelPercent, partCount, time }
+  static recordFlight(flight) {
+    const progress = readProgress();
+    progress.launches += 1;
+    if (flight.success) {
+      progress.orbits += 1;
     }
+
+    const newlyCompleted = MISSIONS.filter(
+      (mission) => !progress.completed.includes(mission.id) && mission.check(flight),
+    );
+    newlyCompleted.forEach((mission) => progress.completed.push(mission.id));
+    writeProgress(progress);
     return newlyCompleted;
-  }
-
-  static getFunds() {
-    try {
-      const data = localStorage.getItem(PROGRESS_KEY);
-      return data ? JSON.parse(data).funds || 0 : 0;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  static addFunds(amount) {
-    try {
-      const data = localStorage.getItem(PROGRESS_KEY);
-      const progress = data ? JSON.parse(data) : {};
-      progress.funds = (progress.funds || 0) + amount;
-      localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
-    } catch (e) {}
-  }
-
-  static getProgress() {
-    try {
-      const data = localStorage.getItem(PROGRESS_KEY);
-      return data ? JSON.parse(data) : { funds: 0, launches: 0, successes: 0 };
-    } catch (e) {
-      return { funds: 0, launches: 0, successes: 0 };
-    }
-  }
-
-  static recordLaunch(success) {
-    try {
-      const progress = this.getProgress();
-      progress.launches = (progress.launches || 0) + 1;
-      if (success) progress.successes = (progress.successes || 0) + 1;
-      localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
-    } catch (e) {}
   }
 }

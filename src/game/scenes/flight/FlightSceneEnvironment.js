@@ -4,6 +4,7 @@ import {
   STAR_COUNT,
   VISUAL_TARGET_ORBIT_OFFSET,
 } from "./FlightSceneConstants.js";
+import { getPresentationAltitude } from "./FlightSceneUtils.js";
 
 export const flightSceneEnvironmentMethods = {
   createBackdrop() {
@@ -51,17 +52,12 @@ export const flightSceneEnvironmentMethods = {
     this.launchTowerGlow = this.add.graphics().setDepth(9);
     this.trailGraphics = this.add.graphics().setDepth(8);
     this.trajectoryGraphics = this.add.graphics().setDepth(9);
-    this.markerGraphics = this.add.graphics().setDepth(10);
-    this.apoapsisLabel = this.createOrbitMarkerLabel(0xffd773);
-    this.periapsisLabel = this.createOrbitMarkerLabel(0xff8d8d);
-    this.corridorLabel = this.createOrbitMarkerLabel(0x73f7c0);
+    this.guidanceArrow = this.add.graphics().setDepth(24);
     this.padGlow = this.add.graphics().setDepth(10);
     this.pad = this.add.container(0, 0).setDepth(11);
     this.launchTower = this.add.container(0, 0).setDepth(12);
     this.launchSpeedLines = this.add.graphics().setDepth(17);
     this.cloudLayers = [];
-    this.contrailGraphics = this.add.graphics().setDepth(7);
-    this.heatingGlow = this.add.graphics().setDepth(21);
 
     this.drawPlanetBody();
     this.drawOrbitGuides();
@@ -73,7 +69,7 @@ export const flightSceneEnvironmentMethods = {
   },
 
   createCloudLayers() {
-    const cloudAltitudes = [800, 2000, 4500, 8000, 12000];
+    const cloudAltitudes = [2, 4, 7, 11];
     const mobile =
       this.scale.width < 760 ||
       (this.scale.width < 920 && this.scale.height > this.scale.width * 1.15);
@@ -82,10 +78,11 @@ export const flightSceneEnvironmentMethods = {
       const cloud = this.add.graphics().setDepth(-8);
       cloud.fillStyle(0xffffff, 0.25);
       for (let i = 0; i < cloudCount; i++) {
-        const x = Phaser.Math.Between(-2000, 2000);
-        const y = -FLIGHT_WORLD.planetRadius + alt + Phaser.Math.Between(-20, 20);
-        const w = 30 + Math.random() * 80;
-        const h = 8 + Math.random() * 16;
+        const x = Phaser.Math.Between(-400, 400);
+        const y =
+          -FLIGHT_WORLD.planetRadius - getPresentationAltitude(alt) + Phaser.Math.Between(-6, 6);
+        const w = 12 + Math.random() * 30;
+        const h = 3 + Math.random() * 5;
         cloud.fillEllipse(x, y, w, h);
       }
       cloud.setAlpha(0);
@@ -167,23 +164,6 @@ export const flightSceneEnvironmentMethods = {
     this.mapCelestialGraphics.setAlpha(0);
   },
 
-  createOrbitMarkerLabel(accent) {
-    return this.add
-      .text(0, 0, "", {
-        fontSize: "12px",
-        color: "#f7fbff",
-        fontStyle: "bold",
-        backgroundColor: "rgba(8, 14, 20, 0.72)",
-        padding: { left: 7, right: 7, top: 4, bottom: 4 },
-      })
-      .setOrigin(0, 0.5)
-      .setStroke("#081019", 3)
-      .setShadow(0, 1, "#000000", 3, true, true)
-      .setTint(accent)
-      .setDepth(11)
-      .setVisible(false);
-  },
-
   buildLaunchPad() {
     this.pad.removeAll(true);
     this.launchTower.removeAll(true);
@@ -258,10 +238,8 @@ export const flightSceneEnvironmentMethods = {
       this.launchTowerGlow,
       this.trailGraphics,
       this.trajectoryGraphics,
-      this.markerGraphics,
-      this.apoapsisLabel,
-      this.periapsisLabel,
-      this.corridorLabel,
+      this.guidanceArrow,
+      ...this.cloudLayers.map((layer) => layer.graphics),
       this.padGlow,
       this.pad,
       this.launchTower,

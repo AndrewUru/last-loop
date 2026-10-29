@@ -13,12 +13,9 @@ function createParticlePool(size) {
 
 function createFlightControls() {
   return {
-    throttle: 0,
-    cruiseThrottle: 0.85,
-    steer: 0,
-    assistEnabled: false,
     engineOn: false,
-    source: "Pilot",
+    throttle: 0,
+    steer: 0,
   };
 }
 
@@ -26,8 +23,7 @@ function createTouchControls() {
   return {
     steerLeft: false,
     steerRight: false,
-    throttleUp: false,
-    throttleDown: false,
+    thrust: false,
   };
 }
 
@@ -45,23 +41,12 @@ function createFlightCameraState() {
 function createFlightKeys(input) {
   return input.keyboard.addKeys({
     up: Phaser.Input.Keyboard.KeyCodes.UP,
-    down: Phaser.Input.Keyboard.KeyCodes.DOWN,
     left: Phaser.Input.Keyboard.KeyCodes.LEFT,
     right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
     w: Phaser.Input.Keyboard.KeyCodes.W,
     a: Phaser.Input.Keyboard.KeyCodes.A,
-    s: Phaser.Input.Keyboard.KeyCodes.S,
     d: Phaser.Input.Keyboard.KeyCodes.D,
-    f: Phaser.Input.Keyboard.KeyCodes.F,
-    g: Phaser.Input.Keyboard.KeyCodes.G,
-    h: Phaser.Input.Keyboard.KeyCodes.H,
-    zero: Phaser.Input.Keyboard.KeyCodes.ZERO,
-    one: Phaser.Input.Keyboard.KeyCodes.ONE,
-    two: Phaser.Input.Keyboard.KeyCodes.TWO,
-    three: Phaser.Input.Keyboard.KeyCodes.THREE,
-    four: Phaser.Input.Keyboard.KeyCodes.FOUR,
     space: Phaser.Input.Keyboard.KeyCodes.SPACE,
-    shift: Phaser.Input.Keyboard.KeyCodes.SHIFT,
   });
 }
 
@@ -84,8 +69,6 @@ export function createFlightRuntimeState(input, stats) {
     pinchZoom: null,
     touchControls: createTouchControls(),
     keys: createFlightKeys(input),
-    stages: [],
-    explosionGraphics: null,
     sonicBoomPlayed: false,
     lastWhooshAlt: null,
   };

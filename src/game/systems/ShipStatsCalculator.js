@@ -1,5 +1,8 @@
 import { PARTS_BY_ID } from "../data/parts.js";
 
+// Converts summed part thrust into the liftoff thrust-to-weight ratio.
+export const THRUST_TO_WEIGHT = 1.6;
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -34,6 +37,7 @@ export default class ShipStatsCalculator {
         controlCount: 0,
         stabilityBonus: 0,
         controlAuthority: 0,
+        dragReduction: 0,
       };
     }
 
@@ -66,6 +70,7 @@ export default class ShipStatsCalculator {
     let controlCount = 0;
     let stabilityBonus = 0;
     let controlAuthority = 0;
+    let dragReduction = 0;
 
     resolvedParts.forEach((part) => {
       const { definition } = part;
@@ -82,6 +87,7 @@ export default class ShipStatsCalculator {
       weightedThrustOffset += (partCenterX - centerX) * definition.thrust;
       stabilityBonus += definition.stabilityBonus || 0;
       controlAuthority += definition.controlAuthority || 0;
+      dragReduction += definition.dragReduction || 0;
       minX = Math.min(minX, part.cellX);
       maxX = Math.max(maxX, part.cellX + definition.gridWidth);
       minY = Math.min(minY, part.cellY);
@@ -118,7 +124,7 @@ export default class ShipStatsCalculator {
       fuelUse,
       centerOfMassX: weightedX / Math.max(mass, 1),
       centerOfMassY: weightedY / Math.max(mass, 1),
-      twr: thrust / Math.max(mass, 1),
+      twr: (thrust * THRUST_TO_WEIGHT) / Math.max(mass, 1),
       balanceScore: clamp(rawBalance, 0, 1),
       stability: clamp(rawStability, 0, 1),
       width,
@@ -132,6 +138,7 @@ export default class ShipStatsCalculator {
       controlCount,
       stabilityBonus,
       controlAuthority,
+      dragReduction,
     };
   }
 }

@@ -178,7 +178,7 @@ export const SHIP_PARTS = [
     fuel: 0,
     thrust: 0,
     fuelUse: 0,
-    dragReduction: 0.15,
+    dragReduction: 0.3,
     color: 0xe8e8e8,
     accent: 0xffffff,
     stroke: 0x333333,
