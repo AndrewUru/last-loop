@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { UI_FONT } from "./theme.js";
 
 // Three on-screen buttons for phones and tablets: steer left/right with the
 // left thumb, hold IMPULSO with the right thumb.
@@ -49,6 +50,7 @@ export default class FlightTouchControls {
       .setInteractive(new Phaser.Geom.Circle(32, 32, 32), Phaser.Geom.Circle.Contains);
     const text = this.scene.add
       .text(0, 0, label, {
+        fontFamily: UI_FONT,
         fontSize: "26px",
         color: "#f7fbff",
         fontStyle: "bold",

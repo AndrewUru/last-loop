@@ -1,10 +1,13 @@
 import Phaser from "phaser";
 import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
-import {
-  STAR_COUNT,
-  VISUAL_TARGET_ORBIT_OFFSET,
-} from "./FlightSceneConstants.js";
+import { STAR_COUNT } from "./FlightSceneConstants.js";
 import { getPresentationAltitude } from "./FlightSceneUtils.js";
+
+const STAR_TINTS = [0xffffff, 0xdbeaff, 0xfff4e0, 0xcfe0ff];
+
+function renderRadius(altitude) {
+  return FLIGHT_WORLD.planetRadius + getPresentationAltitude(altitude);
+}
 
 export const flightSceneEnvironmentMethods = {
   createBackdrop() {
@@ -15,24 +18,11 @@ export const flightSceneEnvironmentMethods = {
     this.cameras.main.setBackgroundColor("#79c4ff");
 
     this.daySky = this.add.graphics().setScrollFactor(0).setDepth(-40);
-    this.daySky.fillGradientStyle(0x4cb7ff, 0x69c6ff, 0xb9ecff, 0x7fd4ff, 1);
-    this.daySky.fillRect(0, 0, width, height);
-
-    this.spaceShade = this.add.graphics().setScrollFactor(0).setDepth(-34);
-    this.spaceShade.fillStyle(0x04111d, 1);
-    this.spaceShade.fillRect(0, 0, width, height);
-    this.spaceShade.setAlpha(0);
-
+    this.spaceShade = this.add.graphics().setScrollFactor(0).setDepth(-34).setAlpha(0);
     this.stars = Array.from({ length: starCount }, () =>
       this.add
-        .circle(
-          Phaser.Math.Between(-width, width * 2),
-          Phaser.Math.Between(-height, height * 2),
-          Phaser.Math.FloatBetween(1, 2.6),
-          Phaser.Math.Between(0xb8daff, 0xffffff),
-          Phaser.Math.FloatBetween(0.08, 0.35),
-        )
-        .setScrollFactor(0.04)
+        .circle(0, 0, Phaser.Math.FloatBetween(0.8, 2), Phaser.Utils.Array.GetRandom(STAR_TINTS), 1)
+        .setScrollFactor(0)
         .setAlpha(0),
     );
   },
@@ -40,69 +30,49 @@ export const flightSceneEnvironmentMethods = {
   createWorld() {
     this.planetBody = this.add.graphics().setDepth(-18);
     this.planetAtmosphere = this.add.graphics().setDepth(-17);
-    this.planetLight = this.add.graphics().setDepth(-16);
-    this.orbitBand = this.add.graphics().setDepth(-15);
     this.orbitGuides = this.add.graphics().setDepth(-14);
-    this.mapCelestialGraphics = this.add.graphics().setDepth(-13.5);
-    this.horizonGlow = this.add.graphics().setDepth(-13);
-    this.highAltitudeHorizon = this.add.graphics().setDepth(-12);
-    this.atmosphereShell = this.add.graphics().setDepth(-11);
-    this.launchBackdrop = this.add.graphics().setDepth(-10);
-    this.launchGround = this.add.graphics().setDepth(-9);
-    this.launchTowerGlow = this.add.graphics().setDepth(9);
     this.trailGraphics = this.add.graphics().setDepth(8);
     this.trajectoryGraphics = this.add.graphics().setDepth(9);
+    this.pad = this.add.graphics().setDepth(11);
     this.guidanceArrow = this.add.graphics().setDepth(24);
-    this.padGlow = this.add.graphics().setDepth(10);
-    this.pad = this.add.container(0, 0).setDepth(11);
-    this.launchTower = this.add.container(0, 0).setDepth(12);
-    this.launchSpeedLines = this.add.graphics().setDepth(17);
     this.cloudLayers = [];
 
     this.drawPlanetBody();
     this.drawOrbitGuides();
-    this.drawMapCelestials();
-    this.drawLaunchBackdrop();
-    this.drawLaunchGround();
-    this.buildLaunchPad();
     this.createCloudLayers();
   },
 
   createCloudLayers() {
-    const cloudAltitudes = [2, 4, 7, 11];
     const mobile =
       this.scale.width < 760 ||
       (this.scale.width < 920 && this.scale.height > this.scale.width * 1.15);
     const cloudCount = mobile ? 18 : 40;
-    cloudAltitudes.forEach((alt) => {
-      const cloud = this.add.graphics().setDepth(-8);
+    [2, 4, 7, 11].forEach((altitude) => {
+      const cloud = this.add.graphics().setDepth(-8).setAlpha(0);
       cloud.fillStyle(0xffffff, 0.25);
-      for (let i = 0; i < cloudCount; i++) {
-        const x = Phaser.Math.Between(-400, 400);
-        const y =
-          -FLIGHT_WORLD.planetRadius - getPresentationAltitude(alt) + Phaser.Math.Between(-6, 6);
-        const w = 12 + Math.random() * 30;
-        const h = 3 + Math.random() * 5;
-        cloud.fillEllipse(x, y, w, h);
+      for (let i = 0; i < cloudCount; i += 1) {
+        cloud.fillEllipse(
+          Phaser.Math.Between(-400, 400),
+          -renderRadius(altitude) + Phaser.Math.Between(-6, 6),
+          12 + Math.random() * 30,
+          3 + Math.random() * 5,
+          12,
+        );
       }
-      cloud.setAlpha(0);
-      this.cloudLayers.push({ graphics: cloud, altitude: alt });
+      this.cloudLayers.push({ graphics: cloud, altitude });
     });
   },
 
   drawPlanetBody() {
     const radius = FLIGHT_WORLD.planetRadius;
-    const atmosphereRadius = radius + 26;
 
-    this.planetBody.clear();
     this.planetAtmosphere.clear();
-    this.planetLight.clear();
-
     this.planetAtmosphere.fillStyle(0x52d9ff, 0.12);
-    this.planetAtmosphere.fillCircle(0, 0, atmosphereRadius);
+    this.planetAtmosphere.fillCircle(0, 0, radius + 26);
     this.planetAtmosphere.lineStyle(14, 0x7ee6ff, 0.22);
     this.planetAtmosphere.strokeCircle(0, 0, radius + 8);
 
+    this.planetBody.clear();
     this.planetBody.fillStyle(0x1f5f8e, 1);
     this.planetBody.fillCircle(0, 0, radius);
     this.planetBody.fillStyle(0x2b7bb1, 0.22);
@@ -111,139 +81,70 @@ export const flightSceneEnvironmentMethods = {
     this.planetBody.fillCircle(radius * 0.12, radius * 0.22, radius * 0.82);
     this.planetBody.lineStyle(6, 0xb9f2ff, 0.12);
     this.planetBody.strokeCircle(0, 0, radius - 3);
-
-    this.planetLight.clear();
   },
 
+  // The green ring is the orbit line the HUD talks about; the faint one is
+  // the top of the atmosphere.
   drawOrbitGuides() {
-    const radius = FLIGHT_WORLD.planetRadius;
-    const atmosphereRadius = radius + FLIGHT_WORLD.atmosphereHeight;
-    const targetRadius = radius + FLIGHT_WORLD.targetOrbitAltitude;
-    const visualTargetRadius = targetRadius + VISUAL_TARGET_ORBIT_OFFSET;
-
-    this.horizonGlow.clear();
-    this.highAltitudeHorizon.clear();
-    this.atmosphereShell.clear();
-
-    this.orbitBand.clear();
-    this.orbitBand.lineStyle(24, 0x73f7c0, 0.06);
-    this.orbitBand.strokeCircle(0, 0, visualTargetRadius);
-
     this.orbitGuides.clear();
-    this.orbitGuides.lineStyle(1, 0x68d9ff, 0.16);
-    this.orbitGuides.strokeCircle(0, 0, atmosphereRadius);
-    this.orbitGuides.lineStyle(2, 0x73f7c0, 0.22);
-    this.orbitGuides.strokeCircle(0, 0, visualTargetRadius);
+    this.orbitGuides.lineStyle(1.5, 0x9fe4ff, 0.35);
+    this.orbitGuides.strokeCircle(0, 0, renderRadius(FLIGHT_WORLD.atmosphereHeight));
+    this.orbitGuides.lineStyle(3, 0x73f7c0, 0.75);
+    this.orbitGuides.strokeCircle(0, 0, renderRadius(FLIGHT_WORLD.orbitMinAltitude));
   },
 
-  drawMapCelestials() {
-    const moonOrbitRadius = 940;
-    const moonAngle = -0.82;
-    const moonX = Math.cos(moonAngle) * moonOrbitRadius;
-    const moonY = Math.sin(moonAngle) * moonOrbitRadius;
-    const sunX = 1780;
-    const sunY = -620;
+  drawLaunchPad() {
+    const surface = -FLIGHT_WORLD.planetRadius;
+    const towerX = this.rocketWidth / 2 + 3;
+    const towerHeight = this.rocketHeight * 0.85;
 
-    this.mapCelestialGraphics.clear();
-    this.mapCelestialGraphics.lineStyle(1.5, 0x9fb8d2, 0.24);
-    this.mapCelestialGraphics.strokeCircle(0, 0, moonOrbitRadius);
-    this.mapCelestialGraphics.fillStyle(0xc8d0d8, 1);
-    this.mapCelestialGraphics.fillCircle(moonX, moonY, 34);
-    this.mapCelestialGraphics.fillStyle(0x8f9ba6, 0.32);
-    this.mapCelestialGraphics.fillCircle(moonX - 8, moonY + 7, 18);
-
-    this.mapCelestialGraphics.lineStyle(1, 0xffd773, 0.14);
-    this.mapCelestialGraphics.beginPath();
-    this.mapCelestialGraphics.moveTo(0, 0);
-    this.mapCelestialGraphics.lineTo(sunX, sunY);
-    this.mapCelestialGraphics.strokePath();
-    this.mapCelestialGraphics.fillStyle(0xffd773, 0.92);
-    this.mapCelestialGraphics.fillCircle(sunX, sunY, 54);
-    this.mapCelestialGraphics.fillStyle(0xfff2bf, 0.18);
-    this.mapCelestialGraphics.fillCircle(sunX, sunY, 112);
-    this.mapCelestialGraphics.setAlpha(0);
-  },
-
-  buildLaunchPad() {
-    this.pad.removeAll(true);
-    this.launchTower.removeAll(true);
-  },
-
-  drawLaunchBackdrop() {
-    this.launchBackdrop.clear();
-  },
-
-  drawLaunchGround() {
-    this.launchGround.clear();
+    this.pad.clear();
+    this.pad.fillStyle(0x3a4654, 1);
+    this.pad.fillRect(-this.rocketWidth / 2 - 8, surface - 1.5, this.rocketWidth + 16, 3);
+    this.pad.fillStyle(0x56677a, 1);
+    this.pad.fillRect(towerX, surface - towerHeight, 2.5, towerHeight);
+    this.pad.lineStyle(0.6, 0x8fa5b8, 0.9);
+    for (let y = surface; y > surface - towerHeight + 3; y -= 4) {
+      this.pad.lineBetween(towerX, y, towerX + 2.5, y - 4);
+    }
+    this.pad.fillStyle(0xc0392b, 1);
+    this.pad.fillRect(towerX - 0.5, surface - towerHeight - 1.5, 3.5, 1.5);
   },
 
   createUiCamera() {
     this.uiCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height);
     this.uiCamera.setName("ui");
-    this.uiCamera.setScroll(0, 0);
-    this.uiCamera.setZoom(1);
-    this.uiCamera.ignore([
-      ...this.getBackdropObjects(),
-      ...this.getWorldObjects(),
-    ]);
+    this.uiCamera.ignore([...this.getBackdropObjects(), ...this.getWorldObjects()]);
     this.cameras.main.ignore(this.getUiObjects());
   },
 
   createBackdropCamera() {
-    this.backdropCamera = this.cameras.add(
-      0,
-      0,
-      this.scale.width,
-      this.scale.height,
-    );
+    this.backdropCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height);
     this.backdropCamera.setName("backdrop");
-    this.backdropCamera.setScroll(0, 0);
-    this.backdropCamera.setZoom(1);
-    this.backdropCamera.ignore([
-      ...this.getWorldObjects(),
-      ...this.getUiObjects(),
-    ]);
+    this.backdropCamera.ignore([...this.getWorldObjects(), ...this.getUiObjects()]);
     this.cameras.main.ignore(this.getBackdropObjects());
     this.cameras.main.setBackgroundColor("rgba(0,0,0,0)");
 
+    // The sky has to be drawn before the world camera.
     const cameraList = this.cameras.cameras;
-    const backdropIndex = cameraList.indexOf(this.backdropCamera);
-    if (backdropIndex > -1) {
-      cameraList.splice(backdropIndex, 1);
-      cameraList.unshift(this.backdropCamera);
-    }
+    cameraList.splice(cameraList.indexOf(this.backdropCamera), 1);
+    cameraList.unshift(this.backdropCamera);
   },
 
   getBackdropObjects() {
-    return [
-      this.daySky,
-      this.spaceShade,
-      ...this.stars,
-    ];
+    return [this.daySky, this.spaceShade, ...this.stars];
   },
 
   getWorldObjects() {
     return [
       this.planetBody,
       this.planetAtmosphere,
-      this.planetLight,
-      this.orbitBand,
       this.orbitGuides,
-      this.mapCelestialGraphics,
-      this.horizonGlow,
-      this.highAltitudeHorizon,
-      this.atmosphereShell,
-      this.launchBackdrop,
-      this.launchGround,
-      this.launchTowerGlow,
       this.trailGraphics,
       this.trajectoryGraphics,
+      this.pad,
       this.guidanceArrow,
       ...this.cloudLayers.map((layer) => layer.graphics),
-      this.padGlow,
-      this.pad,
-      this.launchTower,
-      this.launchSpeedLines,
       this.rocket,
       this.exhaust,
       this.exhaustFire,
@@ -260,8 +161,7 @@ export const flightSceneEnvironmentMethods = {
   },
 
   handleResize(gameSize) {
-    const width = gameSize.width;
-    const height = gameSize.height;
+    const { width, height } = gameSize;
 
     this.daySky.clear();
     this.daySky.fillGradientStyle(0x4cb7ff, 0x69c6ff, 0xb9ecff, 0x7fd4ff, 1);
@@ -272,18 +172,16 @@ export const flightSceneEnvironmentMethods = {
     this.spaceShade.fillRect(0, 0, width, height);
 
     this.stars.forEach((star) => {
-      star.setPosition(
-        Phaser.Math.Between(-width, width * 2),
-        Phaser.Math.Between(-height, height * 2),
-      );
+      star.setPosition(Phaser.Math.Between(0, width), Phaser.Math.Between(0, height));
     });
 
     this.backdropCamera.setSize(width, height);
-    this.backdropCamera.setViewport(0, 0, width, height);
     this.uiCamera.setSize(width, height);
-    this.uiCamera.setViewport(0, 0, width, height);
-    this.hud.resize(width, height);
+    this.cameras.main.setSize(width, height);
     this.touchControlsUi.resize(width, height);
-    this.layoutMissionOverlay(width, height);
+    this.hud.resize(width, height);
+    if (this.resultOverlayVisible) {
+      this.layoutMissionOverlay(width, height);
+    }
   },
 };

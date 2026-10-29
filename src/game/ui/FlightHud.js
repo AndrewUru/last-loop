@@ -1,4 +1,5 @@
 import { FLIGHT_WORLD } from "../systems/FlightModel.js";
+import { UI_FONT } from "./theme.js";
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -53,7 +54,7 @@ export function getFlightInstruction(state, thrustLabel) {
     return state.engineOn
       ? {
           title: "¡Suelta el motor!",
-          body: "Ya tienes velocidad orbital: planea hasta la línea de órbita.",
+          body: "Ya tienes velocidad orbital: planea hasta el anillo verde.",
           tone: "success",
         }
       : {
@@ -115,7 +116,7 @@ export default class FlightHud {
     this.body = this.createText(14, "#aebdcb").setOrigin(0.5, 0);
     this.bars = {
       altitude: this.createBar("ALTITUD", BAR_COLORS.altitude),
-      speed: this.createBar("VEL. ORBITAL", BAR_COLORS.speed),
+      speed: this.createBar("VELOCIDAD", BAR_COLORS.speed),
       fuel: this.createBar("COMBUSTIBLE", BAR_COLORS.fuel),
     };
     this.keyHint = this.createText(14, "#cfe0f0")
@@ -134,6 +135,7 @@ export default class FlightHud {
   createText(size, color, bold = false) {
     return this.scene.add
       .text(0, 0, "", {
+        fontFamily: UI_FONT,
         fontSize: `${size}px`,
         color,
         fontStyle: bold ? "bold" : "normal",
@@ -251,13 +253,17 @@ export default class FlightHud {
     this.updateBar(
       this.bars.altitude,
       state.altitude / orbitAltitude,
-      `${Math.round(state.altitude)} / ${orbitAltitude} km`,
+      this.isCompact
+        ? `${Math.round(state.altitude)}/${orbitAltitude}`
+        : `${Math.round(state.altitude)}/${orbitAltitude} km`,
       state.altitude >= orbitAltitude ? BAR_COLORS.done : BAR_COLORS.altitude,
     );
     this.updateBar(
       this.bars.speed,
       lateralSpeed / orbitSpeed,
-      `${lateralSpeed.toFixed(1)} / ${orbitSpeed.toFixed(1)} km/s`,
+      this.isCompact
+        ? `${lateralSpeed.toFixed(1)}/${orbitSpeed.toFixed(1)}`
+        : `${lateralSpeed.toFixed(1)}/${orbitSpeed.toFixed(1)} km/s`,
       lateralSpeed >= orbitSpeed * FLIGHT_WORLD.orbitSpeedRatio ? BAR_COLORS.done : BAR_COLORS.speed,
     );
     this.updateBar(

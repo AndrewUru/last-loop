@@ -1,1196 +1,464 @@
 import Phaser from "phaser";
+import ShipPart from "../entities/ShipPart.js";
 import { PARTS_BY_ID } from "../data/parts.js";
-import { STARTER_ROCKET, cloneBuildParts, createStarterRocketBuild } from "../data/starterRocket.js";
+import {
+  DESIGN_SLOTS,
+  STARTER_DESIGN,
+  buildToDesign,
+  designToBuild,
+  loadSavedDesign,
+  normalizeDesign,
+  saveDesign,
+} from "../data/rocketDesign.js";
 import BuildValidator from "../systems/BuildValidator.js";
-import ShipStatsCalculator from "../systems/ShipStatsCalculator.js";
-import BlueprintManager from "../systems/BlueprintManager.js";
-import TutorialSystem from "../systems/TutorialSystem.js";
-import BuildContextMenu from "../ui/build/BuildContextMenu.js";
-import BuildGridView from "../ui/build/BuildGridView.js";
-import BuildInspectorPanel from "../ui/build/BuildInspectorPanel.js";
-import { computeBuildLayout } from "../ui/build/BuildLayout.js";
-import { createBuildPalette } from "../ui/build/BuildPalette.js";
-import BuildStatsPanel from "../ui/build/BuildStatsPanel.js";
-import BuildSurface from "../ui/build/BuildSurface.js";
-import BuildToast from "../ui/build/BuildToast.js";
-import BuildToolbar from "../ui/build/BuildToolbar.js";
+import FlightPredictor from "../systems/FlightPredictor.js";
+import MissionSystem, { MISSIONS } from "../systems/MissionSystem.js";
+import { UI_COLORS, addText, drawPanel } from "../ui/theme.js";
 
-const GRID_NEIGHBORS = [
-  { x: -1, y: 0 },
-  { x: 1, y: 0 },
-  { x: 0, y: -1 },
-  { x: 0, y: 1 },
-];
+function getTwrVerdict(twr) {
+  if (twr < 1.05) return { label: "No despega", color: UI_COLORS.dangerText };
+  if (twr < 1.4) return { label: "Lento", color: UI_COLORS.warningText };
+  if (twr <= 2.6) return { label: "Bien", color: UI_COLORS.accentText };
+  return { label: "Muy potente", color: "#9fd7ff" };
+}
 
-const BUILD_ZOOM_MIN = 0.7;
-const BUILD_ZOOM_MAX = 2.15;
-
-function cellKey(cellX, cellY) {
-  return `${cellX},${cellY}`;
+function describePrediction(validation, prediction) {
+  if (!validation.isValid) {
+    return { title: "✖  No puede despegar", body: validation.errors[0], color: UI_COLORS.dangerText };
+  }
+  if (prediction.success) {
+    return {
+      title: "✔  Puede llegar a la órbita",
+      body: `Con un vuelo perfecto: ${Math.round(prediction.time)} s y sobra un ${prediction.fuelPercent}% de combustible.`,
+      color: UI_COLORS.accentText,
+    };
+  }
+  if (prediction.failure === "escaped") {
+    return {
+      title: "✖  No llega a la órbita",
+      body: "Sube muy rápido pero se queda sin combustible antes de girar. Añade tanques.",
+      color: UI_COLORS.dangerText,
+    };
+  }
+  return {
+    title: "✖  No llega a la órbita",
+    body: `Se queda sin combustible a ${Math.round(prediction.maxAltitude)} km. Añade tanques o quita peso.`,
+    color: UI_COLORS.dangerText,
+  };
 }
 
 export default class BuildScene extends Phaser.Scene {
   constructor() {
     super({ key: "BuildScene" });
-    this.baseGrid = {
-      columns: 24,
-      rows: 28,
-    };
   }
 
   init(data = {}) {
-    const hasExplicitBuild = Array.isArray(data.build);
-    const storedBuild = hasExplicitBuild ? data.build : this.registry.get("rocket-build");
-    this.usedStarterBuild = !hasExplicitBuild && (!Array.isArray(storedBuild) || storedBuild.length === 0);
-    this.initialBuild = this.resolveInitialBuild(storedBuild, {
-      preserveEmpty: hasExplicitBuild,
-    });
-    this.initialSelectedPartId = data.selectedPartId || "capsule";
-    this.buildZoom = Phaser.Math.Clamp(data.buildZoom || 1, BUILD_ZOOM_MIN, BUILD_ZOOM_MAX);
+    if (data.design) {
+      this.design = normalizeDesign(data.design);
+    } else if (Array.isArray(data.build) && data.build.length > 0) {
+      this.design = buildToDesign(data.build);
+    } else {
+      this.design = loadSavedDesign();
+    }
     this.audio = this.registry.get("audio");
   }
 
   create() {
-    this.placedParts = new Map();
-    this.paletteCards = new Map();
-    this.selectedPartId = this.initialSelectedPartId;
-    this.selectedPlacedKey = null;
-    this.hoveredInfo = null;
-    this.dragState = null;
-    this.scrollState = null;
-    this.pinchState = null;
-    this.currentValidation = BuildValidator.validate([]);
-    this.resizePending = false;
+    this.unlocked = MissionSystem.getUnlockedParts();
+    DESIGN_SLOTS.forEach((slot) => {
+      if (!this.unlocked.has(slot.partId)) {
+        this.design[slot.partId] = 0;
+      }
+    });
 
-    this.computeLayout();
-    this.configureCameraBounds();
-    this.createInterface();
-    this.restoreBuild(this.initialBuild);
+    this.cameras.main.setBackgroundColor(UI_COLORS.background);
+    this.layout = this.computeLayout(this.scale.width, this.scale.height);
+    this.drawBackground();
+    this.createMissionCard();
+    this.createPartRows();
+    this.createPreview();
+    this.createStatsPanel();
+    this.createLaunchButton();
     this.registerInput();
-    this.renderBuild();
+    this.refresh();
   }
 
-  resolveInitialBuild(build, { preserveEmpty = false } = {}) {
-    if (Array.isArray(build) && (build.length > 0 || preserveEmpty)) {
-      return cloneBuildParts(build);
+  computeLayout(width, height) {
+    const compact = width < 760;
+    const margin = compact ? 12 : 20;
+    const missionHeight = compact ? 62 : 72;
+    const top = margin + missionHeight + margin * 0.6;
+    const bottom = height - margin;
+    const mission = { x: margin, y: margin, width: width - margin * 2, height: missionHeight };
+
+    if (!compact) {
+      const listWidth = Math.min(360, width * 0.31);
+      const statsWidth = Math.min(300, width * 0.26);
+      const launchHeight = 60;
+      return {
+        compact,
+        mission,
+        list: { x: margin, y: top, width: listWidth, height: bottom - top },
+        preview: {
+          x: margin * 2 + listWidth,
+          y: top,
+          width: width - listWidth - statsWidth - margin * 4,
+          height: bottom - top,
+        },
+        stats: {
+          x: width - margin - statsWidth,
+          y: top,
+          width: statsWidth,
+          height: bottom - top - launchHeight - margin * 0.6,
+        },
+        launch: { x: width - margin - statsWidth, y: bottom - launchHeight, width: statsWidth, height: launchHeight },
+      };
     }
 
-    return createStarterRocketBuild();
+    const launchHeight = 54;
+    const rowHeight = Phaser.Math.Clamp(Math.floor((height * 0.4) / DESIGN_SLOTS.length), 40, 52);
+    const listHeight = rowHeight * DESIGN_SLOTS.length + 12;
+    const launch = { x: margin, y: bottom - launchHeight, width: width - margin * 2, height: launchHeight };
+    const list = { x: margin, y: launch.y - margin * 0.6 - listHeight, width: width - margin * 2, height: listHeight };
+    const middleHeight = list.y - margin * 0.6 - top;
+    const previewWidth = Math.floor((width - margin * 3) * 0.42);
+    return {
+      compact,
+      mission,
+      list,
+      preview: { x: margin, y: top, width: previewWidth, height: middleHeight },
+      stats: { x: margin * 2 + previewWidth, y: top, width: width - previewWidth - margin * 3, height: middleHeight },
+      launch,
+    };
   }
 
-  computeLayout() {
-    const metrics = computeBuildLayout({
-      width: this.scale.width,
-      height: this.scale.height,
-      grid: this.baseGrid,
-      gridZoom: this.buildZoom,
-    });
-
-    this.theme = metrics.theme;
-    this.layout = metrics.layout;
-    this.grid = metrics.grid;
-  }
-
-  createInterface() {
-    this.surface = new BuildSurface(this, {
-      layout: this.layout,
-      grid: this.grid,
-      theme: this.theme,
-    });
-    this.gridView = new BuildGridView(this, {
-      layout: this.layout,
-      grid: this.grid,
-      theme: this.theme,
-    });
-    this.statsPanel = new BuildStatsPanel(this, {
-      layout: this.layout,
-      theme: this.theme,
-    });
-    this.inspectorPanel = new BuildInspectorPanel(this, {
-      layout: this.layout,
-      theme: this.theme,
-    });
-    this.toolbar = new BuildToolbar(this, {
-      layout: this.layout,
-      theme: this.theme,
-      onLaunch: () => this.launchRocket(),
-      onClear: () => this.clearBuild(),
-      onRemove: () => this.removeSelectedPlacedPart(),
-      onReset: () => this.loadStarterRocket(),
-      onSave: () => this.saveBlueprint(),
-      onLoad: () => this.loadLastBlueprint(),
-    });
-    this.toast = new BuildToast(this, {
-      layout: this.layout,
-      theme: this.theme,
-    });
-    this.contextMenu = new BuildContextMenu(this, {
-      theme: this.theme,
-      onSelect: (entry) => this.selectPlacedPart(entry),
-      onDelete: (entry) => this.removePlacedPart(entry),
-      onCancel: () => this.renderBuild(),
-    });
-    this.createGridInputZone();
-    createBuildPalette(this);
-    this.syncPaletteSelection();
-    this.createTutorial();
-  }
-
-  createTutorial() {
+  drawBackground() {
     const { width, height } = this.scale;
-    this.tutorial = new TutorialSystem(this, [
-      {
-        title: "Welcome to Vehicle Assembly",
-        body: "Build your rocket by dragging parts from the left palette onto the grid. Let's start with the command capsule.",
-        panelY: height - 180,
-        waitForKey: true
-      },
-      {
-        title: "Drag Parts from Palette",
-        body: "Click and drag a part from the palette, then drop it on the grid. Parts must connect to each other.",
-        panelY: height - 180,
-        waitForKey: true
-      },
-      {
-        title: "Build Your Rocket",
-        body: "Add fuel tanks and an engine. You need exactly one capsule. The stats panel shows if your rocket can reach orbit.",
-        panelY: height - 180,
-        waitForKey: true
-      },
-      {
-        title: "Launch When Ready",
-        body: "Click 'Lanzar' or press SPACE to launch. Use SAV/LOD buttons to save and load designs.",
-        panelY: height - 180,
-        waitForKey: true
-      }
-    ]);
-    this.tutorial.start();
+    const grid = this.add.graphics();
+    grid.lineStyle(1, 0x1c2c3d, 0.6);
+    for (let x = 0; x < width; x += 40) {
+      grid.lineBetween(x, 0, x, height);
+    }
+    for (let y = 0; y < height; y += 40) {
+      grid.lineBetween(0, y, width, y);
+    }
+
+    const panels = this.add.graphics();
+    const { mission, list, preview, stats } = this.layout;
+    drawPanel(panels, mission.x, mission.y, mission.width, mission.height);
+    drawPanel(panels, list.x, list.y, list.width, list.height);
+    drawPanel(panels, stats.x, stats.y, stats.width, stats.height);
+    drawPanel(panels, preview.x, preview.y, preview.width, preview.height, { alpha: 0.35, edgeAlpha: 0.12 });
   }
 
-  configureCameraBounds() {
-    const worldHeight = this.layout.worldHeight || this.scale.height;
-    this.cameras.main.setBounds(0, 0, this.scale.width, worldHeight);
-    this.cameras.main.setScroll(0, 0);
+  createMissionCard() {
+    const { mission, compact } = this.layout;
+    const current = MissionSystem.getCurrentMission();
+    const completed = MissionSystem.getProgress().completed.length;
+    const pad = compact ? 12 : 18;
+
+    addText(this, mission.x + pad, mission.y + (compact ? 9 : 11), current ? `MISIÓN ${completed + 1}/${MISSIONS.length}` : "VUELO LIBRE", {
+      size: compact ? 11 : 12,
+      color: UI_COLORS.textMuted,
+      bold: true,
+    });
+    addText(this, mission.x + pad, mission.y + (compact ? 24 : 28), current ? current.title : "¡Todas las misiones completadas!", {
+      size: compact ? 17 : 22,
+      bold: true,
+    });
+    const description = addText(
+      this,
+      mission.x + (compact ? pad : pad + 250),
+      mission.y + (compact ? 44 : 34),
+      current ? current.description : "Prueba diseños nuevos y bate tus tiempos.",
+      { size: compact ? 12 : 15, color: UI_COLORS.textMuted },
+    );
+    if (compact) {
+      description.setPosition(mission.x + pad + 150, mission.y + 9).setWordWrapWidth(mission.width - 180);
+    }
+
+    const stars = MISSIONS.map((_, index) => (index < completed ? "★" : "☆")).join(" ");
+    addText(this, mission.x + mission.width - pad, mission.y + mission.height / 2, stars, {
+      size: compact ? 14 : 20,
+      color: UI_COLORS.warningText,
+    }).setOrigin(1, 0.5);
   }
 
-  createGridInputZone() {
-    this.gridInput = this.add
-      .zone(this.grid.x, this.grid.y, this.layout.gridWidth, this.layout.gridHeight)
-      .setOrigin(0)
-      .setInteractive();
+  createPartRows() {
+    const { list, compact } = this.layout;
+    const inset = 6;
+    const rowHeight = Math.floor((list.height - inset * 2) / DESIGN_SLOTS.length);
+    this.rows = DESIGN_SLOTS.map((slot, index) =>
+      this.createPartRow(slot, list.x + inset, list.y + inset + index * rowHeight, list.width - inset * 2, rowHeight, compact),
+    );
+  }
 
-    this.gridInput.on("pointermove", (pointer) => this.handleGridPointerMove(pointer));
-    this.gridInput.on("pointerout", () => {
-      if (!this.dragState) {
-        this.gridView.clearPlacementCandidate();
+  createPartRow(slot, x, y, width, height, compact) {
+    const definition = PARTS_BY_ID[slot.partId];
+    const locked = !this.unlocked.has(slot.partId);
+    const unlockMission = MISSIONS.find((mission) => mission.unlocks.includes(slot.partId));
+    const iconSize = Math.min(height - 10, 52);
+    const highlight = this.add.graphics();
+    const iconCell = Math.min(iconSize / definition.gridHeight, iconSize * 0.9);
+    const icon = new ShipPart(this, x + 10 + iconSize / 2, y + height / 2, definition, {
+      cellSize: iconCell,
+      padding: 0,
+      showLabel: false,
+      iconMode: true,
+    }).setAlpha(locked ? 0.25 : 1);
+    const textX = x + iconSize + 22;
+    // Leave room for the  − n +  stepper on the right.
+    const textWidth = width - (textX - x) - (locked ? 10 : 124);
+    const label = addText(this, textX, y + height / 2 - 2, slot.label, {
+      size: compact ? 14 : 16,
+      bold: true,
+      color: locked ? UI_COLORS.textDim : UI_COLORS.text,
+    }).setOrigin(0, 1);
+    const effect = addText(
+      this,
+      textX,
+      y + height / 2 + 1,
+      locked ? `Bloqueado · misión «${unlockMission?.title ?? "?"}»` : slot.effect,
+      {
+        size: compact ? 11 : 12,
+        color: locked ? UI_COLORS.textDim : UI_COLORS.textMuted,
+        wordWrap: { width: textWidth },
+        maxLines: compact ? 1 : 2,
+      },
+    );
+
+    const row = { slot, locked, highlight, icon, label, effect, x, y, width, height };
+    if (locked) {
+      return row;
+    }
+
+    const buttonSize = Math.min(32, height - 12);
+    const plusX = x + width - buttonSize / 2 - 6;
+    const countX = plusX - buttonSize / 2 - 18;
+    const minusX = countX - 18 - buttonSize / 2;
+    row.minus = this.createStepButton(minusX, y + height / 2, buttonSize, "−", () => this.changeCount(slot, -1));
+    row.plus = this.createStepButton(plusX, y + height / 2, buttonSize, "+", () => this.changeCount(slot, 1));
+    row.count = addText(this, countX, y + height / 2, "0", { size: compact ? 16 : 18, bold: true }).setOrigin(0.5);
+    return row;
+  }
+
+  createStepButton(x, y, size, symbol, onPress) {
+    const background = this.add
+      .rectangle(x, y, size, size, 0x1d2f42, 1)
+      .setStrokeStyle(1, UI_COLORS.panelEdge, 0.35)
+      .setInteractive({ useHandCursor: true });
+    const text = addText(this, x, y - 1, symbol, { size: Math.round(size * 0.62), bold: true }).setOrigin(0.5);
+    const button = { background, text, enabled: true };
+
+    background.on("pointerover", () => button.enabled && background.setFillStyle(0x2a4560, 1));
+    background.on("pointerout", () => background.setFillStyle(0x1d2f42, 1));
+    background.on("pointerdown", () => {
+      if (button.enabled) {
+        onPress();
       }
     });
-    this.gridInput.on("pointerdown", (pointer) => this.handleGridPointerDown(pointer));
+    return button;
+  }
+
+  setButtonEnabled(button, enabled) {
+    button.enabled = enabled;
+    button.background.setAlpha(enabled ? 1 : 0.35);
+    button.text.setAlpha(enabled ? 1 : 0.35);
+  }
+
+  changeCount(slot, delta) {
+    const next = Phaser.Math.Clamp((this.design[slot.partId] || 0) + delta, 0, slot.max);
+    if (next === this.design[slot.partId]) {
+      return;
+    }
+    this.design[slot.partId] = next;
+    this.audio?.playClick?.();
+    this.refresh();
+  }
+
+  createPreview() {
+    this.previewRocket = null;
+    this.previewPad = this.add.graphics();
+  }
+
+  renderPreview() {
+    const { preview } = this.layout;
+    const stats = this.validation.stats;
+    const bounds = stats.bounds;
+    this.previewRocket?.destroy(true);
+    this.previewRocket = this.add.container(0, 0);
+
+    const columns = bounds.maxX - bounds.minX;
+    const rows = bounds.maxY - bounds.minY;
+    const cell = Math.min(
+      (preview.height * 0.78) / rows,
+      (preview.width * 0.7) / columns,
+      this.layout.compact ? 40 : 56,
+    );
+    const centerX = preview.x + preview.width / 2;
+    const groundY = preview.y + preview.height - (this.layout.compact ? 20 : 34);
+    const columnCenter = (bounds.minX + bounds.maxX) / 2;
+
+    this.build.forEach((part) => {
+      const definition = PARTS_BY_ID[part.partId];
+      const view = new ShipPart(
+        this,
+        centerX + (part.cellX + definition.gridWidth / 2 - columnCenter) * cell,
+        groundY - (bounds.maxY - part.cellY - definition.gridHeight / 2) * cell,
+        definition,
+        { cellSize: cell, padding: 0, showLabel: false, side: part.side },
+      );
+      this.previewRocket.add(view);
+    });
+
+    const padWidth = columns * cell + cell * 1.4;
+    this.previewPad.clear();
+    this.previewPad.fillStyle(0x73f7c0, 0.08);
+    this.previewPad.fillEllipse(centerX, groundY + 4, Math.min(padWidth * 2.2, preview.width - 16), 26, 24);
+    this.previewPad.fillStyle(0x3a4654, 1);
+    this.previewPad.fillRect(centerX - padWidth / 2, groundY, padWidth, 6);
+  }
+
+  createStatsPanel() {
+    const { stats, compact } = this.layout;
+    const pad = compact ? 12 : 18;
+    const lineGap = compact ? 22 : 28;
+    let y = stats.y + pad;
+
+    addText(this, stats.x + pad, y, "TU COHETE", { size: compact ? 11 : 12, bold: true, color: UI_COLORS.textMuted });
+    y += compact ? 20 : 26;
+    const statRow = (label) => {
+      addText(this, stats.x + pad, y, label, { size: compact ? 13 : 15, color: UI_COLORS.textMuted });
+      const value = addText(this, stats.x + stats.width - pad, y, "", { size: compact ? 13 : 15, bold: true }).setOrigin(1, 0);
+      y += lineGap;
+      return value;
+    };
+    this.massValue = statRow("Peso");
+    this.twrValue = statRow(compact ? "Empuje/peso" : "Empuje / peso");
+    this.fuelValue = statRow("Combustible");
+
+    y += compact ? 4 : 10;
+    addText(this, stats.x + pad, y, "PREDICCIÓN", { size: compact ? 11 : 12, bold: true, color: UI_COLORS.textMuted });
+    y += compact ? 18 : 24;
+    this.predictionTitle = addText(this, stats.x + pad, y, "", {
+      size: compact ? 14 : 17,
+      bold: true,
+      wordWrap: { width: stats.width - pad * 2 },
+    });
+    this.predictionBody = addText(this, stats.x + pad, y + (compact ? 22 : 28), "", {
+      size: compact ? 12 : 14,
+      color: UI_COLORS.textMuted,
+      wordWrap: { width: stats.width - pad * 2 },
+      lineSpacing: 3,
+    });
+
+    const resetY = stats.y + stats.height - pad - (compact ? 14 : 16);
+    const reset = addText(this, stats.x + pad, resetY, "↺  Volver al cohete inicial", {
+      size: compact ? 12 : 14,
+      color: "#9fd7ff",
+    })
+      .setOrigin(0, 0.5)
+      .setInteractive({ useHandCursor: true });
+    reset.on("pointerover", () => reset.setColor("#d6f1ff"));
+    reset.on("pointerout", () => reset.setColor("#9fd7ff"));
+    reset.on("pointerdown", () => {
+      this.design = normalizeDesign(STARTER_DESIGN);
+      this.audio?.playClick?.();
+      this.refresh();
+    });
+  }
+
+  createLaunchButton() {
+    const { launch, compact } = this.layout;
+    this.launchButton = this.add
+      .rectangle(launch.x + launch.width / 2, launch.y + launch.height / 2, launch.width, launch.height, 0x1f8a5f, 1)
+      .setStrokeStyle(2, UI_COLORS.accent, 0.9)
+      .setInteractive({ useHandCursor: true });
+    this.launchLabel = addText(this, this.launchButton.x, this.launchButton.y, "¡LANZAR!", {
+      size: compact ? 20 : 24,
+      bold: true,
+    }).setOrigin(0.5);
+    this.launchHint = addText(this, launch.x + launch.width - 12, this.launchButton.y, compact ? "" : "ENTER", {
+      size: 11,
+      color: "#c9f7e3",
+      bold: true,
+    }).setOrigin(1, 0.5);
+
+    this.launchButton.on("pointerover", () => this.validation?.isValid && this.launchButton.setFillStyle(0x27a873, 1));
+    this.launchButton.on("pointerout", () => this.updateLaunchButton());
+    this.launchButton.on("pointerdown", () => this.launchRocket());
+  }
+
+  updateLaunchButton() {
+    const enabled = this.validation.isValid;
+    this.launchButton.setFillStyle(enabled ? 0x1f8a5f : 0x2a3542, 1);
+    this.launchButton.setStrokeStyle(2, enabled ? UI_COLORS.accent : 0x4a5a6b, 0.9);
+    this.launchLabel.setAlpha(enabled ? 1 : 0.45);
+    this.launchHint.setAlpha(enabled ? 1 : 0);
   }
 
   registerInput() {
-    this.input.mouse?.disableContextMenu();
-    this.input.addPointer(2);
-    this.input.on("pointermove", this.handlePointerMove, this);
-    this.input.on("pointerup", this.handlePointerUp, this);
-    this.input.on("pointerdown", this.handleScenePointerDown, this);
-    this.input.on("wheel", this.handleWheel, this);
-    this.input.keyboard.on("keydown-DELETE", this.removeSelectedPlacedPart, this);
-    this.input.keyboard.on("keydown-BACKSPACE", this.removeSelectedPlacedPart, this);
-    this.input.keyboard.on("keydown-R", this.clearBuild, this);
-    this.input.keyboard.on("keydown-SPACE", this.handleLaunchShortcut, this);
+    this.input.keyboard.on("keydown-ENTER", this.launchRocket, this);
+    this.input.keyboard.on("keydown-SPACE", this.launchRocket, this);
     this.scale.on("resize", this.handleResize, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
-  }
-
-  handleShutdown() {
-    this.input.off("pointermove", this.handlePointerMove, this);
-    this.input.off("pointerup", this.handlePointerUp, this);
-    this.input.off("pointerdown", this.handleScenePointerDown, this);
-    this.input.off("wheel", this.handleWheel, this);
-    this.input.keyboard.off("keydown-DELETE", this.removeSelectedPlacedPart, this);
-    this.input.keyboard.off("keydown-BACKSPACE", this.removeSelectedPlacedPart, this);
-    this.input.keyboard.off("keydown-R", this.clearBuild, this);
-    this.input.keyboard.off("keydown-SPACE", this.handleLaunchShortcut, this);
-    this.scale.off("resize", this.handleResize, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.keyboard.off("keydown-ENTER", this.launchRocket, this);
+      this.input.keyboard.off("keydown-SPACE", this.launchRocket, this);
+      this.scale.off("resize", this.handleResize, this);
+    });
   }
 
   handleResize() {
     if (this.resizePending) {
       return;
     }
-
     this.resizePending = true;
-    this.time.delayedCall(20, () => {
-      this.scene.restart({
-        build: this.serializeBuild(),
-        selectedPartId: this.selectedPartId,
-        buildZoom: this.buildZoom,
-      });
-    });
+    this.time.delayedCall(30, () => this.scene.restart({ design: this.design }));
   }
 
-  handleLaunchShortcut() {
-    if (this.currentValidation.isValid) {
-      this.launchRocket();
-    }
-  }
+  refresh() {
+    this.build = designToBuild(this.design);
+    this.validation = BuildValidator.validate(this.build);
+    this.prediction = this.validation.isValid ? FlightPredictor.predict(this.validation.stats) : null;
+    saveDesign(this.design);
+    this.registry.set("rocket-build", this.build);
 
-  handleScenePointerDown(pointer) {
-    if (this.getDownPointers().length >= 2) {
-      this.beginPinchZoom();
-      return;
-    }
-
-    if (this.contextMenu.contains(pointer)) {
-      return;
-    }
-
-    if (this.contextMenu.root.visible) {
-      this.contextMenu.hide();
-    }
-
-    if (pointer.rightButtonDown()) {
-      return;
-    }
-
-    if (!this.dragState && !this.gridView.getCellAtWorld(pointer.worldX, pointer.worldY)) {
-      this.clearPlacedSelection();
-    }
-
-    this.beginScroll(pointer);
-  }
-
-  handleWheel(pointer, over, deltaX, deltaY) {
-    if (this.isPointerInsideBuildArea(pointer)) {
-      const direction = deltaY > 0 ? -1 : 1;
-      this.setBuildZoom(this.buildZoom + direction * 0.08, {
-        x: pointer.worldX,
-        y: pointer.worldY,
-      });
-      return;
-    }
-
-    if (!this.layout.scrollable) {
-      return;
-    }
-
-    this.scrollBuild(deltaY * 0.65);
-  }
-
-  beginScroll(pointer) {
-    if (
-      !this.layout.scrollable ||
-      this.dragState ||
-      pointer.rightButtonDown() ||
-      pointer.middleButtonDown() ||
-      this.gridView.getCellAtWorld(pointer.worldX, pointer.worldY)
-    ) {
-      return;
-    }
-
-    this.scrollState = {
-      pointerId: pointer.id,
-      startY: pointer.y,
-      startScrollY: this.cameras.main.scrollY,
-      moved: false,
-    };
-  }
-
-  updateScroll(pointer) {
-    if (!this.scrollState || this.scrollState.pointerId !== pointer.id) {
-      return false;
-    }
-
-    const deltaY = pointer.y - this.scrollState.startY;
-    if (Math.abs(deltaY) > 3) {
-      this.scrollState.moved = true;
-    }
-    this.setBuildScroll(this.scrollState.startScrollY - deltaY);
-    return this.scrollState.moved;
-  }
-
-  endScroll(pointer) {
-    if (this.scrollState?.pointerId === pointer.id) {
-      this.scrollState = null;
-    }
-  }
-
-  scrollBuild(deltaY) {
-    this.setBuildScroll(this.cameras.main.scrollY + deltaY);
-  }
-
-  setBuildScroll(scrollY) {
-    const maxScrollY = Math.max(
-      0,
-      (this.layout.worldHeight || this.scale.height) - this.scale.height,
-    );
-    this.cameras.main.setScroll(0, Phaser.Math.Clamp(scrollY, 0, maxScrollY));
-  }
-
-  handleGridPointerMove(pointer) {
-    if (this.dragState) {
-      return;
-    }
-
-    const cell = this.gridView.getCellAtWorld(pointer.worldX, pointer.worldY);
-    if (!cell || !this.selectedPartId) {
-      this.gridView.clearPlacementCandidate();
-      return;
-    }
-
-    if (this.findPlacedPartAtCell(cell.cellX, cell.cellY)) {
-      this.gridView.clearPlacementCandidate();
-      return;
-    }
-
-    this.gridView.showPlacementCandidate(this.selectedPartId, {
-      cell,
-      valid: this.canPlacePart(this.selectedPartId, cell.cellX, cell.cellY),
-    });
-  }
-
-  handleGridPointerDown(pointer) {
-    if (pointer.rightButtonDown() || this.dragState || this.getDownPointers().length >= 2) {
-      return;
-    }
-
-    const cell = this.gridView.getCellAtWorld(pointer.worldX, pointer.worldY);
-    if (!cell) {
-      this.clearPlacedSelection();
-      return;
-    }
-
-    const existing = this.findPlacedPartAtCell(cell.cellX, cell.cellY);
-    if (existing) {
-      this.selectPlacedPart(existing);
-      return;
-    }
-
-    if (!this.selectedPartId) {
-      return;
-    }
-
-    const placement = this.getPlacementValidation(
-      this.selectedPartId,
-      cell.cellX,
-      cell.cellY,
-    );
-
-    if (!placement.valid) {
-      this.audio?.playError();
-      this.showPlacementToast(placement.reason);
-      return;
-    }
-
-    this.audio?.playPlace();
-    this.addPlacedPart(this.selectedPartId, cell.cellX, cell.cellY);
-  }
-
-  handlePointerMove(pointer) {
-    if (this.updatePinchZoom()) {
-      return;
-    }
-
-    if (!this.dragState && this.updateScroll(pointer)) {
-      return;
-    }
-
-    if (!this.dragState || this.dragState.pointerId !== pointer.id) {
-      return;
-    }
-
-    if (this.dragState.mode === "palette") {
-      this.gridView.movePreview(this.dragState.preview, pointer.worldX, pointer.worldY);
-    }
-
-    if (this.dragState.mode === "placed") {
-      this.dragState.entry.view.setPosition(pointer.worldX, pointer.worldY);
-    }
-
-    this.updateDragCandidate(pointer);
-  }
-
-  handlePointerUp(pointer) {
-    if (this.getDownPointers().length < 2) {
-      this.pinchState = null;
-    }
-
-    this.endScroll(pointer);
-
-    if (!this.dragState || this.dragState.pointerId !== pointer.id) {
-      return;
-    }
-
-    const drag = this.dragState;
-    this.dragState = null;
-    this.gridView.clearPlacementCandidate();
-
-    if (drag.mode === "palette") {
-      drag.preview.destroy();
-
-      if (drag.candidate?.cell && drag.candidate.valid) {
-        this.addPlacedPart(drag.partId, drag.candidate.cell.cellX, drag.candidate.cell.cellY);
-      } else if (drag.candidate?.cell) {
-        this.showPlacementToast(drag.candidate.reason);
-        this.renderBuild();
-      } else {
-        this.renderBuild();
+    this.rows.forEach((row) => {
+      if (row.locked) {
+        return;
       }
-      return;
-    }
-
-    const { entry } = drag;
-    if (drag.candidate?.cell && drag.candidate.valid) {
-      this.movePlacedPart(entry, drag.candidate.cell.cellX, drag.candidate.cell.cellY);
-      return;
-    }
-
-    this.gridView.restorePartView(entry);
-    if (drag.candidate?.cell) {
-      this.showPlacementToast(drag.candidate.reason);
-    }
-    this.selectPlacedPart(entry);
-  }
-
-  getDownPointers() {
-    return this.input.manager.pointers.filter((candidate) => candidate?.isDown);
-  }
-
-  isPointerInsideBuildArea(pointer) {
-    return (
-      pointer.x >= this.layout.paletteWidth &&
-      pointer.y >= this.layout.topBarHeight &&
-      pointer.y <= this.layout.height - this.layout.bottomBarHeight
-    );
-  }
-
-  getPinchMetrics() {
-    const pointers = this.getDownPointers().slice(0, 2);
-    if (pointers.length < 2) {
-      return null;
-    }
-
-    const [a, b] = pointers;
-    const distance = Phaser.Math.Distance.Between(a.x, a.y, b.x, b.y);
-    return {
-      distance,
-      x: (a.worldX + b.worldX) / 2,
-      y: (a.worldY + b.worldY) / 2,
-    };
-  }
-
-  beginPinchZoom() {
-    const metrics = this.getPinchMetrics();
-    if (!metrics || metrics.distance <= 4) {
-      return;
-    }
-
-    this.dragState = null;
-    this.scrollState = null;
-    this.gridView.clearPlacementCandidate();
-    this.pinchState = {
-      startDistance: metrics.distance,
-      startZoom: this.buildZoom,
-      lastX: metrics.x,
-      lastY: metrics.y,
-    };
-  }
-
-  updatePinchZoom() {
-    if (!this.pinchState) {
-      return false;
-    }
-
-    const metrics = this.getPinchMetrics();
-    if (!metrics || metrics.distance <= 4) {
-      this.pinchState = null;
-      return false;
-    }
-
-    const nextZoom =
-      this.pinchState.startZoom * (metrics.distance / this.pinchState.startDistance);
-    const previousZoom = this.buildZoom;
-    this.setBuildZoom(nextZoom, metrics);
-    if (Math.abs(previousZoom - this.buildZoom) < 0.001) {
-      this.panBuildGrid(metrics.x - this.pinchState.lastX, metrics.y - this.pinchState.lastY);
-    }
-    this.pinchState.lastX = metrics.x;
-    this.pinchState.lastY = metrics.y;
-    return true;
-  }
-
-  setBuildZoom(zoom, focalPoint = null) {
-    const nextZoom = Phaser.Math.Clamp(zoom, BUILD_ZOOM_MIN, BUILD_ZOOM_MAX);
-    if (Math.abs(nextZoom - this.buildZoom) < 0.001) {
-      return;
-    }
-
-    const previousGrid = { ...this.grid };
-    const focus = focalPoint || {
-      x: previousGrid.x + this.layout.gridWidth / 2,
-      y: previousGrid.y + this.layout.gridHeight / 2,
-    };
-    const focusCellX = (focus.x - previousGrid.x) / previousGrid.cellSize;
-    const focusCellY = (focus.y - previousGrid.y) / previousGrid.cellSize;
-
-    this.buildZoom = nextZoom;
-    this.computeLayout();
-    this.grid.x = focus.x - focusCellX * this.grid.cellSize;
-    this.grid.y = focus.y - focusCellY * this.grid.cellSize;
-    this.constrainGridPosition();
-    this.refreshGridScale();
-  }
-
-  panBuildGrid(deltaX, deltaY) {
-    if (Math.abs(deltaX) < 0.1 && Math.abs(deltaY) < 0.1) {
-      return;
-    }
-
-    this.grid.x += deltaX;
-    this.grid.y += deltaY;
-    this.constrainGridPosition();
-    this.refreshGridScale();
-  }
-
-  constrainGridPosition() {
-    const { width, height, paletteWidth, topBarHeight, bottomBarHeight } = this.layout;
-    const gridWidth = this.grid.columns * this.grid.cellSize;
-    const gridHeight = this.grid.rows * this.grid.cellSize;
-    const minX = width - gridWidth - 4;
-    const maxX = paletteWidth + 4;
-    const minY = height - bottomBarHeight - gridHeight - 4;
-    const maxY = topBarHeight + 4;
-
-    this.layout.gridWidth = gridWidth;
-    this.layout.gridHeight = gridHeight;
-    this.grid.x =
-      gridWidth <= width - paletteWidth
-        ? paletteWidth + (width - paletteWidth - gridWidth) / 2
-        : Phaser.Math.Clamp(this.grid.x, minX, maxX);
-    this.grid.y =
-      gridHeight <= height - topBarHeight - bottomBarHeight
-        ? topBarHeight + (height - topBarHeight - bottomBarHeight - gridHeight) / 2
-        : Phaser.Math.Clamp(this.grid.y, minY, maxY);
-  }
-
-  refreshGridScale() {
-    this.gridView.updateLayout({ grid: this.grid, layout: this.layout });
-    this.gridInput
-      .setPosition(this.grid.x, this.grid.y)
-      .setSize(this.layout.gridWidth, this.layout.gridHeight)
-      .setInteractive(
-        new Phaser.Geom.Rectangle(0, 0, this.layout.gridWidth, this.layout.gridHeight),
-        Phaser.Geom.Rectangle.Contains,
-      );
-
-    this.placedParts.forEach((entry) => {
-      this.gridView.positionPartView(entry);
-      this.attachPlacedPartInteraction(entry);
-    });
-    this.renderBuild();
-  }
-
-  updateDragCandidate(pointer) {
-    const drag = this.dragState;
-    if (!drag) {
-      return;
-    }
-
-    const cell = this.gridView.getCellAtWorld(pointer.worldX, pointer.worldY);
-    if (!cell) {
-      drag.candidate = { cell: null, valid: false, reason: "" };
-      this.gridView.clearPlacementCandidate();
-      return;
-    }
-
-    const placement = this.getPlacementValidation(
-      drag.partId,
-      cell.cellX,
-      cell.cellY,
-      {
-        ignoreKey: drag.mode === "placed" ? drag.entry.key : null,
-      },
-    );
-    drag.candidate = {
-      cell,
-      valid: placement.valid,
-      reason: placement.reason,
-    };
-    this.gridView.showPlacementCandidate(drag.partId, drag.candidate);
-  }
-
-  beginPaletteDrag(part, pointer) {
-    if (pointer.rightButtonDown()) {
-      return;
-    }
-
-    this.contextMenu.hide();
-    this.selectPalettePart(part.id);
-
-    const preview = this.gridView.createDragPreview(part, pointer.worldX, pointer.worldY);
-    this.dragState = {
-      mode: "palette",
-      pointerId: pointer.id,
-      partId: part.id,
-      preview,
-      candidate: null,
-    };
-    this.updateDragCandidate(pointer);
-  }
-
-  beginPlacedDrag(entry, pointer) {
-    if (pointer.rightButtonDown()) {
-      this.selectPlacedPart(entry);
-      this.contextMenu.show(pointer.worldX, pointer.worldY, entry);
-      return;
-    }
-
-    this.contextMenu.hide();
-    this.selectPlacedPart(entry);
-    this.dragState = {
-      mode: "placed",
-      pointerId: pointer.id,
-      partId: entry.partId,
-      entry,
-      candidate: null,
-    };
-    this.gridView.setPartDragging(entry);
-    this.updateDragCandidate(pointer);
-  }
-
-  createPlacedPartEntry(partId, cellX, cellY) {
-    const view = this.gridView.createPlacedPartView(partId, cellX, cellY);
-    const entry = {
-      key: cellKey(cellX, cellY),
-      partId,
-      cellX,
-      cellY,
-      view,
-    };
-    this.attachPlacedPartInteraction(entry);
-    return entry;
-  }
-
-  attachPlacedPartInteraction(entry) {
-    const definition = PARTS_BY_ID[entry.partId];
-    const width = definition.gridWidth * this.grid.cellSize;
-    const height = definition.gridHeight * this.grid.cellSize;
-
-    entry.view.removeAllListeners();
-    entry.view.setSize(width, height);
-    entry.view.setInteractive(
-      new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
-      Phaser.Geom.Rectangle.Contains,
-    );
-    entry.view.on("pointerdown", (pointer) => this.beginPlacedDrag(entry, pointer));
-    entry.view.on("pointerover", () => {
-      this.setHoveredInfo({ source: "placed", key: entry.key });
-    });
-    entry.view.on("pointerout", () => {
-      this.clearHoveredInfo("placed", entry.key);
-    });
-  }
-
-  getOccupiedCells(partId, cellX, cellY) {
-    const definition = PARTS_BY_ID[partId];
-    const cells = [];
-
-    if (!definition) {
-      return cells;
-    }
-
-    for (let offsetY = 0; offsetY < definition.gridHeight; offsetY += 1) {
-      for (let offsetX = 0; offsetX < definition.gridWidth; offsetX += 1) {
-        cells.push({ cellX: cellX + offsetX, cellY: cellY + offsetY });
-      }
-    }
-
-    return cells;
-  }
-
-  isWithinBounds(partId, cellX, cellY) {
-    return this.getOccupiedCells(partId, cellX, cellY).every(
-      (cell) =>
-        cell.cellX >= 0 &&
-        cell.cellY >= 0 &&
-        cell.cellX < this.grid.columns &&
-        cell.cellY < this.grid.rows,
-    );
-  }
-
-  findPlacedPartAtCell(cellX, cellY, ignoreKey = null) {
-    return Array.from(this.placedParts.values()).find((entry) => {
-      if (entry.key === ignoreKey) {
-        return false;
-      }
-
-      return this.getOccupiedCells(entry.partId, entry.cellX, entry.cellY).some(
-        (cell) => cell.cellX === cellX && cell.cellY === cellY,
-      );
-    });
-  }
-
-  getPlacementValidation(partId, cellX, cellY, { ignoreKey = null } = {}) {
-    const definition = PARTS_BY_ID[partId];
-    if (!definition) {
-      return {
-        valid: false,
-        reason: "That module is not available in the current catalog.",
-      };
-    }
-
-    if (!this.isWithinBounds(partId, cellX, cellY)) {
-      return {
-        valid: false,
-        reason: "Move the module inside the assembly grid.",
-      };
-    }
-
-    if (definition.type === "command") {
-      const hasOtherCommandModule = Array.from(this.placedParts.values()).some(
-        (entry) =>
-          entry.key !== ignoreKey && PARTS_BY_ID[entry.partId]?.type === "command",
-      );
-      if (hasOtherCommandModule) {
-        return {
-          valid: false,
-          reason: "Only one capsule can control the stack.",
-        };
-      }
-    }
-
-    const occupiedCells = this.getOccupiedCells(partId, cellX, cellY);
-    if (
-      occupiedCells.some((cell) =>
-        Boolean(this.findPlacedPartAtCell(cell.cellX, cell.cellY, ignoreKey)),
-      )
-    ) {
-      return {
-        valid: false,
-        reason: "That space is already occupied.",
-      };
-    }
-
-    const remainingParts = Array.from(this.placedParts.keys()).filter(
-      (key) => key !== ignoreKey,
-    );
-    if (remainingParts.length === 0) {
-      return {
-        valid: true,
-        reason: "",
-      };
-    }
-
-    const connected = occupiedCells.some((cell) =>
-      GRID_NEIGHBORS.some((offset) =>
-        Boolean(
-          this.findPlacedPartAtCell(
-            cell.cellX + offset.x,
-            cell.cellY + offset.y,
-            ignoreKey,
-          ),
-        ),
-      ),
-    );
-
-    if (!connected) {
-      return {
-        valid: false,
-        reason: "New modules must connect to the current rocket body.",
-      };
-    }
-
-    return {
-      valid: true,
-      reason: "",
-    };
-  }
-
-  canPlacePart(partId, cellX, cellY, options) {
-    return this.getPlacementValidation(partId, cellX, cellY, options).valid;
-  }
-
-  addPlacedPart(partId, cellX, cellY, options = {}) {
-    const placement = this.getPlacementValidation(partId, cellX, cellY);
-    if (!placement.valid) {
-      if (!options.silent) {
-        this.showPlacementToast(placement.reason);
-      }
-      return null;
-    }
-
-    const entry = this.createPlacedPartEntry(partId, cellX, cellY);
-    this.placedParts.set(entry.key, entry);
-    this.persistBuild();
-
-    if (options.select !== false) {
-      this.selectPlacedPart(entry);
-    } else {
-      this.renderBuild();
-    }
-
-    return entry;
-  }
-
-  movePlacedPart(entry, cellX, cellY) {
-    this.placedParts.delete(entry.key);
-    entry.cellX = cellX;
-    entry.cellY = cellY;
-    entry.key = cellKey(cellX, cellY);
-    this.placedParts.set(entry.key, entry);
-    this.gridView.restorePartView(entry);
-    this.gridView.positionPartView(entry);
-    this.persistBuild();
-    this.selectPlacedPart(entry);
-  }
-
-  removePlacedPart(entry) {
-    if (!entry) {
-      return;
-    }
-
-    if (this.selectedPlacedKey === entry.key) {
-      this.selectedPlacedKey = null;
-    }
-
-    entry.view.destroy();
-    this.placedParts.delete(entry.key);
-    this.persistBuild();
-    this.renderBuild();
-    this.audio?.playClick();
-    this.toast.show({
-        tone: "neutral",
-        label: "MODULE REMOVED",
-        message: `${PARTS_BY_ID[entry.partId]?.name || "Module"} removed from the vehicle.`,
-      });
-  }
-
-  removeSelectedPlacedPart() {
-    if (!this.selectedPlacedKey) {
-      return;
-    }
-
-    const entry = this.placedParts.get(this.selectedPlacedKey);
-    this.removePlacedPart(entry);
-  }
-
-  clearBuild(options = {}) {
-    const {
-      silent = false,
-      label = "VEHICLE CLEARED",
-      message = "The current stack was cleared. Start a fresh build when ready.",
-    } = options;
-
-    if (this.placedParts.size === 0) {
-      return;
-    }
-
-    this.placedParts.forEach((entry) => entry.view.destroy());
-    this.placedParts.clear();
-    this.selectedPlacedKey = null;
-    this.contextMenu.hide();
-    this.persistBuild();
-    this.renderBuild();
-    if (!silent) {
-      this.toast.show({
-        tone: "neutral",
-        label,
-        message,
-      });
-    }
-  }
-
-  selectPalettePart(partId) {
-    this.selectedPartId = partId;
-    this.syncPaletteSelection();
-    this.refreshInspector();
-  }
-
-  syncPaletteSelection() {
-    this.paletteCards.forEach((card, partId) => {
-      const selected = partId === this.selectedPartId;
-      card.background.setStrokeStyle(2, selected ? 0xffffff : 0x688bc0, selected ? 0.95 : 0.45);
-      card.background.setFillStyle(selected ? 0x9ab9ea : 0x86a9df, selected ? 1 : 0.92);
-      card.title.setColor("#ffffff");
-      this.tweens.add({
-        targets: card.card,
-        scale: card.originalScale,
-        duration: 120,
-        ease: "Quad.easeOut",
-      });
-    });
-  }
-
-  selectPlacedPart(entry) {
-    this.selectedPlacedKey = entry?.key || null;
-    this.renderBuild();
-  }
-
-  clearPlacedSelection() {
-    if (!this.selectedPlacedKey) {
-      return;
-    }
-
-    this.selectedPlacedKey = null;
-    this.renderBuild();
-  }
-
-  setHoveredInfo(info) {
-    this.hoveredInfo = info;
-    this.refreshInspector();
-  }
-
-  clearHoveredInfo(source, identifier) {
-    if (!this.hoveredInfo) {
-      return;
-    }
-
-    if (
-      this.hoveredInfo.source === source &&
-      (this.hoveredInfo.partId === identifier || this.hoveredInfo.key === identifier)
-    ) {
-      this.hoveredInfo = null;
-      this.refreshInspector();
-    }
-  }
-
-  restoreBuild(build) {
-    build.forEach((part) => {
-      if (PARTS_BY_ID[part.partId]) {
-        this.addPlacedPart(part.partId, part.cellX, part.cellY, {
-          select: false,
-          silent: true,
-        });
-      }
+      const count = this.design[row.slot.partId] || 0;
+      row.count.setText(String(count * (row.slot.perStep || 1)));
+      this.setButtonEnabled(row.minus, count > 0);
+      this.setButtonEnabled(row.plus, count < row.slot.max);
     });
 
-    this.selectedPlacedKey = null;
-    this.persistBuild();
-    this.renderBuild();
+    const stats = this.validation.stats;
+    const verdict = getTwrVerdict(stats.twr);
+    this.massValue.setText(`${Math.round(stats.mass)} t`);
+    this.twrValue.setText(`${stats.twr.toFixed(2)} · ${verdict.label}`).setColor(verdict.color);
+    this.fuelValue.setText(String(Math.round(stats.fuel)));
+
+    const summary = describePrediction(this.validation, this.prediction);
+    this.predictionTitle.setText(summary.title).setColor(summary.color);
+    this.predictionBody.setText(summary.body);
+    this.predictionBody.setY(this.predictionTitle.y + this.predictionTitle.height + 6);
+
+    this.renderPreview();
+    this.updateLaunchButton();
   }
 
-  loadBlueprint(blueprint, options = {}) {
-    const parts = Array.isArray(blueprint) ? blueprint : blueprint?.parts;
-    if (!Array.isArray(parts) || parts.length === 0) {
+  launchRocket(event) {
+    // A key held down from the previous screen must not launch straight away.
+    if (event?.repeat) {
+      return;
+    }
+    if (!this.validation?.isValid) {
+      this.audio?.playError?.();
       return;
     }
 
-    this.clearBuild({ silent: true });
-    this.restoreBuild(cloneBuildParts(parts));
-
-    if (options.toast !== false) {
-      this.toast.show({
-        tone: "neutral",
-        label: options.label || "STARTER LOADED",
-        message:
-          options.message ||
-          `${blueprint?.name || "Default vehicle"} restored to the assembly area.`,
-      });
-    }
-  }
-
-  loadStarterRocket() {
-    this.loadBlueprint(STARTER_ROCKET, {
-      label: "STARTER LOADED",
-      message: "Starter vehicle restored. You can tune it or launch immediately.",
-    });
-  }
-
-  saveBlueprint() {
-    const build = this.serializeBuild();
-    if (build.length === 0) {
-      this.audio?.playError();
-      this.toast.show({
-        tone: "blocked",
-        label: "NOTHING TO SAVE",
-        message: "Build something first before saving.",
-      });
-      return;
-    }
-    const meta = BlueprintManager.loadMeta();
-    const saveCount = (meta.saveCount || 0) + 1;
-    const name = `Design ${saveCount}`;
-    const saved = BlueprintManager.save(name, build);
-    if (saved) {
-      meta.saveCount = saveCount;
-      meta.lastSavedId = saved.id;
-      BlueprintManager.saveMeta(meta);
-      this.audio?.playSuccess();
-      this.toast.show({
-        tone: "success",
-        label: "BLUEPRINT SAVED",
-        message: `"${name}" saved to slot ${saveCount}.`,
-      });
-    } else {
-      this.audio?.playError();
-      this.toast.show({
-        tone: "blocked",
-        label: "SAVE FAILED",
-        message: "Could not save blueprint. Storage may be full.",
-      });
-    }
-  }
-
-  loadLastBlueprint() {
-    const blueprints = BlueprintManager.loadAll();
-    if (blueprints.length === 0) {
-      this.audio?.playError();
-      this.toast.show({
-        tone: "blocked",
-        label: "NO BLUEPRINTS",
-        message: "Save a design first before loading.",
-      });
-      return;
-    }
-    const last = blueprints[blueprints.length - 1];
-    this.loadBlueprint({ name: last.name, parts: last.parts }, {
-      label: "BLUEPRINT LOADED",
-      message: `"${last.name}" loaded from storage.`,
-    });
-    this.audio?.playPlace();
-  }
-
-  serializeBuild() {
-    return Array.from(this.placedParts.values()).map((entry) => ({
-      partId: entry.partId,
-      cellX: entry.cellX,
-      cellY: entry.cellY,
-    }));
-  }
-
-  persistBuild() {
-    this.registry.set("rocket-build", this.serializeBuild());
-  }
-
-  renderBuild() {
-    const build = this.serializeBuild();
-    this.currentValidation = BuildValidator.validate(build);
-
-    this.gridView.renderBuild(build, this.currentValidation);
-    this.statsPanel.update(this.currentValidation);
-
-    const selectedEntry = this.selectedPlacedKey
-      ? this.placedParts.get(this.selectedPlacedKey)
-      : null;
-
-    if (selectedEntry) {
-      this.gridView.showSelection(selectedEntry);
-    } else {
-      this.gridView.clearSelection();
-    }
-
-    this.toolbar.setRemoveEnabled(Boolean(selectedEntry));
-    this.toolbar.setLaunchEnabled(this.currentValidation.isValid);
-    this.refreshInspector();
-  }
-
-  refreshInspector() {
-    this.inspectorPanel.update(this.getInspectorModel());
-  }
-
-  getInspectorModel() {
-    if (this.hoveredInfo?.source === "placed") {
-      return this.createPlacedInspectorModel(this.hoveredInfo.key, "Hovered");
-    }
-
-    if (this.hoveredInfo?.source === "palette") {
-      return this.createPaletteInspectorModel(this.hoveredInfo.partId, "Hovered");
-    }
-
-    if (this.selectedPlacedKey) {
-      return this.createPlacedInspectorModel(this.selectedPlacedKey, "Selected");
-    }
-
-    if (this.selectedPartId) {
-      return this.createPaletteInspectorModel(this.selectedPartId, "Catalog");
-    }
-
-    return null;
-  }
-
-  createPaletteInspectorModel(partId, stateLabel) {
-    const definition = PARTS_BY_ID[partId];
-    if (!definition) {
-      return null;
-    }
-
-    return {
-      name: definition.name,
-      role: definition.role,
-      description: definition.description,
-      gridLabel: `Catalog module - ${definition.gridWidth}x${definition.gridHeight} cells`,
-      mass: definition.mass,
-      fuel: definition.fuel,
-      thrust: definition.thrust,
-      issues: [],
-      stateLabel,
-      stateColor: this.theme.focusState.palette,
-      partColor: definition.color,
-    };
-  }
-
-  createPlacedInspectorModel(key, stateLabel) {
-    const entry = this.placedParts.get(key);
-    if (!entry) {
-      return null;
-    }
-
-    const definition = PARTS_BY_ID[entry.partId];
-    const occupiedKeys = new Set(
-      this.getOccupiedCells(entry.partId, entry.cellX, entry.cellY).map((cell) =>
-        cellKey(cell.cellX, cell.cellY),
-      ),
-    );
-    const issues = this.currentValidation.issues
-      .filter((issue) =>
-        issue.affectedCells.some((cell) => occupiedKeys.has(cellKey(cell.cellX, cell.cellY))),
-      )
-      .map((issue) => ({
-        severity: issue.severity,
-        message: issue.message,
-      }));
-
-    return {
-      name: definition.name,
-      role: definition.role,
-      description: definition.description,
-      gridLabel: `Grid ${entry.cellX + 1}, ${entry.cellY + 1} - ${definition.gridWidth}x${definition.gridHeight} cells`,
-      mass: definition.mass,
-      fuel: definition.fuel,
-      thrust: definition.thrust,
-      issues,
-      stateLabel,
-      stateColor:
-        stateLabel === "Hovered"
-          ? this.theme.focusState.hovered
-          : this.theme.focusState.selected,
-      partColor: definition.color,
-    };
-  }
-
-  showPlacementToast(message) {
-    this.toast.show({
-      tone: "blocked",
-      label: "PLACEMENT BLOCKED",
-      message,
-    });
-  }
-
-  launchRocket() {
-    const build = this.serializeBuild();
-    const validation = BuildValidator.validate(build);
-    if (!validation.isValid) {
-      this.toast.show({
-        tone: "blocked",
-        label: "LAUNCH BLOCKED",
-        message: validation.errors[0] || "Resolve the remaining pad checks before launch.",
-      });
-      return;
-    }
-
-    const stats = ShipStatsCalculator.calculate(build);
-    this.registry.set("rocket-build", build);
-    this.scene.start("FlightScene", { build, stats });
+    this.audio?.playClick?.();
+    this.scene.start("FlightScene", { build: this.build, stats: this.validation.stats });
   }
 }

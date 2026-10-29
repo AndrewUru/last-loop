@@ -2,67 +2,70 @@
 
 ![Portada del Proyecto](https://elsaltoweb.es/wp-content/uploads/2026/04/portada.webp)
 
-**Last Loop** es un prototipo de constructor de cohetes con lanzamiento orbital simplificado. Diseña naves modulares en un hangar de alta precisión, valida su física y pon a prueba tu ingeniería en una simulación de vuelo arcade.
+**Last Loop** es un juego corto de cohetes: construyes un cohete con unas pocas piezas, lo pilotas y tratas de dejarlo en órbita.
 
 ---
 
-## 🕹️ El Juego
+## 🕹️ El juego
 
-El loop principal ha evolucionado de la supervivencia hacia la **ingeniería y simulación**:
+1. **Construye:** en el hangar eliges cuántos tanques, motores y extras lleva tu cohete con los botones `−` / `+`. Las piezas se apilan solas.
+2. **Despega:** mantén pulsado el impulso y sigue la flecha verde que sale del cohete.
+3. **Orbita:** cuando llegues a la velocidad orbital suelta el motor y planea hasta el anillo verde.
 
-1. **Diseño:** Construcción por grid con sistema de _snap_ y piezas modulares.
-2. **Validación:** Análisis en tiempo real de masa, empuje y estabilidad.
-3. **Lanzamiento:** Vuelo arcade con física orbital simplificada para alcanzar la órbita.
+La órbita se consigue con **altura** (pasar el anillo verde, 170 km) y **velocidad lateral** (5 km/s). El HUD muestra las dos barras y una sola instrucción con lo que hay que hacer en cada momento.
 
-## ✨ Características Principales
+### Misiones
 
-### 🏗️ Hangar de Construcción
+Las misiones se cumplen en orden y desbloquean piezas nuevas:
 
-- **Grid Inteligente:** Colocación por _drag & drop_, recolocación de piezas y selección/borrado.
-- **Métricas en Vivo:** Cálculo automático de masa total, empuje y **Centro de Masa (CoM)** visible.
-- **Validación:** Feedback visual de errores en el grid y comprobación de condiciones mínimas de despegue.
+| Misión         | Objetivo                              | Desbloquea                 |
+| :------------- | :------------------------------------ | :------------------------- |
+| Primera órbita | Llegar a la órbita                    | Ojiva, anillo de control   |
+| Ahorrador      | Llegar con ≥ 35% de combustible       | Boosters laterales         |
+| Exprés         | Llegar en menos de 68 s               | —                          |
+| Carga pesada   | Llegar con 7 piezas o más             | —                          |
 
-### 🛰️ Simulación de Vuelo
+El hangar incluye una **predicción de vuelo**: simula tu diseño con un piloto perfecto y te dice si puede llegar a la órbita y con cuánto combustible.
 
-- **Vuelo Arcade:** Pilotaje simplificado orientado a la experiencia de usuario.
-- **Simulación Orbital:** Comportamiento físico basado en el rendimiento de tu diseño.
-- **Resultados:** Pantalla de análisis de misión (éxito/fallo y rendimiento).
+### Controles
+
+| Acción          | Teclado               | Móvil              |
+| :-------------- | :-------------------- | :----------------- |
+| Impulso         | `ESPACIO`, `W` o `↑`  | Mantener `IMPULSO` |
+| Girar           | `A` / `D` o `←` / `→` | Botones `◀` `▶`    |
+| Volver a hangar | `ESC`                 | Botón _Hangar_     |
+| Lanzar / seguir | `ENTER`               | Botón              |
 
 ---
 
-## 🛠️ Stack Tecnológico
+## 🛠️ Stack tecnológico
 
 - **Motor:** [Phaser 3](https://phaser.io/)
-- **Herramientas de Build:** [Vite](https://vitejs.dev/)
+- **Build:** [Vite](https://vitejs.dev/)
 - **Lenguaje:** JavaScript (ES Modules)
 
----
+## 🚀 Instalación y uso local
 
-## 🚀 Instalación y Uso Local
-
-### Pre-requisitos
-
-- **Node.js** v18 o superior.
-
-### Comandos rápidos
+Requiere **Node.js** v18 o superior.
 
 | Acción                    | Comando           |
 | :------------------------ | :---------------- |
 | **Instalar dependencias** | `npm install`     |
 | **Iniciar desarrollo**    | `npm run dev`     |
-| **Generar Build**         | `npm run build`   |
-| **Previsualizar Build**   | `npm run preview` |
+| **Generar build**         | `npm run build`   |
+| **Previsualizar build**   | `npm run preview` |
 
----
-
-## 📂 Estructura del Proyecto
+## 📂 Estructura del proyecto
 
 ```text
 src/
 ├── game/
-│   ├── scenes/        # Lógica de cada estado (Boot, Build, Flight, Result)
-│   ├── systems/       # Motores de cálculo (Física, Validación, Estadísticas)
-│   └── data/          # Definición de piezas (parts.js)
-├── assets/            # Sprites, sonidos y portadas
+│   ├── scenes/        # Portada (Boot), hangar (Build) y vuelo (Flight)
+│   ├── systems/       # Física de vuelo, fases, predicción, misiones
+│   ├── data/          # Piezas y reglas de apilado del cohete
+│   ├── entities/      # Dibujo de cada pieza
+│   └── ui/            # HUD de vuelo, controles táctiles y tema visual
 └── main.js            # Punto de entrada de Phaser
 ```
+
+La física vive en `systems/FlightModel.js`: la gravedad se desvanece a medida que el cohete gana velocidad lateral, así que "ir de lado lo bastante rápido" es literalmente lo que lo mantiene en órbita.

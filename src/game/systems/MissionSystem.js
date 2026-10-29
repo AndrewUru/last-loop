@@ -13,23 +13,16 @@ export const MISSIONS = [
   {
     id: "fuel-saver",
     title: "Ahorrador",
-    description: "Llega a la órbita con un 30% de combustible o más.",
+    description: "Llega a la órbita con un 35% de combustible o más.",
     unlocks: ["solid_booster"],
-    check: (flight) => flight.success && flight.fuelPercent >= 30,
-  },
-  {
-    id: "lightweight",
-    title: "Ligero",
-    description: "Llega a la órbita con solo 3 piezas.",
-    unlocks: [],
-    check: (flight) => flight.success && flight.partCount <= 3,
+    check: (flight) => flight.success && flight.fuelPercent >= 35,
   },
   {
     id: "quick",
     title: "Exprés",
-    description: "Llega a la órbita en menos de 70 segundos.",
+    description: "Llega a la órbita en menos de 68 segundos.",
     unlocks: [],
-    check: (flight) => flight.success && flight.time < 70,
+    check: (flight) => flight.success && flight.time < 68,
   },
   {
     id: "heavy",

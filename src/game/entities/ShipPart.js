@@ -141,8 +141,8 @@ export default class ShipPart extends Phaser.GameObjects.Container {
     this.sprite = null;
 
     const padding = this.options.padding;
-    const targetWidth = Math.max(8, width - padding * 2);
-    const targetHeight = Math.max(8, height - padding * 2);
+    const targetWidth = Math.max(Math.min(8, width), width - padding * 2);
+    const targetHeight = Math.max(Math.min(8, height), height - padding * 2);
 
     if (this.part.texture && this.scene.textures.exists(this.part.texture)) {
       const renderTexture = getTrimmedTextureKey(this.scene, this.part.texture);
@@ -155,25 +155,66 @@ export default class ShipPart extends Phaser.GameObjects.Container {
 
       this.sprite = this.scene.add.image(0, 0, renderTexture);
       this.sprite.setDisplaySize(
-        Math.max(8, targetWidth * textureScale),
-        Math.max(8, targetHeight * textureScale),
+        targetWidth * textureScale,
+        targetHeight * textureScale,
       );
       this.sprite.setAlpha(alpha);
       this.addAt(this.sprite, this.options.showPlate ? 1 : 0);
       return;
     }
 
-    this.fallback.lineStyle(2, this.part.stroke, this.options.ghost ? 0.55 : 1);
-    this.fallback.fillStyle(this.part.color, alpha);
-    this.fallback.fillRoundedRect(-targetWidth / 2, -targetHeight / 2, targetWidth, targetHeight, 12);
-    this.fallback.strokeRoundedRect(
-      -targetWidth / 2,
-      -targetHeight / 2,
-      targetWidth,
-      targetHeight,
-      12,
+    this.drawFallbackPart(targetWidth, targetHeight, alpha);
+  }
+
+  // Simple shapes for parts without artwork, as slim as the textured parts.
+  // Only straight edges: Graphics arcs are expensive to redraw in WebGL.
+  drawFallbackPart(width, height, alpha) {
+    const graphics = this.fallback;
+    const bodyWidth = width * 0.56;
+    // Side boosters lean in towards the core so there is no gap between them.
+    const x = -(this.options.side || 0) * width * 0.22;
+    const left = x - bodyWidth / 2;
+    const top = -height / 2;
+    const bottom = height / 2;
+
+    graphics.lineStyle(
+      Math.max(0.3, Math.min(2, bodyWidth * 0.08)),
+      this.part.stroke,
+      this.options.ghost ? 0.55 : 1,
     );
-    this.fallback.fillStyle(this.part.accent, alpha);
-    this.fallback.fillRect(-targetWidth * 0.2, -targetHeight * 0.25, targetWidth * 0.4, targetHeight * 0.14);
+    graphics.fillStyle(this.part.color, alpha);
+
+    if (this.part.type === "aerodynamic") {
+      graphics.fillTriangle(x, top, x + bodyWidth / 2, bottom, left, bottom);
+      graphics.strokeTriangle(x, top, x + bodyWidth / 2, bottom, left, bottom);
+      return;
+    }
+
+    if (this.part.type === "booster") {
+      const nose = Math.min(height * 0.18, bodyWidth * 1.2);
+      const nozzle = height * 0.08;
+      graphics.fillTriangle(x, top, x + bodyWidth / 2, top + nose, left, top + nose);
+      graphics.fillRect(left, top + nose, bodyWidth, height - nose - nozzle);
+      graphics.strokeRect(left, top + nose, bodyWidth, height - nose - nozzle);
+      graphics.fillStyle(this.part.accent, alpha);
+      graphics.fillRect(left, top + nose + height * 0.12, bodyWidth, height * 0.05);
+      graphics.fillStyle(0x3a4654, alpha);
+      graphics.fillRect(x - bodyWidth * 0.35, bottom - nozzle, bodyWidth * 0.7, nozzle);
+      return;
+    }
+
+    const bandTop = this.part.type === "control" ? top + height * 0.2 : top;
+    const bandHeight = this.part.type === "control" ? height * 0.6 : height;
+    graphics.fillRect(left, bandTop, bodyWidth, bandHeight);
+    graphics.strokeRect(left, bandTop, bodyWidth, bandHeight);
+    graphics.fillStyle(this.part.accent, alpha);
+    for (let i = 0; i < 3; i += 1) {
+      graphics.fillRect(
+        left + bodyWidth * (0.14 + i * 0.28),
+        bandTop + bandHeight * 0.35,
+        bodyWidth * 0.16,
+        bandHeight * 0.3,
+      );
+    }
   }
 }

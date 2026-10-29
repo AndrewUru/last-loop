@@ -1,4 +1,5 @@
 import MissionSystem from "../../systems/MissionSystem.js";
+import { UI_FONT } from "../../ui/theme.js";
 
 const BUTTON_WIDTH = 220;
 const BUTTON_HEIGHT = 52;
@@ -9,16 +10,17 @@ export const flightSceneOverlayMethods = {
     this.resultShade = this.add.rectangle(0, 0, 10, 10, 0x05080c, 0.62).setOrigin(0);
     this.resultPanel = this.add.graphics();
     this.resultTitle = this.add
-      .text(0, 0, "", { fontSize: "36px", color: "#f4f7fb", fontStyle: "bold" })
+      .text(0, 0, "", { fontFamily: UI_FONT, fontSize: "36px", color: "#f4f7fb", fontStyle: "bold" })
       .setOrigin(0.5, 0);
     this.resultBody = this.add
-      .text(0, 0, "", { fontSize: "17px", color: "#cad4de", align: "center", lineSpacing: 4 })
+      .text(0, 0, "", { fontFamily: UI_FONT, fontSize: "17px", color: "#cad4de", align: "center", lineSpacing: 4 })
       .setOrigin(0.5, 0);
     this.resultStats = this.add
-      .text(0, 0, "", { fontSize: "16px", color: "#9eb4ca", align: "center" })
+      .text(0, 0, "", { fontFamily: UI_FONT, fontSize: "16px", color: "#9eb4ca", align: "center" })
       .setOrigin(0.5, 0);
     this.resultMissions = this.add
       .text(0, 0, "", {
+        fontFamily: UI_FONT,
         fontSize: "17px",
         color: "#ffd166",
         fontStyle: "bold",
@@ -53,7 +55,7 @@ export const flightSceneOverlayMethods = {
       .setStrokeStyle(2, accent, 0.8)
       .setInteractive({ useHandCursor: true });
     const text = this.add
-      .text(0, 0, label, { fontSize: "18px", color: "#f4f7fb", fontStyle: "bold" })
+      .text(0, 0, label, { fontFamily: UI_FONT, fontSize: "18px", color: "#f4f7fb", fontStyle: "bold" })
       .setOrigin(0.5);
 
     background.on("pointerdown", callback);

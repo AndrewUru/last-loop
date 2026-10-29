@@ -40,8 +40,8 @@ class FlightScene extends Phaser.Scene {
 
   initializeState() {
     Object.assign(this, createFlightRuntimeState(this.input, this.stats));
-    this.onResultPrimary = () => {
-      if (this.resultOverlayVisible) {
+    this.onResultPrimary = (event) => {
+      if (this.resultOverlayVisible && !event?.repeat) {
         this.handleResultPrimaryAction();
       }
     };
@@ -52,6 +52,8 @@ class FlightScene extends Phaser.Scene {
     const bounds = this.stats.bounds || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
     const center = getBuildCenter(bounds);
 
+    this.rocketWidth = (bounds.maxX - bounds.minX) * ROCKET_CELL_SIZE;
+    this.rocketHeight = (bounds.maxY - bounds.minY) * ROCKET_CELL_SIZE;
     this.rocket = this.add.container(0, 0).setDepth(20);
     this.exhaust = this.add.graphics().setDepth(19);
     this.exhaustFire = this.add.graphics().setDepth(18.6);
@@ -76,6 +78,7 @@ class FlightScene extends Phaser.Scene {
           padding: 0,
           showLabel: false,
           showPlate: false,
+          side: part.side,
         },
       );
       this.rocket.add(partView);
@@ -89,6 +92,8 @@ class FlightScene extends Phaser.Scene {
         }
       }
     });
+
+    this.drawLaunchPad();
   }
 
   createHud() {
