@@ -41,6 +41,9 @@ export const FLIGHT_WORLD = {
   turnProfileAltitude: 150,
   turnProfileEndPitch: 10,
   missionTimeout: 300,
+  // Seconds the engines run against the hold-down clamps before liftoff.
+  // Letting go of the thrust on the pad starts the count again.
+  holdDownTime: 0.7,
   gravity: 0.196,
   fuelBurnScale: 1.1,
   fuelMassFactor: 0.16,
@@ -108,6 +111,7 @@ export default class FlightModel {
       guidanceError: 0,
       insertionStarted: false,
       engineOn: false,
+      ignitionTime: 0,
       launched: false,
       result: null,
       failure: null,
@@ -278,8 +282,14 @@ export default class FlightModel {
     state.throttle = state.engineOn ? clamp(controls.throttle ?? 1, 0, 1) : 0;
     state.steerInput = state.launched ? clamp(controls.steer ?? 0, -1, 1) : 0;
 
-    if (!state.launched && state.throttle > 0 && this.getCurrentTwr(state) * state.throttle > 1) {
-      state.launched = true;
+    if (!state.launched) {
+      state.ignitionTime = state.throttle > 0 ? state.ignitionTime + dt : 0;
+      if (
+        state.ignitionTime >= FLIGHT_WORLD.holdDownTime &&
+        this.getCurrentTwr(state) * state.throttle > 1
+      ) {
+        state.launched = true;
+      }
     }
 
     state.atmosphereDensity = clamp(1 - state.altitude / FLIGHT_WORLD.atmosphereHeight, 0, 1);

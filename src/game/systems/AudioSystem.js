@@ -135,6 +135,42 @@ export default class AudioSystem {
     source.start();
   }
 
+  // A deep thump and a crackle when the engines light on the pad.
+  playIgnition() {
+    if (!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const thump = this.ctx.createOscillator();
+    const thumpGain = this.ctx.createGain();
+    thump.type = "sine";
+    thump.frequency.setValueAtTime(70, now);
+    thump.frequency.exponentialRampToValueAtTime(28, now + 0.6);
+    thumpGain.gain.setValueAtTime(0.6, now);
+    thumpGain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+    thump.connect(thumpGain);
+    thumpGain.connect(this.masterGain);
+    thump.start(now);
+    thump.stop(now + 0.7);
+
+    const duration = 0.9;
+    const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 1.5);
+    }
+    const crackle = this.ctx.createBufferSource();
+    crackle.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 1200;
+    const crackleGain = this.ctx.createGain();
+    crackleGain.gain.value = 0.35;
+    crackle.connect(filter);
+    filter.connect(crackleGain);
+    crackleGain.connect(this.masterGain);
+    crackle.start(now);
+  }
+
   playSonicBoom() {
     if (!this.enabled || !this.ctx) return;
     const duration = 0.4;
@@ -193,7 +229,8 @@ export default class AudioSystem {
     if (!this.enabled || !this.ctx || !this.isEnginePlaying) return;
     const t = this.ctx.currentTime;
     const tNorm = Phaser.Math.Clamp(throttle, 0, 1);
-    const altFactor = Phaser.Math.Clamp(altitude / 50000, 0, 1);
+    // Altitude is in km; the roar fades as the air thins out (110 km).
+    const altFactor = Phaser.Math.Clamp(altitude / 110, 0, 1);
     const freq = 60 + tNorm * 140;
     this.engineOsc.frequency.setTargetAtTime(freq, t, 0.1);
     const oscVol = tNorm * 0.12 * (1 - altFactor * 0.4);

@@ -1,10 +1,5 @@
 import Phaser from "phaser";
 import FlightSimulator from "../../systems/FlightSimulator.js";
-import { FIRE_POOL_SIZE, SMOKE_POOL_SIZE } from "./FlightSceneConstants.js";
-
-function createParticlePool(size) {
-  return Array.from({ length: size }, () => ({}));
-}
 
 function createFlightKeys(input) {
   return input.keyboard.addKeys({
@@ -26,10 +21,6 @@ export function createFlightRuntimeState(input, stats) {
     lastPhaseId: null,
     maxAltitude: 0,
     flightTrail: [],
-    smokeParticles: [],
-    fireParticles: [],
-    smokeParticlePool: createParticlePool(SMOKE_POOL_SIZE),
-    fireParticlePool: createParticlePool(FIRE_POOL_SIZE),
     controls: { engineOn: false, throttle: 0, steer: 0 },
     touchControls: { steerLeft: false, steerRight: false, thrust: false },
     cameraState: { initialized: false, x: 0, y: 0, zoom: 1 },

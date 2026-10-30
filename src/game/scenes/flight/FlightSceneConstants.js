@@ -6,9 +6,9 @@ export const TRAJECTORY_REVEAL_ALTITUDE = 30;
 export const PAD_FADE_ALTITUDE = 60;
 export const DAY_SKY_FADE_START_ALTITUDE = 40;
 export const DAY_SKY_FADE_END_ALTITUDE = 160;
-export const LAUNCH_PARTICLE_ALTITUDE = 30;
-export const SMOKE_POOL_SIZE = 64;
-export const FIRE_POOL_SIZE = 40;
+// Sprites kept ready for exhaust particles; fewer are used on phones.
+export const SMOKE_POOL_SIZE = 150;
+export const FIRE_POOL_SIZE = 70;
 // Extra altitude added on screen low down so liftoff reads as fast; it fades
 // out before the orbit band so the orbit is drawn at its true size.
 export const PRESENTATION_BOOST = 40;

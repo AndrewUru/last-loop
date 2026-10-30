@@ -4,6 +4,7 @@ import FlightHud from "../ui/FlightHud.js";
 import FlightTouchControls from "../ui/FlightTouchControls.js";
 import { ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
 import { flightSceneEnvironmentMethods } from "./flight/FlightSceneEnvironment.js";
+import { flightSceneExhaustMethods } from "./flight/FlightSceneExhaust.js";
 import { flightSceneOverlayMethods } from "./flight/FlightSceneOverlay.js";
 import { flightSceneRuntimeMethods } from "./flight/FlightSceneRuntime.js";
 import { createFlightRuntimeState } from "./flight/FlightSceneState.js";
@@ -54,10 +55,7 @@ class FlightScene extends Phaser.Scene {
     this.rocketWidth = image.displayWidth;
 
     this.rocket = this.add.container(0, 0, [image]).setDepth(20);
-    this.exhaust = this.add.graphics().setDepth(19);
-    this.exhaustFire = this.add.graphics().setDepth(18.6);
-    this.exhaustSmoke = this.add.graphics().setDepth(18);
-
+    this.createExhaust();
     this.drawLaunchPad();
   }
 
@@ -119,6 +117,7 @@ class FlightScene extends Phaser.Scene {
 Object.assign(
   FlightScene.prototype,
   flightSceneEnvironmentMethods,
+  flightSceneExhaustMethods,
   flightSceneOverlayMethods,
   flightSceneRuntimeMethods,
 );

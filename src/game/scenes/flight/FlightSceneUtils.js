@@ -8,7 +8,7 @@ import {
 } from "./FlightSceneConstants.js";
 
 // Phaser's WebGL renderer turns every Graphics circle into ~100 points and
-// re-triangulates it on the CPU each frame. Particles and flames draw hundreds
+// re-triangulates it on the CPU each frame. The trajectory line draws hundreds
 // of them, so they use a 12-sided triangle fan instead.
 const DOT_SIDES = 12;
 const DOT_COS = Array.from({ length: DOT_SIDES }, (_, i) => Math.cos((i / DOT_SIDES) * Math.PI * 2));
@@ -59,20 +59,4 @@ export function getRenderPosition(state) {
 
 export function getThrustVisual(state) {
   return state.engineOn && state.fuelRemaining > 0 ? state.throttle : 0;
-}
-
-export function acquireParticle(pool) {
-  return pool.pop() || null;
-}
-
-export function releaseParticle(activeParticles, pool, index) {
-  const lastParticle = activeParticles[activeParticles.length - 1];
-  const particleToRelease = activeParticles[index];
-
-  activeParticles[index] = lastParticle;
-  activeParticles.pop();
-
-  if (particleToRelease) {
-    pool.push(particleToRelease);
-  }
 }

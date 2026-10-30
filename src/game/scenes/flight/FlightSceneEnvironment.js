@@ -146,9 +146,7 @@ export const flightSceneEnvironmentMethods = {
       this.guidanceArrow,
       ...this.cloudLayers.map((layer) => layer.graphics),
       this.rocket,
-      this.exhaust,
-      this.exhaustFire,
-      this.exhaustSmoke,
+      ...this.getExhaustObjects(),
     ];
   },
 
