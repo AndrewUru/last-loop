@@ -313,12 +313,13 @@ export const flightSceneExhaustMethods = {
       const width = baseWidth * (0.7 + 0.3 * level);
       let length = baseLength * level * flicker * (1 + vacuum * 0.6);
 
-      // On the pad the jet hits the ground; the hot gas particles show it splashing out.
+      // Near the pad the jet dives into the flame trench and stops there; the
+      // hot gas particles show it splashing out along the ground.
       const radius = Math.hypot(anchor.x, anchor.y);
       const downward = -(along.x * anchor.x + along.y * anchor.y) / radius;
+      const clearance = radius - FLIGHT_WORLD.planetRadius;
       if (downward > 0.1) {
-        const clearance = radius - FLIGHT_WORLD.planetRadius;
-        length = Math.min(length, clearance / downward + width * 0.6);
+        length = Math.min(length, clearance / downward + width * 2.2);
       }
 
       const plume = (sprite, plumeWidth, plumeLength, color, alpha) =>
@@ -333,13 +334,15 @@ export const flightSceneExhaustMethods = {
       plume(engine.inner, width * 0.75 * (1 + vacuum * 0.9), length * 0.62, fuel.flame, 0.95 * fuel.brightness * level);
       plume(engine.core, width * 0.36, length * 0.32, fuel.core, level * 1.2);
 
-      const glowSize = width * (2.6 + this.ignitionFlash * 5);
+      // The glow is strongest on the pad, where it lights up the ground and the smoke.
+      const onPad = Phaser.Math.Clamp(1 - clearance / this.rocketHeight, 0, 1);
+      const glowSize = width * (2.6 + onPad * 1.6 + this.ignitionFlash * 5);
       engine.glow
         .setVisible(true)
         .setPosition(anchor.x + along.x * width * 0.4, anchor.y + along.y * width * 0.4)
         .setDisplaySize(glowSize, glowSize)
         .setTint(fuel.glow)
-        .setAlpha(Math.min(1, 0.35 * level * fuel.brightness + this.ignitionFlash * 0.9));
+        .setAlpha(Math.min(1, (0.35 + onPad * 0.25) * level * fuel.brightness + this.ignitionFlash * 0.9));
 
       // Shock diamonds: bright knots in the jet, only while the air still squeezes it.
       const diamondAlpha = level * Phaser.Math.Clamp((density - 0.15) / 0.5, 0, 1);
@@ -402,8 +405,12 @@ export const flightSceneExhaustMethods = {
     const { along, across } = this.getExhaustAxes();
     const scale = this.exhaustScale;
     const big = ground > 0;
-    // The ignition burst blasts sideways along the pad instead of down.
-    const speed = big ? Phaser.Math.FloatBetween(90, 200) * scale : Phaser.Math.FloatBetween(10, 30) * scale;
+    // On the pad the jet drives the smoke into the ground; once the rocket is
+    // up, the smoke stays where it was left and builds a column. The ignition
+    // burst blasts sideways along the pad instead of down.
+    const push = ground * ground;
+    const speed =
+      ((big ? Phaser.Math.FloatBetween(90, 200) * push : 0) + Phaser.Math.FloatBetween(10, 30) * (1 - push)) * scale;
     const sideSpeed = sideways ? Phaser.Math.FloatBetween(-1, 1) * speed : Phaser.Math.FloatBetween(-0.35, 0.35) * speed;
     const start = this.rocketHeight * (big ? Phaser.Math.FloatBetween(0.03, 0.25) : Phaser.Math.FloatBetween(0.3, 0.6));
     const jitter = Phaser.Math.FloatBetween(-0.3, 0.3) * this.rocketWidth;
@@ -440,9 +447,9 @@ export const flightSceneExhaustMethods = {
       y: anchor.y,
       vx: along.x * speed + across.x * side,
       vy: along.y * speed + across.y * side,
-      size: Phaser.Math.FloatBetween(2, 4) * scale,
-      endSize: Phaser.Math.FloatBetween(7, 13) * scale,
-      life: Phaser.Math.FloatBetween(0.2, 0.45),
+      size: Phaser.Math.FloatBetween(2.5, 4.5) * scale,
+      endSize: Phaser.Math.FloatBetween(10, 18) * scale,
+      life: Phaser.Math.FloatBetween(0.25, 0.5),
       drag: 3,
       colorStart: fuel.flame,
       colorEnd: fuel.outer,
