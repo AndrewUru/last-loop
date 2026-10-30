@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import {
   ROCKETS,
   describeChallenge,
+  getPatchTextureKey,
   getRocketTextureKey,
   loadSelectedRocketId,
   saveSelectedRocketId,
@@ -279,7 +280,16 @@ export default class HangarScene extends Phaser.Scene {
     this.challengeCard = { x: info.x + pad, y, width: innerWidth, maxHeight: info.y + info.height - pad - y, pad: cardPad };
     this.challengeFrame = this.add.graphics();
     const textX = this.challengeCard.x + cardPad;
-    const textWidth = innerWidth - cardPad * 2;
+    // The mission patch sits in the card's top right corner; the text wraps beside it.
+    this.patchSize = small ? 48 : 72;
+    this.challengePatch = this.add
+      .image(
+        this.challengeCard.x + innerWidth - cardPad - this.patchSize / 2,
+        y + cardPad + this.patchSize / 2,
+        getPatchTextureKey(ROCKETS[0]),
+      )
+      .setDisplaySize(this.patchSize, this.patchSize);
+    const textWidth = innerWidth - cardPad * 2 - this.patchSize - 8;
     this.challengeLabel = addText(this, textX, y + cardPad - 2, "", {
       size: small ? 11 : 12,
       bold: true,
@@ -482,8 +492,19 @@ export default class HangarScene extends Phaser.Scene {
     this.challengeBody.setText(body).setY(this.challengeTitle.y + this.challengeTitle.height + 4);
     this.challengeFooter.setText(footer).setY(this.challengeBody.y + this.challengeBody.height + (small ? 6 : 10));
 
+    // In colour once earned, faded while it is still to win, a shadow while locked.
+    this.challengePatch.setTexture(getPatchTextureKey(rocket)).setDisplaySize(this.patchSize, this.patchSize);
+    if (!unlocked) {
+      this.challengePatch.setTintFill(0x2a3a4c).setAlpha(1);
+    } else if (done) {
+      this.challengePatch.clearTint().setAlpha(1);
+    } else {
+      this.challengePatch.setTint(0x8a96a3).setAlpha(0.55);
+    }
+
     const last = footer ? this.challengeFooter : this.challengeBody;
-    const height = Math.min(last.y + last.height + card.pad - card.y, card.maxHeight);
+    const textBottom = Math.max(last.y + last.height, card.y + card.pad + this.patchSize);
+    const height = Math.min(textBottom + card.pad - card.y, card.maxHeight);
     this.challengeFrame.clear();
     this.challengeFrame.fillStyle(done ? 0x2a2a14 : 0x101c28, 1);
     this.challengeFrame.fillRoundedRect(card.x, card.y, card.width, height, 10);

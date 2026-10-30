@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { ART } from "../../data/art.js";
 import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 import { FLAT_GROUND_SCALE, STAR_COUNT } from "./FlightSceneConstants.js";
 import { getPresentationAltitude } from "./FlightSceneUtils.js";
@@ -33,6 +34,9 @@ export const flightSceneEnvironmentMethods = {
 
   createWorld() {
     this.planetBody = this.add.graphics().setDepth(-18);
+    // The painted Earth takes over from the drawn planet once it is round.
+    const earthSize = FLIGHT_WORLD.planetRadius * 2 * ART.earth.haloScale;
+    this.earthImage = this.add.image(0, 0, ART.earth.key).setDisplaySize(earthSize, earthSize).setDepth(-17.5).setAlpha(0);
     this.planetAtmosphere = this.add.graphics().setDepth(-17);
     this.orbitGuides = this.add.graphics().setDepth(-14);
     this.trailGraphics = this.add.graphics().setDepth(8);
@@ -132,22 +136,19 @@ export const flightSceneEnvironmentMethods = {
     this.orbitGuides.strokeCircle(0, 0, renderRadius(FLIGHT_WORLD.orbitMinAltitude));
   },
 
+  // The tower stands left of the rocket with its access arms reaching it.
   drawLaunchPad() {
     const surface = -FLIGHT_WORLD.planetRadius;
-    const towerX = this.rocketWidth / 2 + 3;
-    const towerHeight = this.rocketHeight * 0.85;
+    this.launchTower = this.add
+      .image(-this.rocketWidth / 2 - 0.5, surface, ART.launchTower.key)
+      .setOrigin(1, 1)
+      .setDepth(11);
+    this.launchTower.setScale((this.rocketHeight * 1.05) / this.launchTower.height);
+    const towerLeft = this.launchTower.x - this.launchTower.displayWidth;
 
     this.pad.clear();
     this.pad.fillStyle(0x3a4654, 1);
-    this.pad.fillRect(-this.rocketWidth / 2 - 8, surface - 1.5, this.rocketWidth + 16, 3);
-    this.pad.fillStyle(0x56677a, 1);
-    this.pad.fillRect(towerX, surface - towerHeight, 2.5, towerHeight);
-    this.pad.lineStyle(0.6, 0x8fa5b8, 0.9);
-    for (let y = surface; y > surface - towerHeight + 3; y -= 4) {
-      this.pad.lineBetween(towerX, y, towerX + 2.5, y - 4);
-    }
-    this.pad.fillStyle(0xc0392b, 1);
-    this.pad.fillRect(towerX - 0.5, surface - towerHeight - 1.5, 3.5, 1.5);
+    this.pad.fillRect(towerLeft - 4, surface - 1.5, this.rocketWidth / 2 + 8 - towerLeft + 4, 3);
   },
 
   createUiCamera() {
@@ -177,11 +178,13 @@ export const flightSceneEnvironmentMethods = {
   getWorldObjects() {
     return [
       this.planetBody,
+      this.earthImage,
       this.planetAtmosphere,
       this.orbitGuides,
       this.trailGraphics,
       this.trajectoryGraphics,
       this.pad,
+      this.launchTower,
       this.guidanceArrow,
       ...this.cloudLayers.map((layer) => layer.graphics),
       this.rocket,

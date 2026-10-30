@@ -69,23 +69,26 @@ Requiere **Node.js** v18 o superior.
 src/
 ├── game/
 │   ├── scenes/        # Portada (Boot), hangar (Hangar) y vuelo (Flight)
-│   ├── systems/       # Física de vuelo, fases, predicción, retos
-│   ├── data/          # Los cohetes: estadísticas, datos reales y retos
+│   ├── systems/       # Física de vuelo, fases, predicción, misiones
+│   ├── data/          # Los cohetes: estadísticas, datos reales y misiones; arte compartido
 │   └── ui/            # HUD de vuelo, controles táctiles y tema visual
 └── main.js            # Punto de entrada de Phaser
-art/rockets/           # Ilustraciones originales (no se publican)
-public/assets/rockets/ # Ilustraciones recortadas que carga el juego
+art/                   # Ilustraciones originales: cohetes, parches, Tierra y torre (no se publican)
+public/assets/rockets/ # Cohetes recortados que carga el juego
+public/assets/patches/ # Parches de misión, uno por cohete
+public/assets/world/   # La Tierra y la torre de lanzamiento
 tools/                 # Script para preparar las ilustraciones
 ```
 
 ### Añadir o cambiar un cohete
 
-1. Guarda la ilustración original en `art/rockets/` (PNG con fondo transparente, morro hacia arriba).
-2. Prepárala para el juego (necesita Python con Pillow):
+1. Guarda la ilustración original en `art/rockets/` (PNG con fondo transparente, morro hacia arriba) y su parche de misión en `art/patches/`.
+2. Prepáralos para el juego (necesita Python con Pillow):
    ```bash
-   python tools/prepare_rocket_art.py "art/rockets/Mi cohete.png" mi-cohete
+   python tools/prepare_art.py "art/rockets/Mi cohete.png" public/assets/rockets/mi-cohete.png --height 768
+   python tools/prepare_art.py "art/patches/Mi parche.png" public/assets/patches/mi-cohete.webp --box 320
    ```
-   Recorta el margen transparente y la reduce a 768 px de alto en `public/assets/rockets/mi-cohete.png`.
+   El script recorta el margen transparente y reduce la imagen (a 768 px de alto, o dentro de un cuadrado de 320 px).
 3. Añádelo a la lista de `src/game/data/rockets.js` con el mismo `id`. El orden de la lista es el orden de desbloqueo.
 
 La física vive en `systems/FlightModel.js`: la gravedad se desvanece a medida que el cohete gana velocidad lateral, así que "ir de lado lo bastante rápido" es literalmente lo que lo mantiene en órbita.

@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { MAX_Q_TOLERANCE, formatSpeed } from "../../data/rockets.js";
+import { MAX_Q_TOLERANCE, formatSpeed, getPatchTextureKey } from "../../data/rockets.js";
 import FlightPredictor from "../../systems/FlightPredictor.js";
 import { UI_FONT, formatSeconds } from "../../ui/theme.js";
 import { FX_TEXTURES } from "./FlightSceneExhaust.js";
@@ -61,7 +61,7 @@ export const flightSceneMissionMethods = {
   },
 
   getMissionUiObjects() {
-    return this.missionChips.map((chip) => chip.text);
+    return [this.missionPatch, ...this.missionChips.map((chip) => chip.text)];
   },
 
   // Spots along the perfect climb between two shares of its height, nudged
@@ -324,6 +324,7 @@ export const flightSceneMissionMethods = {
     if (challenge.maxTime) kinds.push("time");
     if (challenge.minFuel) kinds.push("fuel");
 
+    this.missionPatch = this.add.image(0, 0, getPatchTextureKey(this.rocketDef)).setScrollFactor(0).setDepth(41);
     this.missionChips = kinds.map((kind) => ({
       kind,
       text: this.add
@@ -402,34 +403,47 @@ export const flightSceneMissionMethods = {
     }
   },
 
-  // A centred row of chips under the HUD panel, wrapping onto more rows on
-  // narrow screens. The camera keeps the rocket below it.
+  // A centred row under the HUD panel, the mission patch first, wrapping onto
+  // more rows on narrow screens. The camera keeps the rocket below it.
   layoutMissionTracker() {
     const hud = this.hud.panelBounds;
     const { width } = this.scale;
     const gap = 6;
     const maxWidth = Math.min(width - 20, Math.max(hud.width, 600));
+    const chipHeight = this.missionChips[0].text.height;
+    const patchSize = chipHeight + 12;
+    this.missionPatch.setDisplaySize(patchSize, patchSize);
+    const items = [
+      { node: this.missionPatch, width: patchSize, height: patchSize },
+      ...this.missionChips.map((chip) => ({ node: chip.text, width: chip.text.width, height: chip.text.height })),
+    ];
+
     const rows = [[]];
     let rowWidth = 0;
-    this.missionChips.forEach((chip) => {
-      const chipWidth = chip.text.width;
-      if (rows[rows.length - 1].length > 0 && rowWidth + gap + chipWidth > maxWidth) {
+    items.forEach((item) => {
+      if (rows[rows.length - 1].length > 0 && rowWidth + gap + item.width > maxWidth) {
         rows.push([]);
         rowWidth = 0;
       }
-      rowWidth += (rowWidth > 0 ? gap : 0) + chipWidth;
-      rows[rows.length - 1].push(chip);
+      rowWidth += (rowWidth > 0 ? gap : 0) + item.width;
+      rows[rows.length - 1].push(item);
     });
 
-    let y = hud.y + hud.height + 8;
+    let y = hud.y + hud.height + 6;
     rows.forEach((row) => {
-      const total = row.reduce((sum, chip) => sum + chip.text.width, 0) + gap * (row.length - 1);
+      const total = row.reduce((sum, item) => sum + item.width, 0) + gap * (row.length - 1);
+      const rowHeight = Math.max(...row.map((item) => item.height));
       let x = (width - total) / 2;
-      row.forEach((chip) => {
-        chip.text.setPosition(x, y);
-        x += chip.text.width + gap;
+      row.forEach((item) => {
+        // The patch is centred on its spot; text chips hang from their top left.
+        if (item.node === this.missionPatch) {
+          item.node.setPosition(x + item.width / 2, y + rowHeight / 2);
+        } else {
+          item.node.setPosition(x, y + (rowHeight - item.height) / 2);
+        }
+        x += item.width + gap;
       });
-      y += row[0].text.height + gap;
+      y += rowHeight + gap;
     });
     this.missionTrackerBottom = y - gap;
   },

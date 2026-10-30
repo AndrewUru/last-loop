@@ -1,4 +1,4 @@
-import { describeChallenge } from "../../data/rockets.js";
+import { describeChallenge, getPatchTextureKey } from "../../data/rockets.js";
 import MissionSystem from "../../systems/MissionSystem.js";
 import { UI_FONT, formatSeconds } from "../../ui/theme.js";
 
@@ -35,10 +35,13 @@ export const flightSceneOverlayMethods = {
     this.resultPrimaryButton = this.createOverlayButton("", 0x73f7c0, () =>
       this.handleResultPrimaryAction(),
     );
+    // The mission patch, pinned to the top edge of the panel like a badge.
+    this.resultPatch = this.add.image(0, 0, getPatchTextureKey(this.rocketDef));
 
     this.resultOverlay.add([
       this.resultShade,
       this.resultPanel,
+      this.resultPatch,
       this.resultTitle,
       this.resultBody,
       this.resultStats,
@@ -67,12 +70,16 @@ export const flightSceneOverlayMethods = {
 
   layoutMissionOverlay(width, height) {
     const compact = width < 560;
+    const badge = compact ? 84 : 104;
+    // The lower half of the badge sits inside the panel and pushes the text down.
+    const shift = badge / 2 - 6;
     const panelWidth = Math.min(620, width - 24);
-    const panelHeight = Math.min(compact ? 440 : 400, height - 24);
+    const panelHeight = Math.min((compact ? 440 : 400) + shift, height - 24 - badge / 2);
     const left = (width - panelWidth) / 2;
-    const top = (height - panelHeight) / 2;
+    const top = (height - panelHeight + badge / 2) / 2;
     const centerX = width / 2;
     const textWidth = panelWidth - 48;
+    this.resultPatch.setPosition(centerX, top).setDisplaySize(badge, badge);
 
     this.resultShade.setSize(width, height);
     this.resultPanel.clear();
@@ -81,16 +88,16 @@ export const flightSceneOverlayMethods = {
     this.resultPanel.lineStyle(2, this.resultAccent ?? 0x82b6ff, 0.5);
     this.resultPanel.strokeRoundedRect(left, top, panelWidth, panelHeight, 18);
 
-    this.resultTitle.setFontSize(compact ? 28 : 36).setPosition(centerX, top + 26);
+    this.resultTitle.setFontSize(compact ? 28 : 36).setPosition(centerX, top + shift + 26);
     this.resultBody
       .setFontSize(compact ? 15 : 17)
       .setWordWrapWidth(textWidth)
-      .setPosition(centerX, top + (compact ? 70 : 82));
-    this.resultStats.setFontSize(compact ? 14 : 16).setPosition(centerX, top + (compact ? 160 : 160));
+      .setPosition(centerX, top + shift + (compact ? 70 : 82));
+    this.resultStats.setFontSize(compact ? 14 : 16).setPosition(centerX, top + shift + 160);
     this.resultMissions
       .setFontSize(compact ? 15 : 17)
       .setWordWrapWidth(textWidth)
-      .setPosition(centerX, top + (compact ? 196 : 200));
+      .setPosition(centerX, top + shift + (compact ? 196 : 200));
 
     const buttonY = top + panelHeight - BUTTON_HEIGHT / 2 - 22;
     const buttonWidth = Math.min(BUTTON_WIDTH, (panelWidth - 60) / 2);
@@ -149,6 +156,24 @@ export const flightSceneOverlayMethods = {
     this.layoutMissionOverlay(this.scale.width, this.scale.height);
     this.resultOverlay.setVisible(true);
     this.resultOverlayVisible = true;
+    this.showResultPatch(result.challenge);
+  },
+
+  // Earned now: the patch pops in. Earned before: shown as is. Not earned: faded.
+  showResultPatch({ achieved, completed }) {
+    const patch = this.resultPatch;
+    this.tweens.killTweensOf(patch);
+    patch.setAngle(0);
+    if (!achieved) {
+      patch.setTint(0x8a96a3).setAlpha(0.6);
+      return;
+    }
+    patch.clearTint().setAlpha(1);
+    if (completed) {
+      const scale = patch.scale;
+      patch.setScale(0).setAngle(-25);
+      this.tweens.add({ targets: patch, scale, angle: 0, duration: 650, ease: "Back.easeOut" });
+    }
   },
 
   handleResultPrimaryAction() {

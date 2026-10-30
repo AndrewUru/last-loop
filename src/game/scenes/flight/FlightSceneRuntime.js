@@ -286,6 +286,10 @@ export const flightSceneRuntimeMethods = {
     const renderAltitude = Math.hypot(this.rocket.x, this.rocket.y) - FLIGHT_WORLD.planetRadius;
     const curve = smoothstep((renderAltitude - GROUND_CURVE_START) / (GROUND_CURVE_END - GROUND_CURVE_START));
     this.setGroundCurve(Math.max(this.groundCurve, curve));
+    const earth = smoothstep((this.groundCurve - 0.8) / 0.2);
+    this.earthImage.setAlpha(earth);
+    // The painted Earth has its own halo; the drawn haze would only tint it.
+    this.planetAtmosphere.setAlpha(1 - earth * 0.7);
 
     this.spaceShade.setAlpha(spaceProgress * 0.96);
     const starAlpha = spaceProgress * spaceProgress;
@@ -293,6 +297,7 @@ export const flightSceneRuntimeMethods = {
     // The guide rings are drawn around the real planet, so they wait for it.
     this.orbitGuides.setAlpha((0.2 + guideProgress * 0.8) * this.groundCurve);
     this.pad.setAlpha(padFade);
+    this.launchTower.setAlpha(padFade);
     this.cloudLayers.forEach((layer) => layer.graphics.setAlpha(cloudAlpha));
   },
 

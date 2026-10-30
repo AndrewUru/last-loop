@@ -3,8 +3,9 @@ const SELECTED_KEY = "last-loop-rocket";
 // The rockets the hangar offers, in unlock order. Beating a rocket's
 // challenge unlocks the next one.
 //
-// Art: public/assets/rockets/<id>.png, made from the source illustration in
-// art/rockets with tools/prepare_rocket_art.py (it crops and shrinks it).
+// Art: public/assets/rockets/<id>.png and the mission patch
+// public/assets/patches/<id>.webp, made from the source illustrations in art/
+// with tools/prepare_art.py (it crops and shrinks them).
 // `height` is how tall the rocket is drawn, in flight cells; the width follows
 // the image. `engines` are the plumes: `x` from -0.5 (left edge of the image)
 // to 0.5 (right edge) and the propellant they burn, which sets the colour of
@@ -165,6 +166,14 @@ export function getRocketTextureKey(rocket) {
 
 export function getRocketImagePath(rocket) {
   return `assets/rockets/${rocket.id}.png`;
+}
+
+export function getPatchTextureKey(rocket) {
+  return `patch-${rocket.id}`;
+}
+
+export function getPatchImagePath(rocket) {
+  return `assets/patches/${rocket.id}.webp`;
 }
 
 const TARGET_NAMES = { rings: ["anillo", "anillos"], parts: ["pieza", "piezas"] };

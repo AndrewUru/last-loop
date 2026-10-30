@@ -1,5 +1,12 @@
 import Phaser from "phaser";
-import { ROCKETS, getRocketImagePath, getRocketTextureKey } from "../data/rockets.js";
+import { ART } from "../data/art.js";
+import {
+  ROCKETS,
+  getPatchImagePath,
+  getPatchTextureKey,
+  getRocketImagePath,
+  getRocketTextureKey,
+} from "../data/rockets.js";
 import AudioSystem from "../systems/AudioSystem.js";
 import MissionSystem from "../systems/MissionSystem.js";
 import { UI_COLORS, addText } from "../ui/theme.js";
@@ -16,7 +23,11 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    ROCKETS.forEach((rocket) => this.load.image(getRocketTextureKey(rocket), getRocketImagePath(rocket)));
+    ROCKETS.forEach((rocket) => {
+      this.load.image(getRocketTextureKey(rocket), getRocketImagePath(rocket));
+      this.load.image(getPatchTextureKey(rocket), getPatchImagePath(rocket));
+    });
+    Object.values(ART).forEach((art) => this.load.image(art.key, art.path));
   }
 
   create() {
@@ -24,10 +35,11 @@ export default class BootScene extends Phaser.Scene {
     const compact = width < 700;
 
     // The game renders without antialiasing, which turns scaled-down artwork
-    // into jagged pixels; rockets are smooth images, so filter them.
-    ROCKETS.forEach((rocket) => {
-      this.textures.get(getRocketTextureKey(rocket)).setFilter(Phaser.Textures.FilterMode.LINEAR);
-    });
+    // into jagged pixels; the artwork is smooth images, so filter it.
+    [
+      ...ROCKETS.flatMap((rocket) => [getRocketTextureKey(rocket), getPatchTextureKey(rocket)]),
+      ...Object.values(ART).map((art) => art.key),
+    ].forEach((key) => this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR));
 
     this.audio = this.registry.get("audio") || new AudioSystem();
     this.audio.init();
@@ -80,14 +92,17 @@ export default class BootScene extends Phaser.Scene {
       stars.fillRect(Phaser.Math.Between(0, width), Phaser.Math.Between(0, height), 2, 2);
     }
 
-    const planet = this.add.graphics();
     const radius = Math.max(width, height) * 0.55;
-    planet.fillStyle(0x52d9ff, 0.12);
-    planet.fillCircle(width * 0.72, height + radius * 0.62, radius + 26);
-    planet.fillStyle(0x1f5f8e, 1);
-    planet.fillCircle(width * 0.72, height + radius * 0.62, radius);
-    planet.lineStyle(3, UI_COLORS.accent, 0.5);
-    planet.strokeCircle(width * 0.72, height + radius * 0.62, radius + 90);
+    const planetX = width * 0.72;
+    const planetY = height + radius * 0.62;
+    const glow = this.add.graphics();
+    glow.fillStyle(0x52d9ff, 0.12);
+    glow.fillCircle(planetX, planetY, radius + 26);
+    const size = radius * 2 * ART.earth.haloScale;
+    this.add.image(planetX, planetY, ART.earth.key).setDisplaySize(size, size);
+    const orbit = this.add.graphics();
+    orbit.lineStyle(3, UI_COLORS.accent, 0.5);
+    orbit.strokeCircle(planetX, planetY, radius + 90);
   }
 
   // The whole collection standing side by side; locked rockets are silhouettes.
