@@ -6,6 +6,13 @@ export const TRAJECTORY_REVEAL_ALTITUDE = 30;
 export const PAD_FADE_ALTITUDE = 60;
 export const DAY_SKY_FADE_START_ALTITUDE = 40;
 export const DAY_SKY_FADE_END_ALTITUDE = 160;
+// The planet is small next to the rocket, so on the pad its edge would curve
+// on screen. There the ground is drawn as a circle this many times larger,
+// touching the pad (a flat horizon), and it bends into the real planet while
+// the camera pulls back between these rendered altitudes.
+export const FLAT_GROUND_SCALE = 40;
+export const GROUND_CURVE_START = 2;
+export const GROUND_CURVE_END = 30;
 // Sprites kept ready for exhaust particles; fewer are used on phones.
 export const SMOKE_POOL_SIZE = 150;
 export const FIRE_POOL_SIZE = 70;

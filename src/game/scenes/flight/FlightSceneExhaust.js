@@ -1,5 +1,4 @@
 import Phaser from "phaser";
-import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 import { DAY_SKY_FADE_END_ALTITUDE, FIRE_POOL_SIZE, SMOKE_POOL_SIZE } from "./FlightSceneConstants.js";
 import { getThrustVisual } from "./FlightSceneUtils.js";
 
@@ -329,9 +328,10 @@ export const flightSceneExhaustMethods = {
 
       // Near the pad the jet dives into the flame trench and stops there; the
       // hot gas particles show it splashing out along the ground.
-      const radius = Math.hypot(anchor.x, anchor.y);
-      const downward = -(along.x * anchor.x + along.y * anchor.y) / radius;
-      const clearance = radius - FLIGHT_WORLD.planetRadius;
+      const { centerY, radius: groundRadius } = this.groundShape;
+      const fromCenter = Math.hypot(anchor.x, anchor.y - centerY);
+      const downward = -(along.x * anchor.x + along.y * (anchor.y - centerY)) / fromCenter;
+      const clearance = fromCenter - groundRadius;
       if (downward > 0.1) {
         length = Math.min(length, clearance / downward + width * 2.2);
       }
@@ -542,18 +542,20 @@ export const flightSceneExhaustMethods = {
     );
   },
 
-  // Keeps a particle above the ground; anything moving into it is turned
-  // sideways, which is what spreads the launch clouds along the pad.
+  // Keeps a particle above the ground as it is drawn (flat near the pad);
+  // anything moving into it is turned sideways, which is what spreads the
+  // launch clouds along the pad.
   keepAboveGround(particle, floorOffset) {
-    const radius = Math.hypot(particle.x, particle.y);
-    const floor = FLIGHT_WORLD.planetRadius + floorOffset;
-    if (radius >= floor || radius === 0) {
+    const { centerY, radius } = this.groundShape;
+    const distance = Math.hypot(particle.x, particle.y - centerY);
+    const floor = radius + floorOffset;
+    if (distance >= floor || distance === 0) {
       return;
     }
-    const nx = particle.x / radius;
-    const ny = particle.y / radius;
+    const nx = particle.x / distance;
+    const ny = (particle.y - centerY) / distance;
     particle.x = nx * floor;
-    particle.y = ny * floor;
+    particle.y = centerY + ny * floor;
     const into = particle.vx * nx + particle.vy * ny;
     if (into >= 0) {
       return;

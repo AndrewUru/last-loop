@@ -1,9 +1,13 @@
 import Phaser from "phaser";
 import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
-import { STAR_COUNT } from "./FlightSceneConstants.js";
+import { FLAT_GROUND_SCALE, STAR_COUNT } from "./FlightSceneConstants.js";
 import { getPresentationAltitude } from "./FlightSceneUtils.js";
 
 const STAR_TINTS = [0xffffff, 0xdbeaff, 0xfff4e0, 0xcfe0ff];
+// While the ground is nearly flat only the stretch around the pad can be on
+// screen, so the arc is cut to this half-width.
+const GROUND_HALF_WIDTH = 4000;
+const GROUND_SEGMENTS = 160;
 
 function renderRadius(altitude) {
   return FLIGHT_WORLD.planetRadius + getPresentationAltitude(altitude);
@@ -37,7 +41,8 @@ export const flightSceneEnvironmentMethods = {
     this.guidanceArrow = this.add.graphics().setDepth(24);
     this.cloudLayers = [];
 
-    this.drawPlanetBody();
+    this.groundCurve = -1;
+    this.setGroundCurve(0);
     this.drawOrbitGuides();
     this.createCloudLayers();
   },
@@ -63,24 +68,58 @@ export const flightSceneEnvironmentMethods = {
     });
   },
 
-  drawPlanetBody() {
-    const radius = FLIGHT_WORLD.planetRadius;
+  // reveal: 0 draws a flat horizon at the pad, 1 the real planet. Blending the
+  // curvature rather than the radius makes the ground bend evenly.
+  setGroundCurve(reveal) {
+    if (reveal === this.groundCurve || (reveal < 1 && Math.abs(reveal - this.groundCurve) < 0.002)) {
+      return;
+    }
+    this.groundCurve = reveal;
+    const planetRadius = FLIGHT_WORLD.planetRadius;
+    const radius =
+      1 / Phaser.Math.Linear(1 / (planetRadius * FLAT_GROUND_SCALE), 1 / planetRadius, reveal);
+    // The circle always touches the pad, so its centre drops as it flattens.
+    this.groundShape = { centerY: radius - planetRadius, radius };
+    this.drawPlanetBody(reveal);
+  },
+
+  // Filled shapes only: translucent strokes leave seams where segments overlap.
+  drawPlanetBody(reveal) {
+    const { centerY, radius } = this.groundShape;
+    const span = Math.min(Math.PI, GROUND_HALF_WIDTH / radius);
+    const arc = (offset, from, to) =>
+      Array.from({ length: GROUND_SEGMENTS + 1 }, (_, index) => {
+        const angle = from + ((to - from) * index) / GROUND_SEGMENTS;
+        return { x: Math.sin(angle) * (radius + offset), y: centerY - Math.cos(angle) * (radius + offset) };
+      });
+    const disc = (graphics, offset) => graphics.fillPoints(arc(offset, -span, span), true);
+    // A band along the surface, in two halves so each one is a simple shape.
+    const band = (graphics, inner, outer) => {
+      [
+        [-span, 0],
+        [0, span],
+      ].forEach(([from, to]) => graphics.fillPoints([...arc(outer, from, to), ...arc(inner, to, from)], true));
+    };
 
     this.planetAtmosphere.clear();
     this.planetAtmosphere.fillStyle(0x52d9ff, 0.12);
-    this.planetAtmosphere.fillCircle(0, 0, radius + 26);
-    this.planetAtmosphere.lineStyle(14, 0x7ee6ff, 0.22);
-    this.planetAtmosphere.strokeCircle(0, 0, radius + 8);
+    disc(this.planetAtmosphere, 26);
+    this.planetAtmosphere.fillStyle(0x7ee6ff, 0.22);
+    band(this.planetAtmosphere, 1, 15);
 
     this.planetBody.clear();
     this.planetBody.fillStyle(0x1f5f8e, 1);
-    this.planetBody.fillCircle(0, 0, radius);
-    this.planetBody.fillStyle(0x2b7bb1, 0.22);
-    this.planetBody.fillCircle(0, -radius * 0.12, radius * 0.78);
-    this.planetBody.fillStyle(0x153d5b, 0.28);
-    this.planetBody.fillCircle(radius * 0.12, radius * 0.22, radius * 0.82);
-    this.planetBody.lineStyle(6, 0xb9f2ff, 0.12);
-    this.planetBody.strokeCircle(0, 0, radius - 3);
+    disc(this.planetBody, 0);
+    // Shading that makes it read as a globe; it only matters once it is round.
+    if (reveal > 0) {
+      const planetRadius = FLIGHT_WORLD.planetRadius;
+      this.planetBody.fillStyle(0x2b7bb1, 0.22 * reveal);
+      this.planetBody.fillCircle(0, -planetRadius * 0.12, planetRadius * 0.78);
+      this.planetBody.fillStyle(0x153d5b, 0.28 * reveal);
+      this.planetBody.fillCircle(planetRadius * 0.12, planetRadius * 0.22, planetRadius * 0.82);
+    }
+    this.planetBody.fillStyle(0xb9f2ff, 0.12);
+    band(this.planetBody, -6, 0);
   },
 
   // The green ring is the orbit line the HUD talks about; the faint one is
