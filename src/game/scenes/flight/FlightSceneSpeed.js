@@ -58,8 +58,8 @@ export const flightSceneSpeedMethods = {
       if (across >= 1) {
         return [255, 0];
       }
-      const shell = 0.3 + 0.7 * across ** 3;
-      return [255, shell * (1 - across ** 10) * (1 - v) ** 0.7 * Math.min(1, v / 0.08)];
+      const shell = 0.35 + 0.65 * across ** 2.5;
+      return [255, shell * (1 - across ** 16) * (1 - v) ** 0.4 * Math.min(1, v / 0.08)];
     });
     this.vaporCone = this.add
       .image(0, 0, VAPOR_TEXTURE)
@@ -175,8 +175,8 @@ export const flightSceneSpeedMethods = {
       .setRotation(rotation)
       .setDisplaySize(
         Math.max(this.rocketWidth * 2.6, this.rocketHeight * 0.45) * (1 + (1 - life) * 0.6),
-        this.rocketHeight * 0.45,
+        this.rocketHeight * 0.55,
       )
-      .setAlpha(0.95 * life);
+      .setAlpha(life);
   },
 };
