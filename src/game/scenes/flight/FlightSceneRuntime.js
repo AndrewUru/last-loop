@@ -107,11 +107,14 @@ export const flightSceneRuntimeMethods = {
     const success = state.result === "success";
     const fuelPercent =
       this.stats.fuel > 0 ? Math.round((state.fuelRemaining / this.stats.fuel) * 100) : 0;
+    // The state keeps ticking while the orbit settles, so freeze the time the
+    // challenge is judged on and show that same number.
+    const time = state.time;
     const challenge = MissionSystem.recordFlight({
       rocketId: this.rocketDef.id,
       success,
       fuelPercent,
-      time: state.time,
+      time,
     });
 
     if (state.failure === FLIGHT_PHASES.CRASHED) {
@@ -123,7 +126,7 @@ export const flightSceneRuntimeMethods = {
       this.showMissionOverlay({
         success,
         reason: state.reason,
-        time: state.time,
+        time,
         fuelPercent,
         maxAltitude: this.maxAltitude || state.altitude,
         challenge,

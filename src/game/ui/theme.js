@@ -28,6 +28,11 @@ export function addText(scene, x, y, text, { size = 16, color = UI_COLORS.text, 
   });
 }
 
+// One decimal, so a time just under a challenge limit never rounds up to it.
+export function formatSeconds(seconds) {
+  return `${seconds.toFixed(1).replace(".", ",")} s`;
+}
+
 export function drawPanel(graphics, x, y, width, height, { radius = 14, alpha = 0.85, edgeAlpha = 0.22 } = {}) {
   graphics.fillStyle(UI_COLORS.panel, alpha);
   graphics.fillRoundedRect(x, y, width, height, radius);

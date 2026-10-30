@@ -1,6 +1,6 @@
 import { describeChallenge } from "../../data/rockets.js";
 import MissionSystem from "../../systems/MissionSystem.js";
-import { UI_FONT } from "../../ui/theme.js";
+import { UI_FONT, formatSeconds } from "../../ui/theme.js";
 
 const BUTTON_WIDTH = 220;
 const BUTTON_HEIGHT = 52;
@@ -114,7 +114,7 @@ export const flightSceneOverlayMethods = {
     this.resultBody.setText(result.reason);
     this.resultStats.setText(
       [
-        `Tiempo ${result.time.toFixed(0)} s`,
+        `Tiempo ${formatSeconds(result.time)}`,
         `Altura máx. ${Math.round(result.maxAltitude)} km`,
         `Combustible ${result.fuelPercent}%`,
       ].join("     "),

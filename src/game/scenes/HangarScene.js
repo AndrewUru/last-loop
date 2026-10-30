@@ -8,7 +8,7 @@ import {
 } from "../data/rockets.js";
 import FlightPredictor from "../systems/FlightPredictor.js";
 import MissionSystem from "../systems/MissionSystem.js";
-import { UI_COLORS, addText, drawPanel } from "../ui/theme.js";
+import { UI_COLORS, addText, drawPanel, formatSeconds } from "../ui/theme.js";
 
 const TALLEST = Math.max(...ROCKETS.map((rocket) => rocket.height));
 const SILHOUETTE = 0x1c2c3d;
@@ -143,7 +143,8 @@ export default class HangarScene extends Phaser.Scene {
       addText(this, header.x + pad, header.y + 28, "Elige tu cohete", { size: 22, bold: true });
     }
 
-    const stars = ROCKETS.map((rocket) => (completed.includes(rocket.id) ? "★" : "☆")).join(compact ? "" : " ");
+    // A row of stars does not fit next to the title on a phone.
+    const stars = compact ? "★" : ROCKETS.map((rocket) => (completed.includes(rocket.id) ? "★" : "☆")).join(" ");
     const right = header.x + header.width - pad;
     const count = addText(this, right, header.y + header.height / 2, `${completed.length}/${ROCKETS.length}`, {
       size: small ? 13 : 15,
@@ -235,7 +236,9 @@ export default class HangarScene extends Phaser.Scene {
       background.on("pointerout", () => background.setFillStyle(UI_COLORS.panel, 0.85));
 
       const image = this.add.image(centerX, thumbs.y + 6 + imageArea, getRocketTextureKey(rocket)).setOrigin(0.5, 1);
-      image.setScale(Math.min((imageArea * (rocket.height / TALLEST)) / image.height, (cellWidth - 12) / image.width));
+      // Sizes stay relative, but a tiny rocket like Electron would vanish in a thumbnail.
+      const relativeHeight = Math.max(rocket.height / TALLEST, 0.7);
+      image.setScale(Math.min((imageArea * relativeHeight) / image.height, (cellWidth - 12) / image.width));
       if (!unlocked) {
         image.setTintFill(SILHOUETTE);
       }
@@ -469,7 +472,7 @@ export default class HangarScene extends Phaser.Scene {
       const lines = [next ? `Desbloquea: ${next.name}` : "Es el último reto"];
       // Small screens have no room for the reference flight.
       if (!small) {
-        lines.push(`Vuelo perfecto: ${Math.round(best.time)} s · sobra un ${best.fuelPercent}%`);
+        lines.push(`Vuelo perfecto: ${formatSeconds(best.time)} · sobra un ${best.fuelPercent}%`);
       }
       footer = lines.join("\n");
     }
@@ -509,7 +512,7 @@ export default class HangarScene extends Phaser.Scene {
 
     const { maxTime, minFuel } = rocket.challenge;
     const values = [
-      { text: `${Math.round(best.time)} s`, good: maxTime && best.time < maxTime },
+      { text: formatSeconds(best.time), good: maxTime && best.time < maxTime },
       { text: `${best.fuelPercent}%`, good: minFuel && best.fuelPercent >= minFuel },
     ];
     this.recordRows.forEach((row, index) => {

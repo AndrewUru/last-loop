@@ -1,12 +1,8 @@
 import Phaser from "phaser";
-import { ROCKETS, getRocketTextureKey } from "../data/rockets.js";
+import { ROCKETS, getRocketImagePath, getRocketTextureKey } from "../data/rockets.js";
 import AudioSystem from "../systems/AudioSystem.js";
 import MissionSystem from "../systems/MissionSystem.js";
 import { UI_COLORS, addText } from "../ui/theme.js";
-
-// SVGs are rasterised once at load time; this keeps the tallest rocket sharp
-// at full-screen hangar size.
-const SVG_SCALE = 1.6;
 
 const STEPS = [
   { title: "Elige", body: "Escoge un cohete en el hangar." },
@@ -20,14 +16,7 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    ROCKETS.forEach((rocket) => {
-      const key = getRocketTextureKey(rocket);
-      if (rocket.image.endsWith(".svg")) {
-        this.load.svg(key, rocket.image, { scale: SVG_SCALE });
-      } else {
-        this.load.image(key, rocket.image);
-      }
-    });
+    ROCKETS.forEach((rocket) => this.load.image(getRocketTextureKey(rocket), getRocketImagePath(rocket)));
   }
 
   create() {
@@ -119,7 +108,7 @@ export default class BootScene extends Phaser.Scene {
 
     // Fit the row: images are scaled to 1 unit for the tallest rocket, so the
     // total width at that size tells how big the row can be drawn.
-    const gap = 0.06;
+    const gap = 0.04;
     const rowWidth = images.reduce((sum, image) => sum + image.displayWidth, 0) + gap * (images.length - 1);
     const size = Math.min(height, width / rowWidth);
     const baseY = y + height;
