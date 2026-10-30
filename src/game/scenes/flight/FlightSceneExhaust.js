@@ -84,7 +84,7 @@ function seededRandom(seed) {
 
 // Greyscale textures drawn pixel by pixel once, then tinted per sprite.
 // shade(u, v) returns [lightness 0-255, alpha 0-1] for a point in 0-1 space.
-function createShadedTexture(scene, key, width, height, shade) {
+export function createShadedTexture(scene, key, width, height, shade) {
   if (scene.textures.exists(key)) {
     return;
   }

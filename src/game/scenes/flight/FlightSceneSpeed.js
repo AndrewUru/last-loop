@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
-import { FX_TEXTURES } from "./FlightSceneExhaust.js";
+import { FX_TEXTURES, createShadedTexture } from "./FlightSceneExhaust.js";
 import { getPresentationAltitude } from "./FlightSceneUtils.js";
 
 // Low cloud banks the rocket punches through on the way up: altitude in km
@@ -11,6 +11,7 @@ const CLOUD_BANKS = [
   { altitude: 10, count: 7 },
 ];
 const VAPOR_CONE_TIME = 0.8;
+const VAPOR_TEXTURE = "fx-vapor-cone";
 
 function isMobile(scale) {
   return scale.width < 760 || (scale.width < 920 && scale.height > scale.width * 1.15);
@@ -49,9 +50,19 @@ export const flightSceneSpeedMethods = {
       }
     });
 
-    // Vapor cone: the white shroud that forms around a rocket breaking the sound barrier.
+    // Vapor cone: the white shroud that forms around a rocket breaking the
+    // sound barrier. Seen from the side it is densest along its outline, which
+    // also keeps it visible over a white rocket.
+    createShadedTexture(this, VAPOR_TEXTURE, 64, 64, (u, v) => {
+      const across = Math.abs(u * 2 - 1) / (0.12 + 0.88 * v);
+      if (across >= 1) {
+        return [255, 0];
+      }
+      const shell = 0.3 + 0.7 * across ** 3;
+      return [255, shell * (1 - across ** 10) * (1 - v) ** 0.7 * Math.min(1, v / 0.08)];
+    });
     this.vaporCone = this.add
-      .image(0, 0, FX_TEXTURES.plume)
+      .image(0, 0, VAPOR_TEXTURE)
       .setOrigin(0.5, 0)
       .setDepth(21)
       .setVisible(false);
@@ -68,7 +79,7 @@ export const flightSceneSpeedMethods = {
 
   showVaporCone() {
     this.vaporTime = VAPOR_CONE_TIME;
-    this.vaporCone.setVisible(true);
+    this.updateVaporCone(0);
     this.cameras.main.shake(220, 0.005);
   },
 
@@ -123,7 +134,7 @@ export const flightSceneSpeedMethods = {
         place(streak, false);
       }
       const streakLength = length * streak.depth;
-      graphics.lineStyle(1 + streak.depth * 1.5, 0xffffff, alpha * streak.depth * 0.55);
+      graphics.lineStyle(1 + streak.depth * 1.5, 0xffffff, alpha * streak.depth * 0.7);
       graphics.lineBetween(
         streak.x,
         streak.y,
@@ -162,7 +173,10 @@ export const flightSceneSpeedMethods = {
       .setVisible(this.vaporTime > 0)
       .setPosition(this.rocket.x + Math.sin(rotation) * up, this.rocket.y - Math.cos(rotation) * up)
       .setRotation(rotation)
-      .setDisplaySize(this.rocketWidth * (2.2 + (1 - life) * 1.4), this.rocketHeight * 0.5)
-      .setAlpha(0.85 * life);
+      .setDisplaySize(
+        Math.max(this.rocketWidth * 2.6, this.rocketHeight * 0.45) * (1 + (1 - life) * 0.6),
+        this.rocketHeight * 0.45,
+      )
+      .setAlpha(0.95 * life);
   },
 };
