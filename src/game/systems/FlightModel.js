@@ -65,8 +65,12 @@ export const FLIGHT_TARGETS = {
 };
 
 export default class FlightModel {
-  constructor(stats) {
+  // options.wind: strength of the gusts that push the nose around in the
+  // atmosphere (radians per second at sea level); windPhase varies them.
+  constructor(stats, options = {}) {
     this.stats = stats;
+    this.wind = options.wind || 0;
+    this.windPhase = options.windPhase || 0;
     this.fuelMassFactor =
       stats.fuel > 0
         ? clamp(
@@ -112,6 +116,7 @@ export default class FlightModel {
       insertionStarted: false,
       engineOn: false,
       ignitionTime: 0,
+      windGust: 0,
       launched: false,
       result: null,
       failure: null,
@@ -221,6 +226,21 @@ export default class FlightModel {
     }
   }
 
+  // Gusts turn the rocket while the air is thick; the pilot steers against them.
+  applyWind(state, dt) {
+    if (this.wind <= 0) {
+      return;
+    }
+    const time = state.time + this.windPhase;
+    state.windGust =
+      this.wind * state.atmosphereDensity * (Math.sin(time * 0.9) + 0.6 * Math.sin(time * 2.3 + 1.3));
+    state.localOrientation = clamp(
+      state.localOrientation + state.windGust * dt,
+      this.maxPitchUp,
+      this.maxPitchDown,
+    );
+  }
+
   buildWorldPose(altitude, downrange, localOrientation, horizontalVelocity, verticalVelocity) {
     const radius = FLIGHT_WORLD.planetRadius + Math.max(altitude, 0);
     const arcAngle = downrange / Math.max(radius, FLIGHT_WORLD.planetRadius);
@@ -301,6 +321,7 @@ export default class FlightModel {
     }
 
     this.updateOrientation(state, dt);
+    this.applyWind(state, dt);
 
     const throttle = state.throttle;
     if (throttle > 0) {

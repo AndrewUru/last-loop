@@ -1,4 +1,4 @@
-import { ROCKETS, ROCKETS_BY_ID, meetsChallenge } from "../data/rockets.js";
+import { ROCKETS, ROCKETS_BY_ID, evaluateChallenge } from "../data/rockets.js";
 
 const PROGRESS_KEY = "last-loop-progress-v3";
 
@@ -22,8 +22,8 @@ function writeProgress(progress) {
   }
 }
 
-// Every rocket has one challenge, and it only counts when flown with that
-// rocket. `completed` holds the ids of the rockets whose challenge is done.
+// Every rocket has one mission, and it only counts when flown with that
+// rocket. `completed` holds the ids of the rockets whose mission is done.
 export default class MissionSystem {
   static getProgress() {
     return readProgress();
@@ -43,14 +43,15 @@ export default class MissionSystem {
     return index === 0 || (index > 0 && MissionSystem.isCompleted(ROCKETS[index - 1].id));
   }
 
-  // The first rocket whose challenge is still open: always the newest unlocked one.
+  // The first rocket whose mission is still open: always the newest unlocked one.
   static getCurrentRocket() {
     const { completed } = readProgress();
     return ROCKETS.find((rocket) => !completed.includes(rocket.id)) || null;
   }
 
-  // flight: { rocketId, success, fuelPercent, time }
-  // Returns whether this flight beat the rocket's challenge and the rocket it unlocked.
+  // flight: { rocketId, success, fuelPercent, time, ...mission counters }
+  // Returns whether this flight met the rocket's mission (achieved), whether
+  // that is new (completed), why not (missed) and the rocket it unlocked.
   static recordFlight(flight) {
     const progress = readProgress();
     progress.launches += 1;
@@ -67,14 +68,14 @@ export default class MissionSystem {
     }
 
     const rocket = ROCKETS_BY_ID[flight.rocketId];
-    const completed =
-      Boolean(rocket) && !progress.completed.includes(rocket.id) && meetsChallenge(rocket.challenge, flight);
+    const outcome = rocket ? evaluateChallenge(rocket.challenge, flight) : { completed: false, missed: null };
+    const completed = outcome.completed && !progress.completed.includes(rocket.id);
     if (completed) {
       progress.completed.push(rocket.id);
     }
     writeProgress(progress);
 
     const unlocked = completed ? ROCKETS[ROCKETS.indexOf(rocket) + 1] || null : null;
-    return { completed, unlocked };
+    return { achieved: outcome.completed, completed, unlocked, missed: outcome.missed };
   }
 }

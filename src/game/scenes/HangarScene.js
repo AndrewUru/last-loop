@@ -461,15 +461,15 @@ export default class HangarScene extends Phaser.Scene {
       const previous = ROCKETS[index - 1];
       label = "BLOQUEADO";
       title = "Desbloquéalo";
-      body = `Completa el reto «${previous.challenge.title}» con el ${previous.name}.`;
+      body = `Completa la misión «${previous.challenge.title}» con el ${previous.name}.`;
       footer = "";
     } else {
       const next = ROCKETS[index + 1];
       const best = getPrediction(rocket);
-      label = done ? "★ RETO COMPLETADO" : "☆ RETO";
+      label = done ? "★ MISIÓN CUMPLIDA" : "☆ MISIÓN";
       title = rocket.challenge.title;
       body = describeChallenge(rocket.challenge);
-      const lines = [next ? `Desbloquea: ${next.name}` : "Es el último reto"];
+      const lines = [next ? `Desbloquea: ${next.name}` : "Es la última misión"];
       // Small screens have no room for the reference flight.
       if (!small) {
         lines.push(`Vuelo perfecto: ${formatSeconds(best.time)} · sobra un ${best.fuelPercent}%`);

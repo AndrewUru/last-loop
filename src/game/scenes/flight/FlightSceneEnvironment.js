@@ -187,6 +187,7 @@ export const flightSceneEnvironmentMethods = {
       this.rocket,
       ...this.getExhaustObjects(),
       ...this.getSpeedWorldObjects(),
+      ...this.getMissionWorldObjects(),
     ];
   },
 
@@ -194,6 +195,7 @@ export const flightSceneEnvironmentMethods = {
     return [
       ...this.hud.getObjects(),
       ...this.touchControlsUi.getObjects(),
+      ...this.getMissionUiObjects(),
       this.resultOverlay,
     ];
   },
@@ -218,6 +220,7 @@ export const flightSceneEnvironmentMethods = {
     this.cameras.main.setSize(width, height);
     this.touchControlsUi.resize(width, height);
     this.hud.resize(width, height);
+    this.layoutMissionTracker();
     if (this.resultOverlayVisible) {
       this.layoutMissionOverlay(width, height);
     }

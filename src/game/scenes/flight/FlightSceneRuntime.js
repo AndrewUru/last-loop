@@ -60,11 +60,9 @@ export const flightSceneRuntimeMethods = {
       return;
     }
 
-    const thrust =
-      this.keys.space.isDown ||
-      this.keys.up.isDown ||
-      this.keys.w.isDown ||
-      this.touchControls.thrust;
+    const thrust = this.applyMissionControls(
+      this.keys.space.isDown || this.keys.up.isDown || this.keys.w.isDown || this.touchControls.thrust,
+    );
     const left = this.keys.left.isDown || this.keys.a.isDown || this.touchControls.steerLeft;
     const right = this.keys.right.isDown || this.keys.d.isDown || this.touchControls.steerRight;
 
@@ -82,10 +80,11 @@ export const flightSceneRuntimeMethods = {
     this.updateGuidanceArrow(state);
     this.updateExhaust(state, time, delta);
     this.updateSpeedEffects(state, delta);
+    this.updateMission(state, delta);
   },
 
   updateHud(state) {
-    this.hud.update(state, { stats: this.stats });
+    this.hud.update(state, { stats: this.stats, instruction: this.getMissionInstruction(state) });
     this.touchControlsUi.update(state);
   },
 
@@ -108,13 +107,14 @@ export const flightSceneRuntimeMethods = {
     const fuelPercent =
       this.stats.fuel > 0 ? Math.round((state.fuelRemaining / this.stats.fuel) * 100) : 0;
     // The state keeps ticking while the orbit settles, so freeze the time the
-    // challenge is judged on and show that same number.
+    // mission is judged on and show that same number.
     const time = state.time;
     const challenge = MissionSystem.recordFlight({
       rocketId: this.rocketDef.id,
       success,
       fuelPercent,
       time,
+      ...this.getMissionCounters(),
     });
 
     if (state.failure === FLIGHT_PHASES.CRASHED) {
@@ -212,7 +212,7 @@ export const flightSceneRuntimeMethods = {
     // Frame the free area below the HUD, not the whole screen, and never let
     // the rocket slide under the HUD panel or the touch buttons.
     const hud = this.hud.panelBounds;
-    const safeTop = hud ? hud.y + hud.height + 28 : 60;
+    const safeTop = Math.max(hud ? hud.y + hud.height : 32, this.missionTrackerBottom || 0) + 28;
     const safeBottom = height - (this.touchControlsUi.visible ? 150 : 50);
     const anchorShift = ((safeTop + safeBottom) / 2 - height / 2) / zoom;
     let targetX = Phaser.Math.Linear(this.rocket.x + leadX, 0, shot);
@@ -259,19 +259,28 @@ export const flightSceneRuntimeMethods = {
     const nearGround = Phaser.Math.Clamp(1 - state.altitude / 30, 0, 1);
     const rumble = this.flameLevel * nearGround * (state.launched ? 2.5 : 3.5);
     const buffeting = state.atmosphereDensity * Phaser.Math.Clamp(state.speed / 2, 0, 1) * 3;
-    return (rumble + buffeting) * Phaser.Math.Clamp(minViewport / 800, 0.5, 1.2);
+    const gusts = Math.abs(state.windGust) * 2.5;
+    return (rumble + buffeting + gusts) * Phaser.Math.Clamp(minViewport / 800, 0.5, 1.2);
   },
 
   updateWorldVisuals(state) {
-    const spaceProgress = Phaser.Math.Clamp(
-      (state.altitude - DAY_SKY_FADE_START_ALTITUDE) /
-        (DAY_SKY_FADE_END_ALTITUDE - DAY_SKY_FADE_START_ALTITUDE),
-      0,
-      1,
+    // Night missions start under a dark sky and storms under an overcast one;
+    // either only gets darker on the way up.
+    const night = this.rocketDef.challenge.night ? 1 : 0;
+    const overcast = this.rocketDef.challenge.wind ? 0.3 : 0;
+    const spaceProgress = Math.max(
+      Phaser.Math.Clamp(
+        (state.altitude - DAY_SKY_FADE_START_ALTITUDE) /
+          (DAY_SKY_FADE_END_ALTITUDE - DAY_SKY_FADE_START_ALTITUDE),
+        0,
+        1,
+      ),
+      night * 0.85,
+      overcast,
     );
     const guideProgress = Phaser.Math.Clamp((state.altitude - 30) / 90, 0, 1);
     const padFade = Phaser.Math.Clamp(1 - state.altitude / PAD_FADE_ALTITUDE, 0, 1);
-    const cloudAlpha = Phaser.Math.Clamp(1 - state.altitude / 40, 0, 1) * 0.6;
+    const cloudAlpha = Phaser.Math.Clamp(1 - state.altitude / 40, 0, 1) * 0.6 * (1 - night * 0.6);
     // Flat horizon on the pad, round planet once the camera has pulled back.
     // It stays round from then on, even if the rocket falls back down.
     const renderAltitude = Math.hypot(this.rocket.x, this.rocket.y) - FLIGHT_WORLD.planetRadius;

@@ -120,25 +120,29 @@ export const flightSceneOverlayMethods = {
       ].join("     "),
     );
 
-    const { completed, unlocked } = result.challenge;
+    const { completed, unlocked, missed } = result.challenge;
+    const title = this.rocketDef.challenge.title;
+    const alreadyDone = !completed && MissionSystem.isCompleted(this.rocketDef.id);
     const missionLines = [];
     if (completed) {
-      missionLines.push(`★ Reto cumplido: ${this.rocketDef.challenge.title}`);
+      missionLines.push(`★ Misión cumplida: ${title}`);
       missionLines.push(
-        unlocked ? `¡Nuevo cohete desbloqueado: ${unlocked.name}!` : "¡Has completado todos los retos!",
+        unlocked ? `¡Nuevo cohete desbloqueado: ${unlocked.name}!` : "¡Has completado todas las misiones!",
       );
+    } else if (!alreadyDone && missed) {
+      // In orbit but the mission was not met: say what was missing.
+      missionLines.push(`Misión sin cumplir: ${title}`);
+      missionLines.push(missed);
     } else {
-      // Remind the player of this rocket's challenge, or point them at the next one.
-      const target = MissionSystem.isCompleted(this.rocketDef.id)
-        ? MissionSystem.getCurrentRocket()
-        : this.rocketDef;
+      // Remind the player of this rocket's mission, or point them at the next one.
+      const target = alreadyDone ? MissionSystem.getCurrentRocket() : this.rocketDef;
       if (target) {
-        missionLines.push(`Reto del ${target.name}: ${target.challenge.title}`);
+        missionLines.push(`Misión del ${target.name}: ${target.challenge.title}`);
         missionLines.push(describeChallenge(target.challenge));
       }
     }
     this.resultMissions.setText(missionLines.join("\n"));
-    this.resultMissions.setColor(completed ? "#ffd166" : "#9eb4ca");
+    this.resultMissions.setColor(completed ? "#ffd166" : missed && !alreadyDone ? "#ff9b8a" : "#9eb4ca");
 
     const primaryLabel = unlocked ? `Ver ${unlocked.shortName || unlocked.name}` : result.success ? "Siguiente" : "Reintentar";
     this.resultPrimaryButton.text.setText(`${primaryLabel}  (ENTER)`);

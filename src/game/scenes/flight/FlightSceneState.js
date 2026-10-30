@@ -13,9 +13,10 @@ function createFlightKeys(input) {
   });
 }
 
-export function createFlightRuntimeState(input, stats) {
+// options go to the flight model (mission wind).
+export function createFlightRuntimeState(input, stats, options) {
   return {
-    simulator: new FlightSimulator(stats),
+    simulator: new FlightSimulator(stats, options),
     finished: false,
     resultOverlayVisible: false,
     lastPhaseId: null,

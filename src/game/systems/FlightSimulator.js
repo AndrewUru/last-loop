@@ -4,8 +4,8 @@ import FlightPhaseController, { FLIGHT_PHASES } from "./FlightPhaseController.js
 export { FLIGHT_PHASES, FLIGHT_TARGETS, FLIGHT_WORLD };
 
 export default class FlightSimulator {
-  constructor(stats) {
-    this.model = new FlightModel(stats);
+  constructor(stats, options = {}) {
+    this.model = new FlightModel(stats, options);
     this.phaseController = new FlightPhaseController();
     this.state = this.model.createInitialState();
   }

@@ -63,6 +63,13 @@ export function getFlightInstruction(state, thrustLabel) {
           tone: "info",
         };
   }
+  if (state.engineLocked) {
+    return {
+      title: "Motor apagado",
+      body: "En esta misión solo había un encendido.",
+      tone: "danger",
+    };
+  }
   if (state.fuelRemaining <= 0.01) {
     return {
       title: "Sin combustible",
@@ -238,9 +245,10 @@ export default class FlightHud {
     }
   }
 
-  update(state, { stats }) {
+  // instruction: a mission's own instruction, shown instead of the usual one.
+  update(state, { stats, instruction: missionInstruction }) {
     const touch = Boolean(this.scene.touchControlsUi?.visible);
-    const instruction = getFlightInstruction(state, touch ? "IMPULSO" : "ESPACIO");
+    const instruction = missionInstruction || getFlightInstruction(state, touch ? "IMPULSO" : "ESPACIO");
     this.setTextIfChanged(this.title, "title", instruction.title);
     this.setTextIfChanged(this.body, "body", instruction.body);
     this.title.setColor(TONE_COLORS[instruction.tone]);

@@ -86,8 +86,11 @@ export const flightSceneSpeedMethods = {
   updateSpeedEffects(state, delta) {
     const dt = delta / 1000;
     const heading = Math.hypot(state.velocity.x, state.velocity.y);
-    const direction = heading > 0.001 ? { x: state.velocity.x / heading, y: state.velocity.y / heading } : { x: 0, y: -1 };
-    const cloudAlpha = Phaser.Math.Clamp(1 - state.altitude / 40, 0, 1);
+    // Gusts slant the streaks, so a storm shows in the air as well as in the controls.
+    const angle = (heading > 0.001 ? Math.atan2(state.velocity.y, state.velocity.x) : -Math.PI / 2) + state.windGust * 0.5;
+    const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+    const night = this.rocketDef.challenge.night ? 0.4 : 1;
+    const cloudAlpha = Phaser.Math.Clamp(1 - state.altitude / 40, 0, 1) * night;
     this.cloudPuffs.forEach((puff) => puff.image.setAlpha(puff.alpha * cloudAlpha));
 
     this.updateStreaks(state, direction, dt);

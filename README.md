@@ -14,24 +14,26 @@
 
 La órbita se consigue con **altura** (pasar el anillo verde, 170 km) y **velocidad lateral** (5 km/s). El HUD muestra las dos barras y una sola instrucción con lo que hay que hacer en cada momento.
 
-### Cohetes y retos
+### Cohetes y misiones
 
-Cada cohete tiene un reto que solo cuenta si vuelas con ese cohete. Al cumplirlo ganas una estrella y se desbloquea el siguiente:
+Cada cohete tiene una misión que solo cuenta si vuelas con ese cohete. Al cumplirla ganas una estrella y se desbloquea el siguiente. Todas terminan en órbita, pero cada una se juega distinto:
 
-| #   | Cohete                 | Año  | Reto                 | Objetivo                          |
-| :-- | :--------------------- | :--- | :------------------- | :-------------------------------- |
-| 1   | Soyuz                  | 1966 | Primera órbita       | Llegar a la órbita                |
-| 2   | Saturno V              | 1967 | Rumbo a la Luna      | ≥ 40% de combustible              |
-| 3   | Transbordador espacial | 1981 | Exprés               | Menos de 76 s                     |
-| 4   | Energía                | 1987 | Carga pesada         | ≥ 45% de combustible              |
-| 5   | Ariane 5               | 1996 | Lanzamiento perfecto | Menos de 80 s y ≥ 38% combustible |
-| 6   | Falcon 9               | 2010 | Reutilizable         | ≥ 52% de combustible              |
-| 7   | Electron               | 2017 | Pequeño y veloz      | Menos de 70 s                     |
-| 8   | Falcon Heavy           | 2018 | Rumbo a Marte        | Menos de 71 s y ≥ 58% combustible |
-| 9   | SLS                    | 2022 | Artemis              | Menos de 82 s y ≥ 50% combustible |
-| 10  | Starship               | 2023 | Leyenda              | Menos de 66 s y ≥ 60% combustible |
+| #   | Cohete                 | Año  | Misión                  | Qué hay que hacer                                                   |
+| :-- | :--------------------- | :--- | :---------------------- | :------------------------------------------------------------------ |
+| 1   | Soyuz                  | 1966 | Primera órbita          | Llegar a la órbita                                                  |
+| 2   | Saturno V              | 1967 | Rumbo a la Luna         | Llegar con ≥ 40% de combustible                                     |
+| 3   | Transbordador espacial | 1981 | Misión Hubble           | Recoger las 4 piezas del telescopio durante el ascenso              |
+| 4   | Energía                | 1987 | Tormenta en Baikonur    | Llegar con ráfagas de viento que desvían el cohete                  |
+| 5   | Ariane 5               | 1996 | Carga delicada          | No pasar de 2,0 km/s entre 10 y 35 km (Max-Q): hay que soltar el motor |
+| 6   | Falcon 9               | 2010 | Noche en Cabo Cañaveral | Lanzamiento de noche con ≥ 50% de combustible                       |
+| 7   | Electron               | 2017 | Slalom                  | Pasar por los 5 anillos                                             |
+| 8   | Falcon Heavy           | 2018 | Encendido único         | El motor solo se enciende una vez: no lo sueltes hasta la orden     |
+| 9   | SLS                    | 2022 | Campo de escombros      | Esquivar los escombros (cada choque cuesta combustible)             |
+| 10  | Starship               | 2023 | Leyenda                 | Pasar por los 6 anillos en menos de 72 s                            |
 
-El hangar muestra lo que consigue un **vuelo perfecto** con cada cohete (un piloto automático que sigue la flecha) y tu mejor marca, para saber cuánto te falta.
+Los anillos, las piezas y los escombros se colocan a lo largo del ascenso perfecto de cada cohete. Durante el vuelo, bajo el HUD, se ve cómo va la misión, y si llegas a la órbita sin cumplirla te dice qué faltó. El hangar muestra lo que consigue un **vuelo perfecto** con cada cohete y tu mejor marca.
+
+Las misiones se definen en `src/game/data/rockets.js` combinando reglas (`targets`, `hazards`, `maxQ`, `wind`, `night`, `singleBurn`, `maxTime`, `minFuel`), así que es fácil crear nuevas.
 
 ### Controles
 

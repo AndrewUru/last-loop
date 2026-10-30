@@ -12,8 +12,19 @@ const SELECTED_KEY = "last-loop-rocket";
 //
 // Stats feed FlightModel directly: twr is the liftoff thrust-to-weight,
 // fuel / fuelUse set how long the engines burn, controlAuthority speeds up
-// turning and width / dragReduction set the air drag. Challenge limits are
-// set a few points short of what a perfect pilot gets (shown in the hangar).
+// turning and width / dragReduction set the air drag.
+//
+// Each rocket has one mission. Every mission ends in orbit; on top of that it
+// can ask for any mix of:
+//   targets: { kind: "rings" | "parts", count }  fly through rings or pick up
+//            parts placed along a good climb
+//   hazards: count       debris on the climb path; each hit costs fuel and
+//            fails the mission
+//   maxQ: { from, to, speed }  top speed (km/s) between two altitudes (km)
+//   maxTime (s), minFuel (% left)
+//   wind (gust strength), night, singleBurn (the engine lights only once)
+// Limits sit a few points short of what a perfect pilot gets (the hangar
+// shows that flight).
 export const ROCKETS = [
   {
     id: "soyuz",
@@ -50,7 +61,7 @@ export const ROCKETS = [
     height: 8,
     engines: [{ x: -0.29, fuel: "solid" }, { x: 0, fuel: "hydrogen" }, { x: 0.29, fuel: "solid" }],
     stats: { mass: 80, fuel: 170, fuelUse: 2.6, twr: 1.95, controlAuthority: 0.15, dragReduction: 0, width: 3 },
-    challenge: { title: "Exprés", maxTime: 76 },
+    challenge: { title: "Misión Hubble", targets: { kind: "parts", count: 4 } },
   },
   {
     id: "energia",
@@ -62,7 +73,7 @@ export const ROCKETS = [
     height: 8.5,
     engines: [{ x: -0.33, fuel: "kerosene" }, { x: 0, fuel: "hydrogen" }, { x: 0.33, fuel: "kerosene" }],
     stats: { mass: 110, fuel: 260, fuelUse: 2.4, twr: 1.8, controlAuthority: 0.05, dragReduction: 0.1, width: 2.5 },
-    challenge: { title: "Carga pesada", minFuel: 45 },
+    challenge: { title: "Tormenta en Baikonur", wind: 0.6 },
   },
   {
     id: "ariane-5",
@@ -74,7 +85,7 @@ export const ROCKETS = [
     height: 8,
     engines: [{ x: -0.34, fuel: "solid" }, { x: 0, fuel: "hydrogen" }, { x: 0.34, fuel: "solid" }],
     stats: { mass: 70, fuel: 190, fuelUse: 2, twr: 1.7, controlAuthority: 0.15, dragReduction: 0.2, width: 2 },
-    challenge: { title: "Lanzamiento perfecto", maxTime: 80, minFuel: 38 },
+    challenge: { title: "Carga delicada", maxQ: { from: 10, to: 35, speed: 2 } },
   },
   {
     id: "falcon-9",
@@ -86,7 +97,7 @@ export const ROCKETS = [
     height: 9,
     engines: [{ x: 0, fuel: "kerosene" }],
     stats: { mass: 55, fuel: 190, fuelUse: 1.7, twr: 2, controlAuthority: 0.3, dragReduction: 0.3, width: 1 },
-    challenge: { title: "Reutilizable", minFuel: 52 },
+    challenge: { title: "Noche en Cabo Cañaveral", night: true, minFuel: 50 },
   },
   {
     id: "electron",
@@ -98,7 +109,7 @@ export const ROCKETS = [
     height: 5,
     engines: [{ x: 0, fuel: "kerosene" }],
     stats: { mass: 20, fuel: 70, fuelUse: 1.2, twr: 2.2, controlAuthority: 0.4, dragReduction: 0.3, width: 1 },
-    challenge: { title: "Pequeño y veloz", maxTime: 70 },
+    challenge: { title: "Slalom", targets: { kind: "rings", count: 5 } },
   },
   {
     id: "falcon-heavy",
@@ -111,7 +122,7 @@ export const ROCKETS = [
     height: 9,
     engines: [{ x: -0.32, fuel: "kerosene" }, { x: 0, fuel: "kerosene" }, { x: 0.32, fuel: "kerosene" }],
     stats: { mass: 110, fuel: 330, fuelUse: 2.7, twr: 2.3, controlAuthority: 0.2, dragReduction: 0.2, width: 2.5 },
-    challenge: { title: "Rumbo a Marte", maxTime: 71, minFuel: 58 },
+    challenge: { title: "Encendido único", singleBurn: true },
   },
   {
     id: "sls",
@@ -123,7 +134,7 @@ export const ROCKETS = [
     height: 10,
     engines: [{ x: -0.35, fuel: "solid" }, { x: 0, fuel: "hydrogen" }, { x: 0.35, fuel: "solid" }],
     stats: { mass: 130, fuel: 360, fuelUse: 2.6, twr: 1.6, controlAuthority: 0.1, dragReduction: 0.3, width: 2 },
-    challenge: { title: "Artemis", maxTime: 82, minFuel: 50 },
+    challenge: { title: "Campo de escombros", hazards: 7 },
   },
   {
     id: "starship",
@@ -135,7 +146,7 @@ export const ROCKETS = [
     height: 11,
     engines: [{ x: 0, fuel: "methane" }],
     stats: { mass: 120, fuel: 330, fuelUse: 2.6, twr: 2.6, controlAuthority: 0.25, dragReduction: 0.3, width: 1.5 },
-    challenge: { title: "Leyenda", maxTime: 66, minFuel: 60 },
+    challenge: { title: "Leyenda", targets: { kind: "rings", count: 6 }, maxTime: 72 },
   },
 ];
 
@@ -156,26 +167,81 @@ export function getRocketImagePath(rocket) {
   return `assets/rockets/${rocket.id}.png`;
 }
 
-// flight: { success, fuelPercent, time }
-export function meetsChallenge(challenge, flight) {
-  return (
-    flight.success &&
-    flight.fuelPercent >= (challenge.minFuel ?? 0) &&
-    flight.time < (challenge.maxTime ?? Number.POSITIVE_INFINITY)
-  );
+const TARGET_NAMES = { rings: ["anillo", "anillos"], parts: ["pieza", "piezas"] };
+
+export function getTargetName(kind, count) {
+  const [one, many] = TARGET_NAMES[kind];
+  return count === 1 ? one : many;
+}
+
+export function formatSpeed(speed) {
+  return `${speed.toFixed(1).replace(".", ",")} km/s`;
+}
+
+function joinClauses(clauses) {
+  return clauses.length > 1 ? `${clauses.slice(0, -1).join(", ")} y ${clauses[clauses.length - 1]}` : clauses[0];
 }
 
 export function describeChallenge(challenge) {
-  const conditions = [];
+  const clauses = [];
+  if (challenge.targets) {
+    const { kind, count } = challenge.targets;
+    clauses.push(`${kind === "rings" ? "pasando por los" : "recogiendo las"} ${count} ${getTargetName(kind, count)}`);
+  }
+  if (challenge.hazards) {
+    clauses.push("sin chocar con los escombros");
+  }
+  if (challenge.maxQ) {
+    const { from, to, speed } = challenge.maxQ;
+    clauses.push(`sin pasar de ${formatSpeed(speed)} entre ${from} y ${to} km`);
+  }
+  if (challenge.wind) {
+    clauses.push("contra ráfagas de viento");
+  }
+  if (challenge.night) {
+    clauses.push("de noche");
+  }
+  if (challenge.singleBurn) {
+    clauses.push("encendiendo el motor una sola vez");
+  }
   if (challenge.maxTime) {
-    conditions.push(`en menos de ${challenge.maxTime} s`);
+    clauses.push(`en menos de ${challenge.maxTime} s`);
   }
   if (challenge.minFuel) {
-    conditions.push(`con un ${challenge.minFuel}% de combustible o más`);
+    clauses.push(`con un ${challenge.minFuel}% de combustible o más`);
   }
-  return conditions.length > 0
-    ? `Llega a la órbita ${conditions.join(" y ")}.`
-    : "Llega a la órbita.";
+  return clauses.length > 0 ? `Llega a la órbita ${joinClauses(clauses)}.` : "Llega a la órbita.";
+}
+
+// Max-Q is forgiven by half a decimal, so it never fails on a speed that the
+// tracker shows as equal to the limit.
+export const MAX_Q_TOLERANCE = 0.05;
+
+// flight: { success, fuelPercent, time, targetsHit, hazardsHit, maxQSpeed }
+// Returns whether the mission is done and, if the orbit was reached but the
+// mission was not, why.
+export function evaluateChallenge(challenge, flight) {
+  if (!flight.success) {
+    return { completed: false, missed: null };
+  }
+  const missed = [];
+  if (challenge.targets && flight.targetsHit < challenge.targets.count) {
+    const left = challenge.targets.count - flight.targetsHit;
+    missed.push(`Te ${left === 1 ? "faltó" : "faltaron"} ${left} ${getTargetName(challenge.targets.kind, left)}.`);
+  }
+  if (challenge.hazards && flight.hazardsHit > 0) {
+    missed.push(`Chocaste con ${flight.hazardsHit === 1 ? "un escombro" : `${flight.hazardsHit} escombros`}.`);
+  }
+  if (challenge.maxQ && flight.maxQSpeed > challenge.maxQ.speed + MAX_Q_TOLERANCE) {
+    missed.push(`Pasaste de ${formatSpeed(challenge.maxQ.speed)} en la zona de Max-Q.`);
+  }
+  if (challenge.maxTime && flight.time >= challenge.maxTime) {
+    missed.push(`Tardaste más de ${challenge.maxTime} s.`);
+  }
+  if (challenge.minFuel && flight.fuelPercent < challenge.minFuel) {
+    missed.push(`Te quedó un ${flight.fuelPercent}% de combustible (mínimo ${challenge.minFuel}%).`);
+  }
+  return { completed: missed.length === 0, missed: missed[0] || null };
 }
 
 export function loadSelectedRocketId() {

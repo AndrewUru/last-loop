@@ -5,6 +5,7 @@ import FlightTouchControls from "../ui/FlightTouchControls.js";
 import { ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
 import { flightSceneEnvironmentMethods } from "./flight/FlightSceneEnvironment.js";
 import { flightSceneExhaustMethods } from "./flight/FlightSceneExhaust.js";
+import { flightSceneMissionMethods } from "./flight/FlightSceneMission.js";
 import { flightSceneOverlayMethods } from "./flight/FlightSceneOverlay.js";
 import { flightSceneRuntimeMethods } from "./flight/FlightSceneRuntime.js";
 import { flightSceneSpeedMethods } from "./flight/FlightSceneSpeed.js";
@@ -29,6 +30,7 @@ class FlightScene extends Phaser.Scene {
     this.createRocket();
     this.createSpeedEffects();
     this.createHud();
+    this.createMission();
     this.createMissionOverlay();
     this.createBackdropCamera();
     this.createUiCamera();
@@ -39,7 +41,14 @@ class FlightScene extends Phaser.Scene {
   }
 
   initializeState() {
-    Object.assign(this, createFlightRuntimeState(this.input, this.stats));
+    const challenge = this.rocketDef.challenge;
+    Object.assign(
+      this,
+      createFlightRuntimeState(this.input, this.stats, {
+        wind: challenge.wind,
+        windPhase: Math.random() * Math.PI * 2,
+      }),
+    );
     this.onResultPrimary = (event) => {
       if (this.resultOverlayVisible && !event?.repeat) {
         this.handleResultPrimaryAction();
@@ -121,6 +130,7 @@ Object.assign(
   FlightScene.prototype,
   flightSceneEnvironmentMethods,
   flightSceneExhaustMethods,
+  flightSceneMissionMethods,
   flightSceneOverlayMethods,
   flightSceneRuntimeMethods,
   flightSceneSpeedMethods,
