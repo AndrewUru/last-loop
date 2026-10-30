@@ -13,6 +13,15 @@ export const DAY_SKY_FADE_END_ALTITUDE = 160;
 export const FLAT_GROUND_SCALE = 100;
 export const GROUND_CURVE_START = 2;
 export const GROUND_CURVE_END = 30;
+// Chase camera, as shares of the shorter screen side: how tall the rocket is
+// drawn on the pad and in flight, how much the view widens at orbital speed,
+// and how far it leans ahead of the rocket. The orbit shot is the pull-back
+// that frames the whole planet once the orbit locks, in seconds.
+export const CAMERA_PAD_FILL = 0.3;
+export const CAMERA_FLIGHT_FILL = 0.2;
+export const CAMERA_SPEED_PULLBACK = 0.35;
+export const CAMERA_LEAD = 0.12;
+export const CAMERA_ORBIT_SHOT_TIME = 2.5;
 // Sprites kept ready for exhaust particles; fewer are used on phones.
 export const SMOKE_POOL_SIZE = 150;
 export const FIRE_POOL_SIZE = 70;

@@ -1,0 +1,168 @@
+import Phaser from "phaser";
+import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
+import { FX_TEXTURES } from "./FlightSceneExhaust.js";
+import { getPresentationAltitude } from "./FlightSceneUtils.js";
+
+// Low cloud banks the rocket punches through on the way up: altitude in km
+// and how many puffs. Some are drawn in front of the rocket.
+const CLOUD_BANKS = [
+  { altitude: 3, count: 9 },
+  { altitude: 6, count: 8 },
+  { altitude: 10, count: 7 },
+];
+const VAPOR_CONE_TIME = 0.8;
+
+function isMobile(scale) {
+  return scale.width < 760 || (scale.width < 920 && scale.height > scale.width * 1.15);
+}
+
+// Arcade cues for speed. The world is small next to the speeds involved, so
+// real motion past the camera is slow; these streaks and drifts are scaled
+// from the rocket's speed instead.
+export const flightSceneSpeedMethods = {
+  createSpeedEffects() {
+    const mobile = isMobile(this.scale);
+
+    // Air rushing past, drawn in screen space behind the world.
+    this.speedLines = this.add.graphics().setScrollFactor(0).setDepth(-30);
+    this.streaks = Array.from({ length: mobile ? 26 : 46 }, () => ({
+      x: 0,
+      y: 0,
+      depth: Phaser.Math.FloatBetween(0.35, 1),
+      placed: false,
+    }));
+    this.starDepths = this.stars.map(() => Phaser.Math.FloatBetween(0.2, 1));
+
+    this.cloudPuffs = [];
+    CLOUD_BANKS.forEach(({ altitude, count }) => {
+      const y = -(FLIGHT_WORLD.planetRadius + getPresentationAltitude(altitude));
+      for (let index = 0; index < Math.ceil(count * (mobile ? 0.6 : 1)); index += 1) {
+        const size = Phaser.Math.FloatBetween(30, 70);
+        const front = Math.random() < 0.4;
+        const puff = this.add
+          .image(Phaser.Math.FloatBetween(-260, 360), y + Phaser.Math.FloatBetween(-5, 5), FX_TEXTURES.smoke)
+          .setDisplaySize(size * 1.6, size)
+          .setRotation(Phaser.Math.FloatBetween(-0.2, 0.2))
+          .setDepth(front ? 22 : -7)
+          .setAlpha(0);
+        this.cloudPuffs.push({ image: puff, alpha: front ? Phaser.Math.FloatBetween(0.25, 0.4) : Phaser.Math.FloatBetween(0.4, 0.65) });
+      }
+    });
+
+    // Vapor cone: the white shroud that forms around a rocket breaking the sound barrier.
+    this.vaporCone = this.add
+      .image(0, 0, FX_TEXTURES.plume)
+      .setOrigin(0.5, 0)
+      .setDepth(21)
+      .setVisible(false);
+    this.vaporTime = 0;
+  },
+
+  getSpeedBackdropObjects() {
+    return [this.speedLines];
+  },
+
+  getSpeedWorldObjects() {
+    return [...this.cloudPuffs.map((puff) => puff.image), this.vaporCone];
+  },
+
+  showVaporCone() {
+    this.vaporTime = VAPOR_CONE_TIME;
+    this.vaporCone.setVisible(true);
+    this.cameras.main.shake(220, 0.005);
+  },
+
+  updateSpeedEffects(state, delta) {
+    const dt = delta / 1000;
+    const heading = Math.hypot(state.velocity.x, state.velocity.y);
+    const direction = heading > 0.001 ? { x: state.velocity.x / heading, y: state.velocity.y / heading } : { x: 0, y: -1 };
+    const cloudAlpha = Phaser.Math.Clamp(1 - state.altitude / 40, 0, 1);
+    this.cloudPuffs.forEach((puff) => puff.image.setAlpha(puff.alpha * cloudAlpha));
+
+    this.updateStreaks(state, direction, dt);
+    this.updateStarDrift(state, direction, dt);
+    this.updateVaporCone(dt);
+  },
+
+  updateStreaks(state, direction, dt) {
+    const { width, height } = this.scale;
+    const graphics = this.speedLines;
+    graphics.clear();
+
+    // Thick air makes bold streaks; in space a faint dust keeps the motion going.
+    const pace = Phaser.Math.Clamp((state.speed - 0.15) / 1.2, 0, 1);
+    const alpha = this.finished || state.orbitAchieved ? 0 : pace * (0.3 + 0.7 * state.atmosphereDensity);
+    if (alpha <= 0.01) {
+      this.streaks.forEach((streak) => {
+        streak.placed = false;
+      });
+      return;
+    }
+
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const diagonal = Math.hypot(width, height);
+    const pixelSpeed = 300 + 1400 * Phaser.Math.Clamp(state.speed / 5, 0, 1);
+    const length = 20 + 140 * Phaser.Math.Clamp(state.speed / 4, 0, 1);
+    // Streaks come in from ahead of the rocket and rush out behind it.
+    const place = (streak, anywhere) => {
+      const across = (Math.random() - 0.5) * diagonal;
+      const ahead = anywhere ? (Math.random() - 0.5) * diagonal : diagonal * (0.5 + Math.random() * 0.3);
+      streak.x = centerX - direction.y * across + direction.x * ahead;
+      streak.y = centerY + direction.x * across + direction.y * ahead;
+      streak.placed = true;
+    };
+
+    this.streaks.forEach((streak) => {
+      if (!streak.placed) {
+        place(streak, true);
+      }
+      streak.x -= direction.x * pixelSpeed * streak.depth * dt;
+      streak.y -= direction.y * pixelSpeed * streak.depth * dt;
+      if ((streak.x - centerX) * direction.x + (streak.y - centerY) * direction.y < -diagonal * 0.6) {
+        place(streak, false);
+      }
+      const streakLength = length * streak.depth;
+      graphics.lineStyle(1 + streak.depth * 1.5, 0xffffff, alpha * streak.depth * 0.55);
+      graphics.lineBetween(
+        streak.x,
+        streak.y,
+        streak.x + direction.x * streakLength,
+        streak.y + direction.y * streakLength,
+      );
+    });
+  },
+
+  // Stars slide past at different depths once there is space to see them.
+  updateStarDrift(state, direction, dt) {
+    if (this.stars[0]?.alpha <= 0.01 || state.orbitAchieved) {
+      return;
+    }
+    const { width, height } = this.scale;
+    const pace = state.speed * 6;
+    this.stars.forEach((star, index) => {
+      const drift = pace * this.starDepths[index] * dt;
+      star.setPosition(
+        Phaser.Math.Wrap(star.x - direction.x * drift, 0, width),
+        Phaser.Math.Wrap(star.y - direction.y * drift, 0, height),
+      );
+    });
+  },
+
+  updateVaporCone(dt) {
+    if (this.vaporTime <= 0) {
+      return;
+    }
+    this.vaporTime = Math.max(0, this.vaporTime - dt);
+    const life = this.vaporTime / VAPOR_CONE_TIME;
+    // It wraps the rocket a little below the nose and trails towards the tail.
+    const rotation = this.rocket.rotation;
+    const up = this.rocketHeight * 0.62;
+    this.vaporCone
+      .setVisible(this.vaporTime > 0)
+      .setPosition(this.rocket.x + Math.sin(rotation) * up, this.rocket.y - Math.cos(rotation) * up)
+      .setRotation(rotation)
+      .setDisplaySize(this.rocketWidth * (2.2 + (1 - life) * 1.4), this.rocketHeight * 0.5)
+      .setAlpha(0.85 * life);
+  },
+};

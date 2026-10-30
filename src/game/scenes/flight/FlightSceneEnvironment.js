@@ -171,7 +171,7 @@ export const flightSceneEnvironmentMethods = {
   },
 
   getBackdropObjects() {
-    return [this.daySky, this.spaceShade, ...this.stars];
+    return [this.daySky, this.spaceShade, ...this.stars, ...this.getSpeedBackdropObjects()];
   },
 
   getWorldObjects() {
@@ -186,6 +186,7 @@ export const flightSceneEnvironmentMethods = {
       ...this.cloudLayers.map((layer) => layer.graphics),
       this.rocket,
       ...this.getExhaustObjects(),
+      ...this.getSpeedWorldObjects(),
     ];
   },
 

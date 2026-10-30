@@ -2,6 +2,11 @@ import Phaser from "phaser";
 import MissionSystem from "../../systems/MissionSystem.js";
 import { FLIGHT_PHASES, FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 import {
+  CAMERA_FLIGHT_FILL,
+  CAMERA_LEAD,
+  CAMERA_ORBIT_SHOT_TIME,
+  CAMERA_PAD_FILL,
+  CAMERA_SPEED_PULLBACK,
   DAY_SKY_FADE_END_ALTITUDE,
   DAY_SKY_FADE_START_ALTITUDE,
   GROUND_CURVE_END,
@@ -70,12 +75,13 @@ export const flightSceneRuntimeMethods = {
 
   renderFlight(state, prediction, time, delta) {
     this.updateRocketPose(state);
-    this.updateCamera(state);
+    this.updateCamera(state, delta);
     this.updateTrail(state);
     this.updateTrajectory(state, prediction);
     this.updateWorldVisuals(state);
     this.updateGuidanceArrow(state);
     this.updateExhaust(state, time, delta);
+    this.updateSpeedEffects(state, delta);
   },
 
   updateHud(state) {
@@ -166,34 +172,51 @@ export const flightSceneRuntimeMethods = {
     }
   },
 
-  // Close-up on the pad, then a steady pull-back that keeps the rocket on
-  // screen until the whole orbit fits, centred on the planet.
-  updateCamera(state) {
+  // Arcade chase camera: close on the rocket for the whole climb, widening a
+  // little with speed and leaning towards where it is heading. Only once the
+  // orbit locks does it pull out to frame the planet and the orbit.
+  updateCamera(state, delta) {
     const { width, height } = this.scale;
     const minViewport = Math.min(width, height);
     const renderAltitude = Math.max(
       0,
       Math.hypot(this.rocket.x, this.rocket.y) - FLIGHT_WORLD.planetRadius,
     );
-    const closeZoom = (minViewport * 0.3) / Math.max(this.rocketHeight, ROCKET_CELL_SIZE * 3);
+    const padZoom = (minViewport * CAMERA_PAD_FILL) / Math.max(this.rocketHeight, ROCKET_CELL_SIZE * 3);
+    // Small rockets are framed like an average one so the view does not shrink with them.
+    const flightZoom = (minViewport * CAMERA_FLIGHT_FILL) / Math.max(this.rocketHeight, 40);
+    const climb = smoothstep(renderAltitude / 40);
+    const speedShare = Phaser.Math.Clamp(state.speed / FLIGHT_WORLD.orbitTargetHorizontalSpeed, 0, 1.3);
+    const chaseZoom =
+      Phaser.Math.Linear(padZoom, flightZoom, climb) / (1 + CAMERA_SPEED_PULLBACK * speedShare);
     const orbitZoom =
       (minViewport * 0.44) /
       (FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude + 30);
-    const pullBack = state.orbitAchieved
-      ? 1
-      : Math.sqrt(Phaser.Math.Clamp(renderAltitude / 210, 0, 1));
-    const zoom = Math.exp(Phaser.Math.Linear(Math.log(closeZoom), Math.log(orbitZoom), pullBack));
-    const towardsPlanet = state.orbitAchieved ? 1 : smoothstep((renderAltitude - 70) / 150);
+
+    if (state.orbitAchieved) {
+      this.orbitShot = Math.min(1, this.orbitShot + delta / 1000 / CAMERA_ORBIT_SHOT_TIME);
+    }
+    const shot = smoothstep(this.orbitShot);
+    const zoom = Math.exp(Phaser.Math.Linear(Math.log(chaseZoom), Math.log(orbitZoom), shot));
+
+    const heading = Math.hypot(state.velocity.x, state.velocity.y);
+    const lead =
+      heading > 0.01
+        ? ((minViewport * CAMERA_LEAD) / zoom) * Math.min(1, state.speed / 1.5) * (1 - shot)
+        : 0;
+    const leadX = heading > 0.01 ? (state.velocity.x / heading) * lead : 0;
+    const leadY = heading > 0.01 ? (state.velocity.y / heading) * lead : 0;
+
     // On the pad the rocket sits a little below centre so the HUD never covers it.
-    const hudLift = ((1 - towardsPlanet) * height * 0.08) / zoom;
+    const hudLift = ((1 - climb) * height * 0.08) / zoom;
     // Frame the free area below the HUD, not the whole screen, and never let
     // the rocket slide under the HUD panel or the touch buttons.
     const hud = this.hud.panelBounds;
     const safeTop = hud ? hud.y + hud.height + 28 : 60;
     const safeBottom = height - (this.touchControlsUi.visible ? 150 : 50);
     const anchorShift = ((safeTop + safeBottom) / 2 - height / 2) / zoom;
-    let targetX = Phaser.Math.Linear(this.rocket.x, 0, towardsPlanet);
-    let targetY = Phaser.Math.Linear(this.rocket.y - hudLift, 0, towardsPlanet) - anchorShift;
+    let targetX = Phaser.Math.Linear(this.rocket.x + leadX, 0, shot);
+    let targetY = Phaser.Math.Linear(this.rocket.y + leadY - hudLift, 0, shot) - anchorShift;
     const safeSide = Math.min(60, width * 0.1);
     const screenX = (this.rocket.x - targetX) * zoom + width / 2;
     const screenY = (this.rocket.y - targetY) * zoom + height / 2;
@@ -218,8 +241,25 @@ export const flightSceneRuntimeMethods = {
       camera.zoom = Phaser.Math.Linear(camera.zoom, zoom, 0.12);
     }
 
+    // The shake is in screen pixels, so it feels the same at any zoom.
+    const shake = this.getCameraShake(state, minViewport) / camera.zoom;
     this.cameras.main.setZoom(camera.zoom);
-    this.cameras.main.centerOn(camera.x, camera.y);
+    this.cameras.main.centerOn(
+      camera.x + (Math.random() * 2 - 1) * shake,
+      camera.y + (Math.random() * 2 - 1) * shake,
+    );
+  },
+
+  // Engine rumble near the ground (strongest against the hold-down clamps)
+  // plus buffeting while the rocket is fast and the air still thick.
+  getCameraShake(state, minViewport) {
+    if (this.finished || state.orbitAchieved) {
+      return 0;
+    }
+    const nearGround = Phaser.Math.Clamp(1 - state.altitude / 30, 0, 1);
+    const rumble = this.flameLevel * nearGround * (state.launched ? 2.5 : 3.5);
+    const buffeting = state.atmosphereDensity * Phaser.Math.Clamp(state.speed / 2, 0, 1) * 3;
+    return (rumble + buffeting) * Phaser.Math.Clamp(minViewport / 800, 0.5, 1.2);
   },
 
   updateWorldVisuals(state) {

@@ -24,6 +24,7 @@ export function createFlightRuntimeState(input, stats) {
     controls: { engineOn: false, throttle: 0, steer: 0 },
     touchControls: { steerLeft: false, steerRight: false, thrust: false },
     cameraState: { initialized: false, x: 0, y: 0, zoom: 1 },
+    orbitShot: 0,
     keys: createFlightKeys(input),
     sonicBoomPlayed: false,
     lastWhooshAlt: null,

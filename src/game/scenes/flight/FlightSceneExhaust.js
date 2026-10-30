@@ -7,6 +7,8 @@ const PLUME_TEXTURE = "fx-plume";
 const SMOKE_TEXTURE = "fx-smoke";
 const GLOW_SIZE = 64;
 const SMOKE_SIZE = 96;
+// Shared with the other flight effects; they exist once createExhaust has run.
+export const FX_TEXTURES = { glow: GLOW_TEXTURE, plume: PLUME_TEXTURE, smoke: SMOKE_TEXTURE, smokeSize: SMOKE_SIZE };
 const DIAMOND_COUNT = 4;
 // Below this altitude the jet still reaches the ground and rolls out into
 // big clouds; above it the engines leave a thinning trail.
@@ -266,11 +268,6 @@ export const flightSceneExhaustMethods = {
     this.emitExhaust(state, dt);
     this.updateSmoke(dt);
     this.updateFire(dt);
-
-    // The pad shakes while the engines roar against the hold-down clamps.
-    if (!state.launched && this.flameLevel > 0.1) {
-      this.cameras.main.shake(90, 0.001 + 0.0018 * this.flameLevel);
-    }
   },
 
   igniteEngines(state) {

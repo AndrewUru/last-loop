@@ -7,6 +7,7 @@ import { flightSceneEnvironmentMethods } from "./flight/FlightSceneEnvironment.j
 import { flightSceneExhaustMethods } from "./flight/FlightSceneExhaust.js";
 import { flightSceneOverlayMethods } from "./flight/FlightSceneOverlay.js";
 import { flightSceneRuntimeMethods } from "./flight/FlightSceneRuntime.js";
+import { flightSceneSpeedMethods } from "./flight/FlightSceneSpeed.js";
 import { createFlightRuntimeState } from "./flight/FlightSceneState.js";
 
 class FlightScene extends Phaser.Scene {
@@ -26,6 +27,7 @@ class FlightScene extends Phaser.Scene {
     this.createBackdrop();
     this.createWorld();
     this.createRocket();
+    this.createSpeedEffects();
     this.createHud();
     this.createMissionOverlay();
     this.createBackdropCamera();
@@ -109,6 +111,7 @@ class FlightScene extends Phaser.Scene {
     }
     if (state.speed > 1.0 && !this.sonicBoomPlayed && state.altitude < 40) {
       this.audio.playSonicBoom();
+      this.showVaporCone();
       this.sonicBoomPlayed = true;
     }
   }
@@ -120,6 +123,7 @@ Object.assign(
   flightSceneExhaustMethods,
   flightSceneOverlayMethods,
   flightSceneRuntimeMethods,
+  flightSceneSpeedMethods,
 );
 
 export default FlightScene;
