@@ -9,7 +9,7 @@
 ## 🕹️ El juego
 
 1. **Elige:** en el hangar escoges un cohete. Cada uno vuela distinto: potencia, combustible y agilidad.
-2. **Despega:** mantén pulsado el impulso y sigue la flecha verde que sale del cohete.
+2. **Despega:** mantén pulsado el impulso. Los motores rugen un instante sujetos a la plataforma y el cohete se suelta; después sigue la flecha verde que sale de él.
 3. **Orbita:** cuando llegues a la velocidad orbital suelta el motor y planea hasta el anillo verde.
 
 La órbita se consigue con **altura** (pasar el anillo verde, 170 km) y **velocidad lateral** (5 km/s). El HUD muestra las dos barras y una sola instrucción con lo que hay que hacer en cada momento.

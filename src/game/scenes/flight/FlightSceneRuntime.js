@@ -162,16 +162,6 @@ export const flightSceneRuntimeMethods = {
         onComplete: () => debris.destroy(),
       });
     }
-
-    const flash = this.addWorldObject(this.add.graphics().setDepth(31));
-    flash.fillStyle(0xffffff, 0.8);
-    fillDot(flash, x, y, 16);
-    this.tweens.add({
-      targets: flash,
-      alpha: 0,
-      duration: 300,
-      onComplete: () => flash.destroy(),
-    });
   },
 
   // Close-up on the pad, then a steady pull-back that keeps the rocket on

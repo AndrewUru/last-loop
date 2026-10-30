@@ -215,7 +215,21 @@ export const flightSceneExhaustMethods = {
     });
   },
 
-  spawnParticle(active, pool, props) {
+  // urgent: when the pool is empty, recycle the oldest particle instead of
+  // skipping (an explosion must show even while launch clouds fill the pool).
+  spawnParticle(active, pool, props, urgent = false) {
+    if (pool.length === 0 && urgent) {
+      let oldest = -1;
+      active.forEach((particle, index) => {
+        const progress = particle.age / particle.life;
+        if (particle.pool === pool && (oldest < 0 || progress > active[oldest].age / active[oldest].life)) {
+          oldest = index;
+        }
+      });
+      if (oldest >= 0) {
+        this.retireParticle(active, oldest);
+      }
+    }
     const particle = pool.pop();
     if (!particle) {
       return;
@@ -457,13 +471,31 @@ export const flightSceneExhaustMethods = {
     });
   },
 
-  // A crash: a fireball, then a column of dark smoke.
+  // A crash: a flash, a fireball, then a column of dark smoke.
   emitExplosion(x, y) {
     const scale = this.exhaustScale;
+    const flashSize = 70 * scale;
+    const flash = this.addWorldObject(
+      this.add
+        .image(x, y, GLOW_TEXTURE)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setTint(0xfff1c8)
+        .setDepth(31)
+        .setDisplaySize(flashSize, flashSize),
+    );
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scale: flash.scale * 1.6,
+      duration: 420,
+      ease: "Quad.easeOut",
+      onComplete: () => flash.destroy(),
+    });
+
     const burst = (count, active, pool, make) => {
       for (let index = 0; index < count; index += 1) {
         const angle = Math.random() * Math.PI * 2;
-        this.spawnParticle(active, pool, make(Math.cos(angle), Math.sin(angle)));
+        this.spawnParticle(active, pool, make(Math.cos(angle), Math.sin(angle)), true);
       }
     };
     burst(26, this.fireParticles, this.firePool, (dx, dy) => {
