@@ -333,7 +333,7 @@ export const flightSceneExhaustMethods = {
       const downward = -(along.x * anchor.x + along.y * (anchor.y - centerY)) / fromCenter;
       const clearance = fromCenter - groundRadius;
       if (downward > 0.1) {
-        length = Math.min(length, clearance / downward + width * 2.2);
+        length = Math.min(length, clearance / downward + width * 0.8);
       }
 
       const plume = (sprite, plumeWidth, plumeLength, color, alpha) =>

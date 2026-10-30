@@ -10,7 +10,7 @@ export const DAY_SKY_FADE_END_ALTITUDE = 160;
 // on screen. There the ground is drawn as a circle this many times larger,
 // touching the pad (a flat horizon), and it bends into the real planet while
 // the camera pulls back between these rendered altitudes.
-export const FLAT_GROUND_SCALE = 40;
+export const FLAT_GROUND_SCALE = 100;
 export const GROUND_CURVE_START = 2;
 export const GROUND_CURVE_END = 30;
 // Sprites kept ready for exhaust particles; fewer are used on phones.
