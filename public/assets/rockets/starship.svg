@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 434">
+  <defs>
+    <linearGradient id="steel" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#6a737b"/>
+      <stop offset="0.28" stop-color="#e9edf0"/>
+      <stop offset="0.5" stop-color="#b3bbc2"/>
+      <stop offset="0.72" stop-color="#f4f6f8"/>
+      <stop offset="1" stop-color="#666e76"/>
+    </linearGradient>
+    <linearGradient id="tiles" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#0c0e11"/>
+      <stop offset="0.5" stop-color="#2b3036"/>
+      <stop offset="1" stop-color="#121417"/>
+    </linearGradient>
+    <linearGradient id="dark" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#1d2124"/>
+      <stop offset="0.35" stop-color="#4a525a"/>
+      <stop offset="1" stop-color="#16191c"/>
+    </linearGradient>
+    <linearGradient id="nozzle" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#22272b"/>
+      <stop offset="0.4" stop-color="#8a939b"/>
+      <stop offset="0.7" stop-color="#3a4046"/>
+      <stop offset="1" stop-color="#1a1d20"/>
+    </linearGradient>
+    <clipPath id="ship">
+      <path d="M40,6 C50,8 55,28 55,50 L55,172 L25,172 L25,50 C25,28 30,8 40,6 Z"/>
+    </clipPath>
+  </defs>
+  <g stroke="#1b2430" stroke-width="0.8" stroke-linejoin="round">
+    <!-- Raptor engines -->
+    <path d="M26,420 L31,420 L31.6,432 L25.4,432 Z" fill="url(#nozzle)"/>
+    <path d="M31.8,420 L36.8,420 L37.4,432 L31.2,432 Z" fill="url(#nozzle)"/>
+    <path d="M37.5,420 L42.5,420 L43.1,432 L36.9,432 Z" fill="url(#nozzle)"/>
+    <path d="M43.2,420 L48.2,420 L48.8,432 L42.6,432 Z" fill="url(#nozzle)"/>
+    <path d="M49,420 L54,420 L54.6,432 L48.4,432 Z" fill="url(#nozzle)"/>
+    <!-- Super Heavy booster -->
+    <rect x="25" y="184" width="30" height="236" fill="url(#steel)"/>
+    <path d="M25,240 L55,240 M25,296 L55,296 M25,352 L55,352" fill="none" stroke="#8b949c" stroke-width="0.5"/>
+    <rect x="25" y="408" width="30" height="12" fill="url(#dark)"/>
+    <rect x="14" y="192" width="11" height="16" fill="#555d65"/>
+    <rect x="55" y="192" width="11" height="16" fill="#555d65"/>
+    <path d="M14,197.3 L25,197.3 M14,202.6 L25,202.6 M17.7,192 L17.7,208 M21.3,192 L21.3,208 M55,197.3 L66,197.3 M55,202.6 L66,202.6 M58.7,192 L58.7,208 M62.3,192 L62.3,208" fill="none" stroke="#2b3036" stroke-width="0.5"/>
+    <!-- Hot-staging ring -->
+    <rect x="25" y="172" width="30" height="12" fill="url(#dark)"/>
+    <path d="M29,174.5 L29,181.5 M33.5,174.5 L33.5,181.5 M38,174.5 L38,181.5 M42.5,174.5 L42.5,181.5 M47,174.5 L47,181.5 M51.5,174.5 L51.5,181.5" fill="none" stroke="#c7cdd2" stroke-width="1"/>
+    <!-- Ship flaps -->
+    <path d="M25,128 L11,146 L11,168 L25,172 Z" fill="url(#tiles)"/>
+    <path d="M55,128 L69,146 L69,168 L55,172 Z" fill="url(#tiles)"/>
+    <path d="M26,42 L16,54 L16,72 L25,76 Z" fill="url(#tiles)"/>
+    <path d="M54,42 L64,54 L64,72 L55,76 Z" fill="url(#tiles)"/>
+    <!-- Ship body with its heat shield -->
+    <path d="M40,6 C50,8 55,28 55,50 L55,172 L25,172 L25,50 C25,28 30,8 40,6 Z" fill="url(#steel)"/>
+    <rect x="25" y="0" width="12" height="172" fill="url(#tiles)" stroke="none" clip-path="url(#ship)"/>
+    <path d="M37,100 L55,100 M37,140 L55,140" fill="none" stroke="#8b949c" stroke-width="0.5"/>
+    <path d="M40,6 C50,8 55,28 55,50 L55,172 L25,172 L25,50 C25,28 30,8 40,6 Z" fill="none"/>
+  </g>
+</svg>

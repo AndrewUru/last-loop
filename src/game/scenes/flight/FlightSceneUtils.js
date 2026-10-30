@@ -7,13 +7,6 @@ import {
   PRESENTATION_FADE_START,
 } from "./FlightSceneConstants.js";
 
-export function getBuildCenter(bounds) {
-  return {
-    x: (bounds.minX + bounds.maxX) / 2,
-    y: bounds.maxY,
-  };
-}
-
 // Phaser's WebGL renderer turns every Graphics circle into ~100 points and
 // re-triangulates it on the CPU each frame. Particles and flames draw hundreds
 // of them, so they use a 12-sided triangle fan instead.

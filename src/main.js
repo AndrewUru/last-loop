@@ -1,10 +1,10 @@
 import Phaser from "phaser";
 import BootScene from "./game/scenes/BootScene.js";
-import BuildScene from "./game/scenes/BuildScene.js";
+import HangarScene from "./game/scenes/HangarScene.js";
 import FlightScene from "./game/scenes/FlightScene.js";
 import config from "./game/config.js";
 
-config.scene = [BootScene, BuildScene, FlightScene];
+config.scene = [BootScene, HangarScene, FlightScene];
 
 const game = new Phaser.Game(config);
 

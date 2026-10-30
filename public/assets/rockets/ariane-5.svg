@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 378">
+  <defs>
+    <linearGradient id="white" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#a3adb6"/>
+      <stop offset="0.35" stop-color="#ffffff"/>
+      <stop offset="0.65" stop-color="#e2e7eb"/>
+      <stop offset="1" stop-color="#919ba5"/>
+    </linearGradient>
+    <linearGradient id="grey" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#868e96"/>
+      <stop offset="0.35" stop-color="#eef0f2"/>
+      <stop offset="0.65" stop-color="#cfd4d9"/>
+      <stop offset="1" stop-color="#78818a"/>
+    </linearGradient>
+    <linearGradient id="black" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#0b0d10"/>
+      <stop offset="0.4" stop-color="#3b4148"/>
+      <stop offset="1" stop-color="#14171b"/>
+    </linearGradient>
+    <linearGradient id="nozzle" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#22272b"/>
+      <stop offset="0.4" stop-color="#8a939b"/>
+      <stop offset="0.7" stop-color="#3a4046"/>
+      <stop offset="1" stop-color="#1a1d20"/>
+    </linearGradient>
+  </defs>
+  <g stroke="#1b2430" stroke-width="1" stroke-linejoin="round">
+    <!-- Solid boosters -->
+    <rect x="40" y="150" width="4" height="4" fill="#3a4046"/>
+    <rect x="76" y="150" width="4" height="4" fill="#3a4046"/>
+    <path d="M20,340 L38,340 L42,370 L16,370 Z" fill="url(#nozzle)"/>
+    <path d="M100,340 L82,340 L78,370 L104,370 Z" fill="url(#nozzle)"/>
+    <path d="M29,92 C34,98 39,112 40,126 L40,340 L18,340 L18,126 C19,112 24,98 29,92 Z" fill="url(#grey)"/>
+    <path d="M91,92 C86,98 81,112 80,126 L80,340 L102,340 L102,126 C101,112 96,98 91,92 Z" fill="url(#grey)"/>
+    <rect x="18" y="126" width="22" height="5" fill="url(#black)"/>
+    <rect x="80" y="126" width="22" height="5" fill="url(#black)"/>
+    <rect x="18" y="330" width="22" height="10" fill="url(#black)"/>
+    <rect x="80" y="330" width="22" height="10" fill="url(#black)"/>
+    <!-- Main stage with its Vulcain engine -->
+    <path d="M52,352 L68,352 L71,376 L49,376 Z" fill="url(#nozzle)"/>
+    <rect x="43" y="138" width="34" height="214" fill="url(#white)"/>
+    <rect x="43" y="152" width="34" height="5" fill="#2459a6"/>
+    <path d="M43,240 L77,240" fill="none" stroke="#b3bcc5" stroke-width="0.7"/>
+    <rect x="43" y="344" width="34" height="8" fill="url(#black)"/>
+    <!-- Upper stage and fairing -->
+    <rect x="45" y="114" width="30" height="24" fill="url(#grey)"/>
+    <rect x="43" y="110" width="34" height="4" fill="url(#black)"/>
+    <path d="M60,6 C70,10 77,30 77,52 L77,110 L43,110 L43,52 C43,30 50,10 60,6 Z" fill="url(#white)"/>
+    <path d="M60,6 L60,110" fill="none" stroke="#b3bcc5" stroke-width="0.7"/>
+  </g>
+</svg>

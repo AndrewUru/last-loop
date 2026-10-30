@@ -1,7 +1,5 @@
 import Phaser from "phaser";
-import ShipPart from "../entities/ShipPart.js";
-import { PARTS_BY_ID } from "../data/parts.js";
-import ShipStatsCalculator from "../systems/ShipStatsCalculator.js";
+import { getRocket, getRocketTextureKey, loadSelectedRocketId } from "../data/rockets.js";
 import FlightHud from "../ui/FlightHud.js";
 import FlightTouchControls from "../ui/FlightTouchControls.js";
 import { ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
@@ -9,7 +7,6 @@ import { flightSceneEnvironmentMethods } from "./flight/FlightSceneEnvironment.j
 import { flightSceneOverlayMethods } from "./flight/FlightSceneOverlay.js";
 import { flightSceneRuntimeMethods } from "./flight/FlightSceneRuntime.js";
 import { createFlightRuntimeState } from "./flight/FlightSceneState.js";
-import { getBuildCenter } from "./flight/FlightSceneUtils.js";
 
 class FlightScene extends Phaser.Scene {
   constructor() {
@@ -17,8 +14,8 @@ class FlightScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.build = data.build || this.registry.get("rocket-build") || [];
-    this.stats = data.stats || ShipStatsCalculator.calculate(this.build);
+    this.rocketDef = getRocket(data.rocketId || loadSelectedRocketId());
+    this.stats = this.rocketDef.stats;
     this.audio = this.registry.get("audio");
     this.audio?.resume();
   }
@@ -45,53 +42,21 @@ class FlightScene extends Phaser.Scene {
         this.handleResultPrimaryAction();
       }
     };
-    this.onEscapeToBuild = () => this.returnToBuild();
+    this.onEscapeToHangar = () => this.returnToHangar();
   }
 
+  // The container origin is the bottom centre of the rocket: the point that
+  // sits on the pad and that the physics position describes.
   createRocket() {
-    const bounds = this.stats.bounds || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-    const center = getBuildCenter(bounds);
+    const image = this.add.image(0, 0, getRocketTextureKey(this.rocketDef)).setOrigin(0.5, 1);
+    this.rocketHeight = this.rocketDef.height * ROCKET_CELL_SIZE;
+    image.setScale(this.rocketHeight / image.height);
+    this.rocketWidth = image.displayWidth;
 
-    this.rocketWidth = (bounds.maxX - bounds.minX) * ROCKET_CELL_SIZE;
-    this.rocketHeight = (bounds.maxY - bounds.minY) * ROCKET_CELL_SIZE;
-    this.rocket = this.add.container(0, 0).setDepth(20);
+    this.rocket = this.add.container(0, 0, [image]).setDepth(20);
     this.exhaust = this.add.graphics().setDepth(19);
     this.exhaustFire = this.add.graphics().setDepth(18.6);
     this.exhaustSmoke = this.add.graphics().setDepth(18);
-    this.primaryEngineView = null;
-    this.primaryEngineDefinition = null;
-    this.primaryEngineBottom = Number.NEGATIVE_INFINITY;
-
-    this.build.forEach((part) => {
-      const definition = PARTS_BY_ID[part.partId];
-      if (!definition) {
-        return;
-      }
-
-      const partView = new ShipPart(
-        this,
-        (part.cellX + definition.gridWidth / 2 - center.x) * ROCKET_CELL_SIZE,
-        (part.cellY + definition.gridHeight / 2 - center.y) * ROCKET_CELL_SIZE,
-        definition,
-        {
-          cellSize: ROCKET_CELL_SIZE,
-          padding: 0,
-          showLabel: false,
-          showPlate: false,
-          side: part.side,
-        },
-      );
-      this.rocket.add(partView);
-
-      if (definition.type === "engine") {
-        const partBottom = part.cellY + definition.gridHeight;
-        if (partBottom > this.primaryEngineBottom) {
-          this.primaryEngineBottom = partBottom;
-          this.primaryEngineView = partView;
-          this.primaryEngineDefinition = definition;
-        }
-      }
-    });
 
     this.drawLaunchPad();
   }

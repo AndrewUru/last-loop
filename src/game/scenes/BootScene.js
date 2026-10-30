@@ -1,13 +1,15 @@
 import Phaser from "phaser";
-import ShipPart from "../entities/ShipPart.js";
-import { PARTS_BY_ID } from "../data/parts.js";
-import { designToBuild, loadSavedDesign } from "../data/rocketDesign.js";
+import { ROCKETS, getRocketTextureKey } from "../data/rockets.js";
 import AudioSystem from "../systems/AudioSystem.js";
 import MissionSystem from "../systems/MissionSystem.js";
 import { UI_COLORS, addText } from "../ui/theme.js";
 
+// SVGs are rasterised once at load time; this keeps the tallest rocket sharp
+// at full-screen hangar size.
+const SVG_SCALE = 1.6;
+
 const STEPS = [
-  { title: "Construye", body: "Elige tanques y motor." },
+  { title: "Elige", body: "Escoge un cohete en el hangar." },
   { title: "Despega", body: "Mantén pulsado el impulso." },
   { title: "Orbita", body: "Sigue la flecha hasta el anillo verde." },
 ];
@@ -18,15 +20,25 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image("part-capsule", "assets/parts/capsule.png");
-    this.load.image("part-fuel-small", "assets/parts/fuel_tank_small.png");
-    this.load.image("part-fuel-large", "assets/parts/fuel_tank_large.png");
-    this.load.image("part-engine-main", "assets/parts/engine_main.png");
+    ROCKETS.forEach((rocket) => {
+      const key = getRocketTextureKey(rocket);
+      if (rocket.image.endsWith(".svg")) {
+        this.load.svg(key, rocket.image, { scale: SVG_SCALE });
+      } else {
+        this.load.image(key, rocket.image);
+      }
+    });
   }
 
   create() {
     const { width, height } = this.scale;
     const compact = width < 700;
+
+    // The game renders without antialiasing, which turns scaled-down artwork
+    // into jagged pixels; rockets are smooth images, so filter them.
+    ROCKETS.forEach((rocket) => {
+      this.textures.get(getRocketTextureKey(rocket)).setFilter(Phaser.Textures.FilterMode.LINEAR);
+    });
 
     this.audio = this.registry.get("audio") || new AudioSystem();
     this.audio.init();
@@ -34,7 +46,6 @@ export default class BootScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(UI_COLORS.background);
     this.drawBackdrop(width, height);
-    this.drawRocket(width, height, compact);
 
     const left = compact ? 24 : Math.max(40, width * 0.1);
     const textWidth = compact ? width - 48 : Math.min(560, width * 0.5);
@@ -42,7 +53,7 @@ export default class BootScene extends Phaser.Scene {
 
     addText(this, left, y, "LAST LOOP", { size: compact ? 44 : 72, bold: true });
     y += compact ? 56 : 88;
-    addText(this, left, y, "Construye un cohete y ponlo en órbita.", {
+    addText(this, left, y, "Pilota cohetes legendarios y ponlos en órbita.", {
       size: compact ? 18 : 24,
       color: UI_COLORS.textMuted,
       wordWrap: { width: textWidth },
@@ -61,7 +72,16 @@ export default class BootScene extends Phaser.Scene {
 
     const progress = MissionSystem.getProgress();
     const label = progress.launches > 0 ? "CONTINUAR" : "EMPEZAR";
-    this.createStartButton(left, y + (compact ? 10 : 18), compact ? width - 48 : 260, label);
+    const buttonY = y + (compact ? 10 : 18);
+    this.createStartButton(left, buttonY, compact ? width - 48 : 260, label);
+
+    if (compact) {
+      const top = buttonY + 110;
+      this.drawLineup(24, top, width - 48, height - 24 - top);
+    } else {
+      const x = Math.max(left + textWidth + 40, width * 0.52);
+      this.drawLineup(x, height * 0.2, width - 40 - x, height * 0.68);
+    }
   }
 
   drawBackdrop(width, height) {
@@ -81,35 +101,43 @@ export default class BootScene extends Phaser.Scene {
     planet.strokeCircle(width * 0.72, height + radius * 0.62, radius + 90);
   }
 
-  drawRocket(width, height, compact) {
-    const build = designToBuild(loadSavedDesign());
-    const minY = Math.min(...build.map((part) => part.cellY));
-    const maxY = Math.max(...build.map((part) => part.cellY + PARTS_BY_ID[part.partId].gridHeight));
-    const cell = Math.min((height * (compact ? 0.32 : 0.55)) / (maxY - minY), 64);
-    const baseX = compact ? width - 70 : width * 0.72;
-    const baseY = height - (compact ? 40 : height * 0.12);
-    const rocket = this.add.container(baseX, baseY);
+  // The whole collection standing side by side; locked rockets are silhouettes.
+  drawLineup(x, y, width, height) {
+    if (width < 120 || height < 60) {
+      return;
+    }
 
-    build.forEach((part) => {
-      const definition = PARTS_BY_ID[part.partId];
-      rocket.add(
-        new ShipPart(
-          this,
-          (part.cellX + definition.gridWidth / 2 - 11.5) * cell,
-          (part.cellY + definition.gridHeight / 2 - maxY) * cell,
-          definition,
-          { cellSize: cell, padding: 0, showLabel: false, side: part.side },
-        ),
-      );
+    const tallest = Math.max(...ROCKETS.map((rocket) => rocket.height));
+    const images = ROCKETS.map((rocket) => {
+      const image = this.add.image(0, 0, getRocketTextureKey(rocket)).setOrigin(0.5, 1);
+      image.setScale(rocket.height / tallest / image.height);
+      if (!MissionSystem.isUnlocked(rocket.id)) {
+        image.setTintFill(0x1c2c3d);
+      }
+      return image;
     });
 
-    this.tweens.add({
-      targets: rocket,
-      y: baseY - 10,
-      duration: 1800,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut",
+    // Fit the row: images are scaled to 1 unit for the tallest rocket, so the
+    // total width at that size tells how big the row can be drawn.
+    const gap = 0.06;
+    const rowWidth = images.reduce((sum, image) => sum + image.displayWidth, 0) + gap * (images.length - 1);
+    const size = Math.min(height, width / rowWidth);
+    const baseY = y + height;
+    let cursor = x + (width - rowWidth * size) / 2;
+
+    images.forEach((image, index) => {
+      const rocketWidth = image.displayWidth * size;
+      image.setScale(image.scale * size).setPosition(cursor + rocketWidth / 2, baseY);
+      cursor += rocketWidth + gap * size;
+      this.tweens.add({
+        targets: image,
+        y: baseY - 6,
+        duration: 1800,
+        delay: index * 160,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
     });
   }
 
@@ -132,7 +160,7 @@ export default class BootScene extends Phaser.Scene {
       started = true;
       this.audio.resume?.();
       this.audio.playClick?.();
-      this.scene.start("BuildScene");
+      this.scene.start("HangarScene");
     };
 
     button.on("pointerover", () => button.setFillStyle(0x27a873, 1));

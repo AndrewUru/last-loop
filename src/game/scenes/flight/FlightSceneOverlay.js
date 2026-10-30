@@ -1,3 +1,4 @@
+import { describeChallenge } from "../../data/rockets.js";
 import MissionSystem from "../../systems/MissionSystem.js";
 import { UI_FONT } from "../../ui/theme.js";
 
@@ -29,7 +30,7 @@ export const flightSceneOverlayMethods = {
       })
       .setOrigin(0.5, 0);
     this.resultSecondaryButton = this.createOverlayButton("Hangar  (ESC)", 0x82b6ff, () =>
-      this.returnToBuild(),
+      this.returnToHangar(),
     );
     this.resultPrimaryButton = this.createOverlayButton("", 0x73f7c0, () =>
       this.handleResultPrimaryAction(),
@@ -119,22 +120,28 @@ export const flightSceneOverlayMethods = {
       ].join("     "),
     );
 
-    const missionLines = result.completedMissions.map(
-      (mission) => `★ Misión cumplida: ${mission.title}`,
-    );
-    const unlocked = result.completedMissions.flatMap((mission) => mission.unlocks);
-    if (unlocked.length > 0) {
-      missionLines.push("¡Nuevas piezas en el hangar!");
-    }
-    const next = MissionSystem.getCurrentMission();
-    if (missionLines.length === 0 && next) {
-      missionLines.push(`Misión actual: ${next.title}`);
-      missionLines.push(next.description);
+    const { completed, unlocked } = result.challenge;
+    const missionLines = [];
+    if (completed) {
+      missionLines.push(`★ Reto cumplido: ${this.rocketDef.challenge.title}`);
+      missionLines.push(
+        unlocked ? `¡Nuevo cohete desbloqueado: ${unlocked.name}!` : "¡Has completado todos los retos!",
+      );
+    } else {
+      // Remind the player of this rocket's challenge, or point them at the next one.
+      const target = MissionSystem.isCompleted(this.rocketDef.id)
+        ? MissionSystem.getCurrentRocket()
+        : this.rocketDef;
+      if (target) {
+        missionLines.push(`Reto del ${target.name}: ${target.challenge.title}`);
+        missionLines.push(describeChallenge(target.challenge));
+      }
     }
     this.resultMissions.setText(missionLines.join("\n"));
-    this.resultMissions.setColor(result.completedMissions.length > 0 ? "#ffd166" : "#9eb4ca");
+    this.resultMissions.setColor(completed ? "#ffd166" : "#9eb4ca");
 
-    this.resultPrimaryButton.text.setText(result.success ? "Siguiente  (ENTER)" : "Reintentar  (ENTER)");
+    const primaryLabel = unlocked ? `Ver ${unlocked.shortName || unlocked.name}` : result.success ? "Siguiente" : "Reintentar";
+    this.resultPrimaryButton.text.setText(`${primaryLabel}  (ENTER)`);
     this.layoutMissionOverlay(this.scale.width, this.scale.height);
     this.resultOverlay.setVisible(true);
     this.resultOverlayVisible = true;
@@ -142,7 +149,7 @@ export const flightSceneOverlayMethods = {
 
   handleResultPrimaryAction() {
     if (this.lastResultData?.success) {
-      this.returnToBuild();
+      this.returnToHangar();
       return;
     }
 
@@ -150,10 +157,12 @@ export const flightSceneOverlayMethods = {
   },
 
   restartFlight() {
-    this.scene.restart({ build: this.build, stats: this.stats });
+    this.scene.restart({ rocketId: this.rocketDef.id });
   },
 
-  returnToBuild() {
-    this.scene.start("BuildScene", { build: this.build });
+  // A freshly unlocked rocket is shown straight away in the hangar.
+  returnToHangar() {
+    const unlocked = this.lastResultData?.challenge.unlocked;
+    this.scene.start("HangarScene", unlocked ? { rocketId: unlocked.id, revealId: unlocked.id } : { rocketId: this.rocketDef.id });
   },
 };

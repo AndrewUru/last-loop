@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 324">
+  <defs>
+    <linearGradient id="white" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#a3adb6"/>
+      <stop offset="0.35" stop-color="#ffffff"/>
+      <stop offset="0.65" stop-color="#e2e7eb"/>
+      <stop offset="1" stop-color="#919ba5"/>
+    </linearGradient>
+    <linearGradient id="black" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#0b0d10"/>
+      <stop offset="0.4" stop-color="#3b4148"/>
+      <stop offset="1" stop-color="#14171b"/>
+    </linearGradient>
+    <linearGradient id="nozzle" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#22272b"/>
+      <stop offset="0.4" stop-color="#8a939b"/>
+      <stop offset="0.7" stop-color="#3a4046"/>
+      <stop offset="1" stop-color="#1a1d20"/>
+    </linearGradient>
+  </defs>
+  <g stroke="#1b2430" stroke-width="0.8" stroke-linejoin="round">
+    <!-- Merlin engines -->
+    <path d="M19,306 L26,306 L27,320 L17,320 Z" fill="url(#nozzle)"/>
+    <path d="M34,306 L41,306 L43,320 L33,320 Z" fill="url(#nozzle)"/>
+    <path d="M26,306 L34,306 L35.5,322 L24.5,322 Z" fill="url(#nozzle)"/>
+    <rect x="18" y="300" width="24" height="6" fill="url(#black)"/>
+    <!-- First stage -->
+    <rect x="18" y="158" width="24" height="142" fill="url(#white)"/>
+    <path d="M18,200 L42,200 M18,250 L42,250" fill="none" stroke="#b3bcc5" stroke-width="0.6"/>
+    <!-- Folded landing legs -->
+    <path d="M18,246 L21.5,246 L21.5,306 L15,306 Z" fill="url(#black)"/>
+    <path d="M42,246 L38.5,246 L38.5,306 L45,306 Z" fill="url(#black)"/>
+    <path d="M27.5,246 L32.5,246 L33,306 L27,306 Z" fill="url(#black)"/>
+    <!-- Interstage and grid fins -->
+    <rect x="18" y="128" width="24" height="30" fill="url(#black)"/>
+    <rect x="10" y="131" width="8" height="9" fill="#6b747d"/>
+    <rect x="42" y="131" width="8" height="9" fill="#6b747d"/>
+    <path d="M10,134 L18,134 M10,137 L18,137 M12.7,131 L12.7,140 M15.3,131 L15.3,140 M42,134 L50,134 M42,137 L50,137 M44.7,131 L44.7,140 M47.3,131 L47.3,140" fill="none" stroke="#2b3036" stroke-width="0.5"/>
+    <!-- Second stage and fairing -->
+    <rect x="18" y="92" width="24" height="36" fill="url(#white)"/>
+    <path d="M30,4 C40,6 46,22 46,40 L46,84 L42,92 L18,92 L14,84 L14,40 C14,22 20,6 30,4 Z" fill="url(#white)"/>
+    <path d="M30,4 L30,92" fill="none" stroke="#b6bfc8" stroke-width="0.6"/>
+  </g>
+</svg>

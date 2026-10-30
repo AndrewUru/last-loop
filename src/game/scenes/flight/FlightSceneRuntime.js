@@ -25,18 +25,10 @@ function smoothstep(value) {
 }
 
 export const flightSceneRuntimeMethods = {
-  getExhaustAnchor() {
-    if (!this.primaryEngineView || !this.primaryEngineDefinition) {
-      return { x: this.rocket.x, y: this.rocket.y };
-    }
-
-    const engineHeight =
-      this.primaryEngineView.sprite?.displayHeight ??
-      this.primaryEngineDefinition.gridHeight * ROCKET_CELL_SIZE;
-    const localY =
-      this.primaryEngineView.y +
-      engineHeight * (this.primaryEngineDefinition.exhaustOffsetY ?? 0.42);
-    const localX = this.primaryEngineView.x;
+  // offset: across the rocket, from -0.5 (left edge) to 0.5 (right edge).
+  getExhaustAnchor(offset = 0) {
+    const localX = offset * this.rocketWidth;
+    const localY = -this.rocketHeight * 0.015;
     const cos = Math.cos(this.rocket.rotation);
     const sin = Math.sin(this.rocket.rotation);
 
@@ -52,13 +44,13 @@ export const flightSceneRuntimeMethods = {
 
   registerInput() {
     this.input.keyboard.on("keydown-ENTER", this.onResultPrimary);
-    this.input.keyboard.on("keydown-ESC", this.onEscapeToBuild);
+    this.input.keyboard.on("keydown-ESC", this.onEscapeToHangar);
   },
 
   handleShutdown() {
     this.scale.off("resize", this.handleResize, this);
     this.input.keyboard.off("keydown-ENTER", this.onResultPrimary);
-    this.input.keyboard.off("keydown-ESC", this.onEscapeToBuild);
+    this.input.keyboard.off("keydown-ESC", this.onEscapeToHangar);
   },
 
   updateControls() {
@@ -115,10 +107,10 @@ export const flightSceneRuntimeMethods = {
     const success = state.result === "success";
     const fuelPercent =
       this.stats.fuel > 0 ? Math.round((state.fuelRemaining / this.stats.fuel) * 100) : 0;
-    const completedMissions = MissionSystem.recordFlight({
+    const challenge = MissionSystem.recordFlight({
+      rocketId: this.rocketDef.id,
       success,
       fuelPercent,
-      partCount: this.build.length,
       time: state.time,
     });
 
@@ -134,7 +126,7 @@ export const flightSceneRuntimeMethods = {
         time: state.time,
         fuelPercent,
         maxAltitude: this.maxAltitude || state.altitude,
-        completedMissions,
+        challenge,
       });
     });
   },
@@ -389,8 +381,11 @@ export const flightSceneRuntimeMethods = {
       0,
       1,
     );
-    // Tuned for a 30-unit rocket; bigger stacks get a bigger flame.
-    const flameScale = Phaser.Math.Clamp(this.rocketHeight / 30, 0.7, 1.6) * 0.5;
+    // Tuned for a 30-unit rocket; bigger rockets get a bigger flame, and
+    // rockets with side boosters split it into several smaller ones.
+    const flames = this.rocketDef.flames;
+    const flameScale =
+      Phaser.Math.Clamp(this.rocketHeight / 30, 0.7, 1.6) * (flames.length > 1 ? 0.36 : 0.5);
     const flameLength =
       thrustVisual > 0
         ? (34 +
@@ -410,12 +405,13 @@ export const flightSceneRuntimeMethods = {
       return;
     }
 
-    this.drawExhaustFlame(thrustVisual, flameLength, flameScale);
+    flames.forEach((offset) =>
+      this.drawExhaustFlame(this.getExhaustAnchor(offset), thrustVisual, flameLength, flameScale),
+    );
   },
 
-  drawExhaustFlame(thrustVisual, flameLength, scale) {
+  drawExhaustFlame(rear, thrustVisual, flameLength, scale) {
     const orientation = this.getVisualOrientation();
-    const rear = this.getExhaustAnchor();
     const rearAngle = orientation + Math.PI / 2;
     const lateralX = Math.cos(rearAngle);
     const lateralY = Math.sin(rearAngle);

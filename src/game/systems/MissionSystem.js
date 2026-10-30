@@ -1,39 +1,6 @@
-const PROGRESS_KEY = "last-loop-progress-v2";
+import { ROCKETS, ROCKETS_BY_ID, meetsChallenge } from "../data/rockets.js";
 
-// Missions are tried in order; the first unfinished one is the current goal.
-// Completing a mission can unlock new parts in the hangar.
-export const MISSIONS = [
-  {
-    id: "first-orbit",
-    title: "Primera órbita",
-    description: "Pon el cohete en órbita.",
-    unlocks: ["nose_cone", "avionics_ring"],
-    check: (flight) => flight.success,
-  },
-  {
-    id: "fuel-saver",
-    title: "Ahorrador",
-    description: "Llega a la órbita con un 35% de combustible o más.",
-    unlocks: ["solid_booster"],
-    check: (flight) => flight.success && flight.fuelPercent >= 35,
-  },
-  {
-    id: "quick",
-    title: "Exprés",
-    description: "Llega a la órbita en menos de 68 segundos.",
-    unlocks: [],
-    check: (flight) => flight.success && flight.time < 68,
-  },
-  {
-    id: "heavy",
-    title: "Carga pesada",
-    description: "Llega a la órbita con 7 piezas o más.",
-    unlocks: [],
-    check: (flight) => flight.success && flight.partCount >= 7,
-  },
-];
-
-export const STARTING_PARTS = ["capsule", "fuel_tank_small", "fuel_tank_large", "engine_main"];
+const PROGRESS_KEY = "last-loop-progress-v3";
 
 function readProgress() {
   try {
@@ -55,44 +22,59 @@ function writeProgress(progress) {
   }
 }
 
+// Every rocket has one challenge, and it only counts when flown with that
+// rocket. `completed` holds the ids of the rockets whose challenge is done.
 export default class MissionSystem {
   static getProgress() {
     return readProgress();
   }
 
-  static isCompleted(missionId) {
-    return readProgress().completed.includes(missionId);
+  static isCompleted(rocketId) {
+    return readProgress().completed.includes(rocketId);
   }
 
-  static getCurrentMission() {
+  // { time, fuelPercent } over every orbit reached with the rocket, or null.
+  static getBest(rocketId) {
+    return readProgress().best?.[rocketId] || null;
+  }
+
+  static isUnlocked(rocketId) {
+    const index = ROCKETS.findIndex((rocket) => rocket.id === rocketId);
+    return index === 0 || (index > 0 && MissionSystem.isCompleted(ROCKETS[index - 1].id));
+  }
+
+  // The first rocket whose challenge is still open: always the newest unlocked one.
+  static getCurrentRocket() {
     const { completed } = readProgress();
-    return MISSIONS.find((mission) => !completed.includes(mission.id)) || null;
+    return ROCKETS.find((rocket) => !completed.includes(rocket.id)) || null;
   }
 
-  static getUnlockedParts() {
-    const { completed } = readProgress();
-    const unlocked = new Set(STARTING_PARTS);
-    MISSIONS.forEach((mission) => {
-      if (completed.includes(mission.id)) {
-        mission.unlocks.forEach((partId) => unlocked.add(partId));
-      }
-    });
-    return unlocked;
-  }
-
-  // flight: { success, fuelPercent, partCount, time }
+  // flight: { rocketId, success, fuelPercent, time }
+  // Returns whether this flight beat the rocket's challenge and the rocket it unlocked.
   static recordFlight(flight) {
     const progress = readProgress();
     progress.launches += 1;
     if (flight.success) {
       progress.orbits += 1;
+      const best = progress.best?.[flight.rocketId];
+      progress.best = {
+        ...progress.best,
+        [flight.rocketId]: {
+          time: Math.min(best?.time ?? Number.POSITIVE_INFINITY, flight.time),
+          fuelPercent: Math.max(best?.fuelPercent ?? 0, flight.fuelPercent),
+        },
+      };
     }
 
-    const newlyCompleted = MISSIONS.filter(
-      (mission) => !progress.completed.includes(mission.id) && mission.check(flight),
-    );
-    newlyCompleted.forEach((mission) => progress.completed.push(mission.id));
+    const rocket = ROCKETS_BY_ID[flight.rocketId];
+    const completed =
+      Boolean(rocket) && !progress.completed.includes(rocket.id) && meetsChallenge(rocket.challenge, flight);
+    if (completed) {
+      progress.completed.push(rocket.id);
+    }
     writeProgress(progress);
-    return newlyCompleted;
+
+    const unlocked = completed ? ROCKETS[ROCKETS.indexOf(rocket) + 1] || null : null;
+    return { completed, unlocked };
   }
 }

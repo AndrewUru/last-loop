@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 502">
+  <defs>
+    <linearGradient id="white" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#a3adb6"/>
+      <stop offset="0.35" stop-color="#ffffff"/>
+      <stop offset="0.65" stop-color="#e2e7eb"/>
+      <stop offset="1" stop-color="#919ba5"/>
+    </linearGradient>
+    <linearGradient id="black" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#0b0d10"/>
+      <stop offset="0.4" stop-color="#3b4148"/>
+      <stop offset="1" stop-color="#14171b"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#7f8a95"/>
+      <stop offset="0.35" stop-color="#eef2f5"/>
+      <stop offset="0.65" stop-color="#bcc5cd"/>
+      <stop offset="1" stop-color="#727d88"/>
+    </linearGradient>
+    <linearGradient id="nozzle" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#22272b"/>
+      <stop offset="0.4" stop-color="#8a939b"/>
+      <stop offset="0.7" stop-color="#3a4046"/>
+      <stop offset="1" stop-color="#1a1d20"/>
+    </linearGradient>
+  </defs>
+  <g stroke="#1b2430" stroke-width="0.8" stroke-linejoin="round">
+    <!-- Launch escape tower -->
+    <path d="M50,2 L50,12" stroke="#59616a" stroke-width="1.6"/>
+    <rect x="48.2" y="12" width="3.6" height="16" fill="url(#white)"/>
+    <path d="M48.2,28 L51.8,28 L54,42 L46,42 Z M48.2,28 L54,42 M51.8,28 L46,42 M47,35 L53,35" fill="none" stroke="#c0392b" stroke-width="1"/>
+    <!-- Apollo command and service modules -->
+    <path d="M47.5,42 L52.5,42 L58,58 L42,58 Z" fill="url(#white)"/>
+    <rect x="42" y="58" width="16" height="14" fill="url(#silver)"/>
+    <path d="M42,72 L58,72 L61,96 L39,96 Z" fill="url(#white)"/>
+    <rect x="39" y="96" width="22" height="4" fill="url(#silver)"/>
+    <!-- Third stage -->
+    <rect x="39" y="100" width="22" height="50" fill="url(#white)"/>
+    <rect x="39" y="140" width="22" height="10" fill="url(#black)"/>
+    <path d="M39,150 L61,150 L65,166 L35,166 Z" fill="url(#white)"/>
+    <!-- Second stage -->
+    <rect x="35" y="166" width="30" height="106" fill="url(#white)"/>
+    <rect x="35" y="166" width="30" height="5" fill="url(#black)"/>
+    <rect x="35" y="272" width="30" height="12" fill="url(#white)"/>
+    <!-- First stage with its black roll pattern -->
+    <rect x="35" y="284" width="30" height="178" fill="url(#white)"/>
+    <rect x="35" y="284" width="15" height="20" fill="#14171b" stroke="none"/>
+    <rect x="50" y="304" width="15" height="20" fill="#14171b" stroke="none"/>
+    <rect x="35" y="420" width="15" height="42" fill="#14171b" stroke="none"/>
+    <text x="57.5" y="352" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="9" fill="#14171b" stroke="none" text-anchor="middle">U</text>
+    <text x="57.5" y="363" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="9" fill="#14171b" stroke="none" text-anchor="middle">S</text>
+    <text x="57.5" y="374" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="9" fill="#14171b" stroke="none" text-anchor="middle">A</text>
+    <!-- Fins and engine fairings -->
+    <path d="M35,440 L20,466 L20,480 L35,476 Z" fill="url(#white)"/>
+    <path d="M65,440 L80,466 L80,480 L65,476 Z" fill="url(#white)"/>
+    <path d="M35,462 L65,462 L69,480 L31,480 Z" fill="url(#white)"/>
+    <path d="M33,474 L67,474 L69,480 L31,480 Z" fill="url(#black)"/>
+    <!-- F-1 engines -->
+    <path d="M30,480 L42,480 L44,498 L27,498 Z" fill="url(#nozzle)"/>
+    <path d="M58,480 L70,480 L73,498 L56,498 Z" fill="url(#nozzle)"/>
+    <path d="M42,480 L58,480 L61,501 L39,501 Z" fill="url(#nozzle)"/>
+  </g>
+</svg>
