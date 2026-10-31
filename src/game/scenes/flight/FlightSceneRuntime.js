@@ -1,62 +1,35 @@
 import Phaser from "phaser";
-import { PARTS_BY_ID } from "../../data/parts.js";
-import ShipStatsCalculator from "../../systems/ShipStatsCalculator.js";
+import MissionSystem from "../../systems/MissionSystem.js";
+import { FLIGHT_PHASES, FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 import {
-  FLIGHT_PHASES,
-  FLIGHT_WORLD,
-} from "../../systems/FlightSimulator.js";
-import {
-  CURVATURE_REVEAL_END_ALTITUDE,
-  CURVATURE_REVEAL_START_ALTITUDE,
+  CAMERA_FLIGHT_FILL,
+  CAMERA_LEAD,
+  CAMERA_ORBIT_SHOT_TIME,
+  CAMERA_PAD_FILL,
+  CAMERA_SPEED_PULLBACK,
   DAY_SKY_FADE_END_ALTITUDE,
   DAY_SKY_FADE_START_ALTITUDE,
-  FLAT_GROUND_FADE_ALTITUDE,
-  GUIDANCE_REVEAL_ALTITUDE,
-  INITIAL_CAMERA_ZOOM,
-  LAUNCH_CAMERA_CENTER_OFFSET,
-  LAUNCH_PARTICLE_ALTITUDE,
-  MAX_CAMERA_ZOOM,
-  MAX_ZOOM_FACTOR,
-  MIN_CAMERA_ZOOM,
-  MIN_ORBIT_CAMERA_ZOOM,
-  MIN_ZOOM_FACTOR,
-  ORBIT_CAMERA_END_ALTITUDE,
-  ORBIT_CAMERA_START_ALTITUDE,
+  GROUND_CURVE_END,
+  GROUND_CURVE_START,
   PAD_FADE_ALTITUDE,
-  PLANET_REVEAL_ALTITUDE,
   ROCKET_CELL_SIZE,
   TRAIL_LIMIT,
+  TRAJECTORY_REVEAL_ALTITUDE,
 } from "./FlightSceneConstants.js";
-import {
-  acquireParticle,
-  angleDifference,
-  getRenderPosition,
-  getThrustVisual,
-  releaseParticle,
-  updateZoomFactor,
-} from "./FlightSceneUtils.js";
+import { fillDot, getRenderPosition, toRenderSpace } from "./FlightSceneUtils.js";
+
+function smoothstep(value) {
+  const t = Phaser.Math.Clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
+}
 
 export const flightSceneRuntimeMethods = {
-  getExhaustAnchor() {
-    if (!this.primaryEngineView || !this.primaryEngineDefinition) {
-      return {
-        x: this.rocket.x,
-        y: this.rocket.y + 28 * this.getRocketVisualScale(),
-      };
-    }
-
-    const engineHeight =
-      this.primaryEngineView.sprite?.displayHeight ??
-      this.primaryEngineDefinition.gridHeight * ROCKET_CELL_SIZE;
-    const visualScale = this.getRocketVisualScale();
-    const localY =
-      (this.primaryEngineView.y +
-        engineHeight * (this.primaryEngineDefinition.exhaustOffsetY ?? 0.42)) *
-      visualScale;
-    const localX = this.primaryEngineView.x * visualScale;
-    const rotation = this.rocket.rotation;
-    const cos = Math.cos(rotation);
-    const sin = Math.sin(rotation);
+  // offset: across the rocket, from -0.5 (left edge) to 0.5 (right edge).
+  getExhaustAnchor(offset = 0) {
+    const localX = offset * this.rocketWidth;
+    const localY = -this.rocketHeight * 0.015;
+    const cos = Math.cos(this.rocket.rotation);
+    const sin = Math.sin(this.rocket.rotation);
 
     return {
       x: this.rocket.x + localX * cos - localY * sin,
@@ -68,288 +41,59 @@ export const flightSceneRuntimeMethods = {
     return this.rocket.rotation - Math.PI / 2;
   },
 
-  getMapViewProgress() {
-    return Phaser.Math.Clamp(
-      (0.62 - this.cameraState.zoomFactor) / 0.42,
-      0,
-      1,
-    );
-  },
-
-  getRocketVisualScale() {
-    return Phaser.Math.Linear(1, 0.14, this.getMapViewProgress());
-  },
-
   registerInput() {
-    this.input.mouse?.disableContextMenu();
-    this.input.addPointer(2);
-    this.input.on("pointerdown", this.handlePointerDown, this);
-    this.input.on("pointermove", this.handlePointerMove, this);
-    this.input.on("pointerup", this.handlePointerUp, this);
-    this.input.on("pointerupoutside", this.handlePointerUp, this);
-    this.input.on("wheel", this.handleMouseWheel, this);
-    this.input.keyboard.on("keydown-H", this.onToggleHelp);
-    this.input.keyboard.on("keydown-R", this.onResultRebuild);
-    this.input.keyboard.on("keydown-SPACE", this.onResultRelaunch);
-    this.input.keyboard.on("keydown-ESC", this.onEscapeToBuild);
-    this.input.keyboard.on("keydown-X", () => this.activateStage());
+    this.input.keyboard.on("keydown-ENTER", this.onResultPrimary);
+    this.input.keyboard.on("keydown-ESC", this.onEscapeToHangar);
   },
 
   handleShutdown() {
     this.scale.off("resize", this.handleResize, this);
-    this.input.off("pointerdown", this.handlePointerDown, this);
-    this.input.off("pointermove", this.handlePointerMove, this);
-    this.input.off("pointerup", this.handlePointerUp, this);
-    this.input.off("pointerupoutside", this.handlePointerUp, this);
-    this.input.off("wheel", this.handleMouseWheel, this);
-    this.input.keyboard.off("keydown-H", this.onToggleHelp);
-    this.input.keyboard.off("keydown-R", this.onResultRebuild);
-    this.input.keyboard.off("keydown-SPACE", this.onResultRelaunch);
-    this.input.keyboard.off("keydown-ESC", this.onEscapeToBuild);
-    this.input.keyboard.off("keydown-X", () => this.activateStage());
+    this.input.keyboard.off("keydown-ENTER", this.onResultPrimary);
+    this.input.keyboard.off("keydown-ESC", this.onEscapeToHangar);
   },
 
-  handlePointerDown(pointer) {
-    if (pointer.pointerType === "touch") {
-      this.trackTouchPointer(pointer);
-      return;
-    }
-
-    if (!pointer.rightButtonDown() && !pointer.middleButtonDown()) {
-      return;
-    }
-
-    this.cameraDrag = {
-      pointerId: pointer.id,
-      startX: pointer.x,
-      startY: pointer.y,
-      originPanX: this.cameraState.panX,
-      originPanY: this.cameraState.panY,
-    };
-  },
-
-  handlePointerMove(pointer) {
-    if (pointer.pointerType === "touch") {
-      this.updateTouchPointer(pointer);
-      this.updatePinchZoom();
-      return;
-    }
-
-    if (!this.cameraDrag || this.cameraDrag.pointerId !== pointer.id) {
-      return;
-    }
-
-    const zoom = Math.max(this.cameraState.zoom, 0.001);
-    this.cameraState.panX =
-      this.cameraDrag.originPanX - (pointer.x - this.cameraDrag.startX) / zoom;
-    this.cameraState.panY =
-      this.cameraDrag.originPanY - (pointer.y - this.cameraDrag.startY) / zoom;
-  },
-
-  handlePointerUp(pointer) {
-    if (pointer.pointerType === "touch") {
-      this.releaseTouchPointer(pointer);
-      return;
-    }
-
-    if (this.cameraDrag?.pointerId === pointer.id) {
-      this.cameraDrag = null;
-    }
-  },
-
-  trackTouchPointer(pointer) {
-    this.activeTouchPointers.set(pointer.id, {
-      x: pointer.x,
-      y: pointer.y,
-    });
-
-    if (this.activeTouchPointers.size === 2) {
-      this.pinchZoom = {
-        distance: this.getPinchDistance(),
-        zoomFactor: this.cameraState.zoomFactor,
-      };
-    }
-  },
-
-  updateTouchPointer(pointer) {
-    if (!this.activeTouchPointers.has(pointer.id)) {
-      return;
-    }
-
-    this.activeTouchPointers.set(pointer.id, {
-      x: pointer.x,
-      y: pointer.y,
-    });
-  },
-
-  releaseTouchPointer(pointer) {
-    this.activeTouchPointers.delete(pointer.id);
-    this.pinchZoom = null;
-  },
-
-  getPinchDistance() {
-    const touches = Array.from(this.activeTouchPointers.values());
-    if (touches.length < 2) {
-      return 0;
-    }
-
-    return Phaser.Math.Distance.Between(
-      touches[0].x,
-      touches[0].y,
-      touches[1].x,
-      touches[1].y,
-    );
-  },
-
-  updatePinchZoom() {
-    if (!this.pinchZoom || this.activeTouchPointers.size < 2) {
-      return;
-    }
-
-    const distance = this.getPinchDistance();
-    if (distance <= 0 || this.pinchZoom.distance <= 0) {
-      return;
-    }
-
-    this.cameraState.zoomFactor = Phaser.Math.Clamp(
-      this.pinchZoom.zoomFactor * (distance / this.pinchZoom.distance),
-      MIN_ZOOM_FACTOR,
-      MAX_ZOOM_FACTOR,
-    );
-  },
-
-  handleMouseWheel(pointer, over, deltaX, deltaY) {
-    this.cameraState.zoomFactor = updateZoomFactor(
-      this.cameraState.zoomFactor,
-      deltaY,
-    );
-  },
-
-  updateControls(delta) {
+  updateControls() {
     if (this.finished) {
-      this.controls.steer = 0;
+      this.controls.engineOn = false;
       this.controls.throttle = 0;
+      this.controls.steer = 0;
       return;
     }
 
-    if (
-      Phaser.Input.Keyboard.JustDown(this.keys.space) ||
-      Phaser.Input.Keyboard.JustDown(this.keys.f)
-    ) {
-      this.toggleEngine();
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.keys.g)) {
-      this.toggleAssist();
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.keys.zero)) {
-      this.setCruiseThrottle(0);
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.keys.one)) {
-      this.setCruiseThrottle(0.35);
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.keys.two)) {
-      this.setCruiseThrottle(0.65);
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.keys.three)) {
-      this.setCruiseThrottle(0.85);
-    }
-    if (Phaser.Input.Keyboard.JustDown(this.keys.four)) {
-      this.setCruiseThrottle(1);
-    }
+    const thrust = this.applyMissionControls(
+      this.keys.space.isDown || this.keys.up.isDown || this.keys.w.isDown || this.touchControls.thrust,
+    );
+    const left = this.keys.left.isDown || this.keys.a.isDown || this.touchControls.steerLeft;
+    const right = this.keys.right.isDown || this.keys.d.isDown || this.touchControls.steerRight;
 
-    const upPressed =
-      this.keys.up.isDown || this.keys.w.isDown || this.touchControls.throttleUp;
-    const downPressed =
-      this.keys.down.isDown || this.keys.s.isDown || this.touchControls.throttleDown;
-    const leftPressed =
-      this.keys.left.isDown || this.keys.a.isDown || this.touchControls.steerLeft;
-    const rightPressed =
-      this.keys.right.isDown || this.keys.d.isDown || this.touchControls.steerRight;
-
-    if (upPressed) {
-      this.controls.engineOn = true;
-      this.controls.cruiseThrottle = Math.min(
-        1,
-        this.controls.cruiseThrottle + delta * 0.001,
-      );
-    }
-    if (downPressed) {
-      this.controls.cruiseThrottle = Math.max(
-        0,
-        this.controls.cruiseThrottle - delta * 0.001,
-      );
-    }
-    if (this.touchControls.throttleDown && this.controls.cruiseThrottle <= 0.01) {
-      this.controls.engineOn = false;
-    }
-
-    if (this.simulator.state.fuelRemaining <= 0.01) {
-      this.controls.engineOn = false;
-    }
-
-    this.controls.steer = (rightPressed ? 1 : 0) - (leftPressed ? 1 : 0);
-    const requestedThrottle = this.controls.engineOn
-      ? this.keys.shift.isDown
-        ? 1
-        : this.controls.cruiseThrottle
-      : 0;
-
-    this.controls.requestedThrottle = requestedThrottle;
-    this.controls.autoThrottleActive = false;
-    this.controls.throttle = requestedThrottle;
-  },
-
-  toggleEngine() {
-    this.controls.engineOn = !this.controls.engineOn;
-  },
-
-  toggleAssist() {
-    this.controls.assistEnabled = !this.controls.assistEnabled;
-  },
-
-  setCruiseThrottle(value) {
-    this.controls.cruiseThrottle = Phaser.Math.Clamp(value, 0, 1);
+    this.controls.engineOn = thrust;
+    this.controls.throttle = thrust ? 1 : 0;
+    this.controls.steer = (right ? 1 : 0) - (left ? 1 : 0);
   },
 
   renderFlight(state, prediction, time, delta) {
-    this.updateTrail(state);
-    this.updateGuidance(prediction);
-    this.updateCamera(state);
-    this.updateWorldVisuals(state);
     this.updateRocketPose(state);
+    this.updateCamera(state, delta);
+    this.updateTrail(state);
+    this.updateTrajectory(state, prediction);
+    this.updateWorldVisuals(state);
+    this.updateGuidanceArrow(state);
     this.updateExhaust(state, time, delta);
-    this.updateLaunchMomentum(state, time);
+    this.updateSpeedEffects(state, delta);
+    this.updateMission(state, delta);
   },
 
-  updateHud(state, prediction) {
-    this.hud.update(state, {
-      stats: this.stats,
-      predictionSummary: prediction,
-      controls: this.controls,
-    });
-    this.touchControlsUi.update(state, {
-      stats: this.stats,
-      predictionSummary: prediction,
-      targetAltitude: FLIGHT_WORLD.targetOrbitAltitude,
-    });
+  updateHud(state) {
+    this.hud.update(state, { stats: this.stats, instruction: this.getMissionInstruction(state) });
+    this.touchControlsUi.update(state);
   },
 
   handlePhaseTransition(state) {
-    if (state.phaseId === FLIGHT_PHASES.LIFTOFF && state.launched) {
+    if (state.phaseId === FLIGHT_PHASES.ASCENT) {
       this.cameras.main.shake(260, 0.004);
-      return;
-    }
-
-    if (state.phaseId === FLIGHT_PHASES.GRAVITY_TURN) {
-      this.cameras.main.shake(160, 0.0022);
-      return;
-    }
-
-    if (
-      state.phaseId === FLIGHT_PHASES.ORBIT_PUSH ||
-      state.phaseId === FLIGHT_PHASES.ORBIT
-    ) {
+    } else if (state.phaseId === FLIGHT_PHASES.ORBIT) {
       this.cameras.main.shake(112, 0.0015);
+      this.audio?.playSuccess?.();
     }
   },
 
@@ -359,363 +103,215 @@ export const flightSceneRuntimeMethods = {
     }
 
     this.finished = true;
-    this.controls.engineOn = false;
-    this.controls.throttle = 0;
-    this.controls.steer = 0;
+    const success = state.result === "success";
+    const fuelPercent =
+      this.stats.fuel > 0 ? Math.round((state.fuelRemaining / this.stats.fuel) * 100) : 0;
+    // The state keeps ticking while the orbit settles, so freeze the time the
+    // mission is judged on and show that same number.
+    const time = state.time;
+    const challenge = MissionSystem.recordFlight({
+      rocketId: this.rocketDef.id,
+      success,
+      fuelPercent,
+      time,
+      ...this.getMissionCounters(),
+    });
 
-    if (state.result === "crashed") {
-      this.createExplosion(state);
+    if (state.failure === FLIGHT_PHASES.CRASHED) {
+      this.createExplosion();
       this.audio?.playExplosion();
     }
 
-    const snapshot = {
-      result: state.result,
-      reason: state.reason,
-      altitude: Math.max(state.altitude, state.apoapsis || 0),
-      horizontalVelocity: Math.abs(state.horizontalVelocity),
-      fuelRemaining: state.fuelRemaining,
-      time: state.time,
-    };
-
-    this.time.delayedCall(state.result === "success" ? 900 : 1200, () => {
-      this.showMissionOverlay(snapshot);
+    this.time.delayedCall(success ? 1600 : 1200, () => {
+      this.showMissionOverlay({
+        success,
+        reason: state.reason,
+        time,
+        fuelPercent,
+        maxAltitude: this.maxAltitude || state.altitude,
+        challenge,
+      });
     });
   },
 
-  createExplosion(state) {
-    this.cameras.main.shake(400, 0.012);
-    const rocketX = state.position.x;
-    const rocketY = state.position.y;
+  // Objects created after the cameras exist must be hidden from the HUD and
+  // backdrop cameras or they get drawn twice in screen space.
+  addWorldObject(object) {
+    this.uiCamera?.ignore(object);
+    this.backdropCamera?.ignore(object);
+    return object;
+  },
 
-    for (let i = 0; i < 35; i++) {
+  createExplosion() {
+    this.cameras.main.shake(400, 0.012);
+    const x = this.rocket.x;
+    const y = this.rocket.y;
+    const colors = [0xff4500, 0xff8c00, 0xffd700, 0xff6347, 0xffffff];
+    this.rocket.setVisible(false);
+    this.extinguishExhaust();
+    this.emitExplosion(x, y);
+
+    for (let i = 0; i < 35; i += 1) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 40 + Math.random() * 120;
-      const size = 2 + Math.random() * 5;
-      const colors = [0xff4500, 0xff8c00, 0xffd700, 0xff6347, 0xffffff];
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      const debris = this.add.circle(rocketX, rocketY, size, color, 1);
-      debris.setDepth(30);
+      const distance = 8 + Math.random() * 26;
+      const debris = this.addWorldObject(
+        this.add
+          .circle(x, y, 0.6 + Math.random() * 1.4, colors[i % colors.length], 1)
+          .setDepth(30),
+      );
       this.tweens.add({
         targets: debris,
-        x: rocketX + Math.cos(angle) * speed,
-        y: rocketY + Math.sin(angle) * speed - 30,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance - 6,
         alpha: 0,
         scale: 0.2,
         duration: 600 + Math.random() * 800,
         ease: "Cubic.easeOut",
-        onComplete: () => debris.destroy()
+        onComplete: () => debris.destroy(),
       });
     }
-
-    for (let i = 0; i < 20; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 20 + Math.random() * 60;
-      const smoke = this.add.circle(rocketX, rocketY, 4 + Math.random() * 8, 0x333333, 0.6);
-      smoke.setDepth(29);
-      this.tweens.add({
-        targets: smoke,
-        x: rocketX + Math.cos(angle) * speed,
-        y: rocketY + Math.sin(angle) * speed - 50,
-        alpha: 0,
-        scale: 2 + Math.random() * 2,
-        duration: 1000 + Math.random() * 1000,
-        ease: "Quad.easeOut",
-        onComplete: () => smoke.destroy()
-      });
-    }
-
-    this.flashGraphics = this.add.graphics().setDepth(31);
-    this.flashGraphics.fillStyle(0xffffff, 0.8);
-    this.flashGraphics.fillCircle(rocketX, rocketY, 60);
-    this.tweens.add({
-      targets: this.flashGraphics,
-      alpha: 0,
-      duration: 300,
-      onComplete: () => this.flashGraphics.destroy()
-    });
-
-    this.build.forEach((part) => {
-      const def = PARTS_BY_ID[part.partId];
-      if (!def) return;
-      const partX = rocketX + (part.cellX - this.stats.bounds.minX) * 20;
-      const partY = rocketY + (part.cellY - this.stats.bounds.minY) * 20;
-      const chunk = this.add.rectangle(partX, partY, 8, 8, def.color, 0.9);
-      chunk.setDepth(28);
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 30 + Math.random() * 70;
-      this.tweens.add({
-        targets: chunk,
-        x: partX + Math.cos(angle) * speed * 2,
-        y: partY + Math.sin(angle) * speed * 2 + 100,
-        rotation: Math.random() * 6,
-        alpha: 0,
-        duration: 800 + Math.random() * 600,
-        ease: "Quad.easeIn",
-        onComplete: () => chunk.destroy()
-      });
-    });
   },
 
-  updateCamera(state) {
-    const renderPosition = getRenderPosition(state);
-    if (state.orbitAchieved) {
-      const minViewport = Math.min(this.scale.width, this.scale.height);
-      const orbitRadius =
-        FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude + 80;
-      const desiredZoom = Phaser.Math.Clamp(
-        (minViewport * 0.44) / orbitRadius * this.cameraState.zoomFactor,
-        MIN_CAMERA_ZOOM,
-        MAX_CAMERA_ZOOM,
-      );
+  // Arcade chase camera: close on the rocket for the whole climb, widening a
+  // little with speed and leaning towards where it is heading. Only once the
+  // orbit locks does it pull out to frame the planet and the orbit.
+  updateCamera(state, delta) {
+    const { width, height } = this.scale;
+    const minViewport = Math.min(width, height);
+    const renderAltitude = Math.max(
+      0,
+      Math.hypot(this.rocket.x, this.rocket.y) - FLIGHT_WORLD.planetRadius,
+    );
+    const padZoom = (minViewport * CAMERA_PAD_FILL) / Math.max(this.rocketHeight, ROCKET_CELL_SIZE * 3);
+    // Small rockets are framed like an average one so the view does not shrink with them.
+    const flightZoom = (minViewport * CAMERA_FLIGHT_FILL) / Math.max(this.rocketHeight, 40);
+    const climb = smoothstep(renderAltitude / 40);
+    const speedShare = Phaser.Math.Clamp(state.speed / FLIGHT_WORLD.orbitTargetHorizontalSpeed, 0, 1.3);
+    const chaseZoom =
+      Phaser.Math.Linear(padZoom, flightZoom, climb) / (1 + CAMERA_SPEED_PULLBACK * speedShare);
+    const orbitZoom =
+      (minViewport * 0.44) /
+      (FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude + 30);
 
-      this.cameraState.centerX = Phaser.Math.Linear(
-        this.cameraState.centerX,
-        this.cameraState.panX,
-        0.08,
-      );
-      this.cameraState.centerY = Phaser.Math.Linear(
-        this.cameraState.centerY,
-        this.cameraState.panY,
-        0.08,
-      );
-      this.cameraState.zoom = Phaser.Math.Linear(
-        this.cameraState.zoom,
-        desiredZoom,
-        0.12,
-      );
-      this.cameras.main.centerOn(
-        this.cameraState.centerX,
-        this.cameraState.centerY,
-      );
-      this.cameras.main.setZoom(this.cameraState.zoom);
-      return;
+    if (state.orbitAchieved) {
+      this.orbitShot = Math.min(1, this.orbitShot + delta / 1000 / CAMERA_ORBIT_SHOT_TIME);
+    }
+    const shot = smoothstep(this.orbitShot);
+    const zoom = Math.exp(Phaser.Math.Linear(Math.log(chaseZoom), Math.log(orbitZoom), shot));
+
+    const heading = Math.hypot(state.velocity.x, state.velocity.y);
+    const lead =
+      heading > 0.01
+        ? ((minViewport * CAMERA_LEAD) / zoom) * Math.min(1, state.speed / 1.5) * (1 - shot)
+        : 0;
+    const leadX = heading > 0.01 ? (state.velocity.x / heading) * lead : 0;
+    const leadY = heading > 0.01 ? (state.velocity.y / heading) * lead : 0;
+
+    // On the pad the rocket sits a little below centre so the HUD never covers it.
+    const hudLift = ((1 - climb) * height * 0.08) / zoom;
+    // Frame the free area below the HUD, not the whole screen, and never let
+    // the rocket slide under the HUD panel or the touch buttons.
+    const hud = this.hud.panelBounds;
+    const safeTop = Math.max(hud ? hud.y + hud.height : 32, this.missionTrackerBottom || 0) + 28;
+    const safeBottom = height - (this.touchControlsUi.visible ? 150 : 50);
+    const anchorShift = ((safeTop + safeBottom) / 2 - height / 2) / zoom;
+    let targetX = Phaser.Math.Linear(this.rocket.x + leadX, 0, shot);
+    let targetY = Phaser.Math.Linear(this.rocket.y + leadY - hudLift, 0, shot) - anchorShift;
+    const safeSide = Math.min(60, width * 0.1);
+    const screenX = (this.rocket.x - targetX) * zoom + width / 2;
+    const screenY = (this.rocket.y - targetY) * zoom + height / 2;
+    if (screenY < safeTop) {
+      targetY -= (safeTop - screenY) / zoom;
+    } else if (screenY > safeBottom) {
+      targetY += (screenY - safeBottom) / zoom;
+    }
+    if (screenX < safeSide) {
+      targetX -= (safeSide - screenX) / zoom;
+    } else if (screenX > width - safeSide) {
+      targetX += (screenX - (width - safeSide)) / zoom;
     }
 
-    const altitudeProgress = Phaser.Math.Clamp(
-      renderPosition.altitude / FLIGHT_WORLD.targetOrbitAltitude,
-      0,
-      1,
-    );
-    const orbitBlend = Phaser.Math.Clamp(
-      (renderPosition.altitude - ORBIT_CAMERA_START_ALTITUDE) /
-        (ORBIT_CAMERA_END_ALTITUDE - ORBIT_CAMERA_START_ALTITUDE),
-      0,
-      1,
-    );
-    const minViewport = Math.min(this.scale.width, this.scale.height);
-    const viewRadius = Phaser.Math.Linear(
-      FLIGHT_WORLD.planetRadius + 80,
-      FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude + 80,
-      altitudeProgress,
-    );
-    const orbitalZoom = Phaser.Math.Clamp(
-      (minViewport * 0.42) / viewRadius,
-      MIN_ORBIT_CAMERA_ZOOM,
-      1.9,
-    );
-    const launchLockProgress = Math.pow(
-      Phaser.Math.Clamp(state.altitude / 92, 0, 1),
-      1.65,
-    );
-    const mapViewProgress = this.getMapViewProgress();
-    const framingY = Phaser.Math.Linear(28, 102, orbitBlend);
-    const automaticZoom = Phaser.Math.Linear(
-      INITIAL_CAMERA_ZOOM,
-      orbitalZoom,
-      orbitBlend,
-    );
-    const desiredCenterX = renderPosition.x + this.cameraState.panX;
-    const launchSurfaceOffset = Phaser.Math.Linear(
-      -6,
-      LAUNCH_CAMERA_CENTER_OFFSET,
-      mapViewProgress,
-    );
-    const launchCenterY =
-      -FLIGHT_WORLD.planetRadius +
-      launchSurfaceOffset +
-      this.cameraState.panY;
-    const followCenterY = renderPosition.y + framingY + this.cameraState.panY;
-    const desiredCenterY = Phaser.Math.Linear(
-      launchCenterY,
-      followCenterY,
-      launchLockProgress,
-    );
-    const overviewProgress = Phaser.Math.Clamp(
-      (0.72 - automaticZoom * this.cameraState.zoomFactor) / 0.4,
-      0,
-      1,
-    );
-    const cameraOverviewProgress = Math.max(
-      overviewProgress,
-      mapViewProgress,
-    );
-    const overviewCenterX = this.cameraState.panX;
-    const overviewCenterY = this.cameraState.panY;
-    const framedCenterX = Phaser.Math.Linear(
-      desiredCenterX,
-      overviewCenterX,
-      cameraOverviewProgress,
-    );
-    const framedCenterY = Phaser.Math.Linear(
-      desiredCenterY,
-      overviewCenterY,
-      cameraOverviewProgress,
-    );
-    const desiredZoom = Phaser.Math.Clamp(
-      automaticZoom * this.cameraState.zoomFactor,
-      MIN_CAMERA_ZOOM,
-      MAX_CAMERA_ZOOM,
-    );
-    const cameraFollow = Phaser.Math.Linear(0.075, 0.11, orbitBlend);
+    const camera = this.cameraState;
 
-    this.cameraState.centerX = Phaser.Math.Linear(
-      this.cameraState.centerX,
-      framedCenterX,
-      cameraFollow,
-    );
-    this.cameraState.centerY = Phaser.Math.Linear(
-      this.cameraState.centerY,
-      framedCenterY,
-      cameraFollow,
-    );
-    this.cameraState.zoom = Phaser.Math.Linear(
-      this.cameraState.zoom,
-      desiredZoom,
-      0.16,
-    );
+    if (!camera.initialized) {
+      Object.assign(camera, { initialized: true, x: targetX, y: targetY, zoom });
+    } else {
+      camera.x = Phaser.Math.Linear(camera.x, targetX, 0.18);
+      camera.y = Phaser.Math.Linear(camera.y, targetY, 0.18);
+      camera.zoom = Phaser.Math.Linear(camera.zoom, zoom, 0.12);
+    }
 
+    // The shake is in screen pixels, so it feels the same at any zoom.
+    const shake = this.getCameraShake(state, minViewport) / camera.zoom;
+    this.cameras.main.setZoom(camera.zoom);
     this.cameras.main.centerOn(
-      this.cameraState.centerX,
-      this.cameraState.centerY,
+      camera.x + (Math.random() * 2 - 1) * shake,
+      camera.y + (Math.random() * 2 - 1) * shake,
     );
-    this.cameras.main.setZoom(this.cameraState.zoom);
+  },
+
+  // Engine rumble near the ground (strongest against the hold-down clamps)
+  // plus buffeting while the rocket is fast and the air still thick.
+  getCameraShake(state, minViewport) {
+    if (this.finished || state.orbitAchieved) {
+      return 0;
+    }
+    const nearGround = Phaser.Math.Clamp(1 - state.altitude / 30, 0, 1);
+    const rumble = this.flameLevel * nearGround * (state.launched ? 2.5 : 3.5);
+    const buffeting = state.atmosphereDensity * Phaser.Math.Clamp(state.speed / 2, 0, 1) * 3;
+    const gusts = Math.abs(state.windGust) * 2.5;
+    return (rumble + buffeting + gusts) * Phaser.Math.Clamp(minViewport / 800, 0.5, 1.2);
   },
 
   updateWorldVisuals(state) {
-    const mapViewProgress = this.getMapViewProgress();
-    const solarViewProgress = Phaser.Math.Clamp(
-      (0.22 - this.cameraState.zoomFactor) / 0.14,
-      0,
-      1,
+    // Night missions start under a dark sky and storms under an overcast one;
+    // either only gets darker on the way up.
+    const night = this.rocketDef.challenge.night ? 1 : 0;
+    const overcast = this.rocketDef.challenge.wind ? 0.3 : 0;
+    const spaceProgress = Math.max(
+      Phaser.Math.Clamp(
+        (state.altitude - DAY_SKY_FADE_START_ALTITUDE) /
+          (DAY_SKY_FADE_END_ALTITUDE - DAY_SKY_FADE_START_ALTITUDE),
+        0,
+        1,
+      ),
+      night * 0.85,
+      overcast,
     );
-    const dayToSpace = Phaser.Math.Clamp(
-      (state.altitude - DAY_SKY_FADE_START_ALTITUDE) /
-        (DAY_SKY_FADE_END_ALTITUDE - DAY_SKY_FADE_START_ALTITUDE),
-      0,
-      1,
-    );
-    const overlayProgress = Phaser.Math.Clamp(
-      (state.altitude - GUIDANCE_REVEAL_ALTITUDE) / 150,
-      0,
-      1,
-    );
-    const curvatureReveal = Phaser.Math.Clamp(
-      (state.altitude - CURVATURE_REVEAL_START_ALTITUDE) /
-        (CURVATURE_REVEAL_END_ALTITUDE - CURVATURE_REVEAL_START_ALTITUDE),
-      0,
-      1,
-    );
-    const planetReveal = Phaser.Math.Clamp(
-      (state.altitude - PLANET_REVEAL_ALTITUDE) / 160,
-      0,
-      1,
-    );
-    const padFade = Phaser.Math.Clamp(
-      1 - state.altitude / PAD_FADE_ALTITUDE,
-      0,
-      1,
-    );
-    const flatGroundFade = Phaser.Math.Clamp(
-      1 - state.altitude / FLAT_GROUND_FADE_ALTITUDE,
-      0,
-      1,
-    );
-    const spaceProgress = Math.max(dayToSpace, mapViewProgress * 0.92);
-    const orbitOverlayProgress = Math.max(overlayProgress, mapViewProgress);
-    const planetAlpha = Math.max(
-      0.92,
-      Phaser.Math.Linear(0, Phaser.Math.Linear(0.9, 1, planetReveal), curvatureReveal),
-      mapViewProgress,
-    );
-    const atmosphereAlpha = Math.max(
-      0.28,
-      Phaser.Math.Linear(0, Phaser.Math.Linear(1, 0.48, dayToSpace), curvatureReveal),
-      mapViewProgress * 0.46,
-    );
-    const launchDetailAlpha = 1 - mapViewProgress;
+    const guideProgress = Phaser.Math.Clamp((state.altitude - 30) / 90, 0, 1);
+    const padFade = Phaser.Math.Clamp(1 - state.altitude / PAD_FADE_ALTITUDE, 0, 1);
+    const cloudAlpha = Phaser.Math.Clamp(1 - state.altitude / 40, 0, 1) * 0.6 * (1 - night * 0.6);
+    // Flat horizon on the pad, round planet once the camera has pulled back.
+    // It stays round from then on, even if the rocket falls back down.
+    const renderAltitude = Math.hypot(this.rocket.x, this.rocket.y) - FLIGHT_WORLD.planetRadius;
+    const curve = smoothstep((renderAltitude - GROUND_CURVE_START) / (GROUND_CURVE_END - GROUND_CURVE_START));
+    this.setGroundCurve(Math.max(this.groundCurve, curve));
+    const earth = smoothstep((this.groundCurve - 0.8) / 0.2);
+    this.earthImage.setAlpha(earth);
+    // The painted Earth has its own halo; the drawn haze would only tint it.
+    this.planetAtmosphere.setAlpha(1 - earth * 0.7);
 
-    this.spaceShade.setAlpha(Phaser.Math.Linear(0, 0.96, spaceProgress));
-    this.stars.forEach((star) => {
-      star.setAlpha(Phaser.Math.Linear(0, 1, spaceProgress * spaceProgress));
-    });
-
-    this.orbitBand.setAlpha(Phaser.Math.Linear(0.02, 0.28, orbitOverlayProgress));
-    this.orbitGuides.setAlpha(Phaser.Math.Linear(0.04, 0.56, orbitOverlayProgress));
-    this.mapCelestialGraphics.setAlpha(solarViewProgress);
-    this.planetBody.setAlpha(planetAlpha);
-    this.planetAtmosphere.setAlpha(atmosphereAlpha);
-    this.planetLight.setAlpha(0);
-    this.horizonGlow.setAlpha(0);
-    this.highAltitudeHorizon.setAlpha(0);
-    this.atmosphereShell.setAlpha(0);
-    this.launchBackdrop.setAlpha(
-      Phaser.Math.Linear(0.9, 0, 1 - padFade) * launchDetailAlpha,
-    );
-    this.launchGround.setAlpha(
-      Phaser.Math.Linear(1, 0, 1 - flatGroundFade) * launchDetailAlpha,
-    );
-    this.pad.setAlpha(padFade * 0.84 * launchDetailAlpha);
-    this.launchTower.setAlpha(padFade * 0.9 * launchDetailAlpha);
-
-    this.launchTowerGlow.clear();
-    this.padGlow.clear();
-
-    this.cloudLayers.forEach((layer) => {
-      const dist = Math.abs(state.altitude - layer.altitude);
-      const visibility = dist < 2000 ? 1 - dist / 2000 : 0;
-      layer.graphics.setAlpha(visibility * 0.35);
-    });
-
-    this.updateContrails(state);
-    this.updateHeatingGlow(state);
-  },
-
-  updateContrails(state) {
-    this.contrailGraphics.clear();
-    if (!state.launched || state.altitude > 15000 || state.altitude < 1000) return;
-    const speed = Math.sqrt(state.verticalVelocity ** 2 + state.horizontalVelocity ** 2);
-    if (speed < 0.3) return;
-    const alpha = Phaser.Math.Clamp(speed * 0.15, 0.05, 0.2);
-    this.contrailGraphics.lineStyle(2, 0xffffff, alpha);
-    const trailY = state.position.y + 10;
-    this.contrailGraphics.beginPath();
-    this.contrailGraphics.moveTo(state.position.x - 3, trailY);
-    this.contrailGraphics.lineTo(state.position.x + 3, trailY);
-    this.contrailGraphics.strokePath();
-  },
-
-  updateHeatingGlow(state) {
-    this.heatingGlow.clear();
-    if (!state.launched || state.altitude > 40000) return;
-    const speed = Math.sqrt(state.verticalVelocity ** 2 + state.horizontalVelocity ** 2);
-    const density = Math.max(0, 1 - state.altitude / 40000);
-    const heating = speed * density;
-    if (heating < 0.2) return;
-    const intensity = Phaser.Math.Clamp((heating - 0.2) / 0.8, 0, 1);
-    this.heatingGlow.fillStyle(0xff6600, intensity * 0.15);
-    this.heatingGlow.fillCircle(this.rocket.x, this.rocket.y, 20 + intensity * 15);
-    this.heatingGlow.fillStyle(0xffaa00, intensity * 0.1);
-    this.heatingGlow.fillCircle(this.rocket.x, this.rocket.y, 12 + intensity * 10);
+    this.spaceShade.setAlpha(spaceProgress * 0.96);
+    const starAlpha = spaceProgress * spaceProgress;
+    this.stars.forEach((star) => star.setAlpha(starAlpha));
+    // The guide rings are drawn around the real planet, so they wait for it.
+    this.orbitGuides.setAlpha((0.2 + guideProgress * 0.8) * this.groundCurve);
+    this.pad.setAlpha(padFade);
+    this.launchTower.setAlpha(padFade);
+    this.cloudLayers.forEach((layer) => layer.graphics.setAlpha(cloudAlpha));
   },
 
   updateTrail(state) {
-    if (!state.launched && this.flightTrail.length === 0) {
+    if (!state.launched) {
       return;
     }
 
-    this.flightTrail.push({ x: state.position.x, y: state.position.y });
-    if (this.flightTrail.length > TRAIL_LIMIT) {
-      this.flightTrail.shift();
+    const last = this.flightTrail[this.flightTrail.length - 1];
+    if (!last || state.time - last.time >= 0.25) {
+      this.flightTrail.push({ x: this.rocket.x, y: this.rocket.y, time: state.time });
+      if (this.flightTrail.length > TRAIL_LIMIT) {
+        this.flightTrail.shift();
+      }
     }
 
     this.trailGraphics.clear();
@@ -723,580 +319,87 @@ export const flightSceneRuntimeMethods = {
       return;
     }
 
-    const speedFeel = Phaser.Math.Clamp(
-      (Math.abs(state.verticalVelocity) + Math.abs(state.horizontalVelocity) * 0.35) / 1.6,
-      0,
-      1,
-    );
-
-    this.trailGraphics.lineStyle(
-      2 + speedFeel * 1.6,
-      0xffd773,
-      0.32 + speedFeel * 0.28,
-    );
+    this.trailGraphics.lineStyle(2 / this.cameras.main.zoom, 0xffd773, 0.55);
     this.trailGraphics.beginPath();
     this.trailGraphics.moveTo(this.flightTrail[0].x, this.flightTrail[0].y);
     for (let index = 1; index < this.flightTrail.length; index += 1) {
-      this.trailGraphics.lineTo(
-        this.flightTrail[index].x,
-        this.flightTrail[index].y,
-      );
+      this.trailGraphics.lineTo(this.flightTrail[index].x, this.flightTrail[index].y);
     }
+    this.trailGraphics.lineTo(this.rocket.x, this.rocket.y);
     this.trailGraphics.strokePath();
   },
 
-  updateGuidance(prediction) {
+  // Dotted line showing where the rocket would coast with the engine off:
+  // green if it stays up, red if it falls back to the ground.
+  updateTrajectory(state, prediction) {
     this.trajectoryGraphics.clear();
-    this.markerGraphics.clear();
-    this.apoapsisLabel.setVisible(false);
-    this.periapsisLabel.setVisible(false);
-    this.corridorLabel.setVisible(false);
+    this.maxAltitude = Math.max(this.maxAltitude || 0, state.altitude);
 
-    if (prediction.apoapsis < GUIDANCE_REVEAL_ALTITUDE) {
+    if (
+      this.finished ||
+      state.altitude < TRAJECTORY_REVEAL_ALTITUDE ||
+      prediction.points.length < 2
+    ) {
       return;
     }
 
-    if (prediction.points.length > 1) {
-      this.trajectoryGraphics.lineStyle(2, 0x8fd7ff, 0.34);
-      this.trajectoryGraphics.beginPath();
-      this.trajectoryGraphics.moveTo(prediction.points[0].x, prediction.points[0].y);
-      for (let index = 1; index < prediction.points.length; index += 1) {
-        const point = prediction.points[index];
-        this.trajectoryGraphics.lineTo(point.x, point.y);
-      }
-      this.trajectoryGraphics.strokePath();
-    }
-
+    const color = prediction.impact ? 0xff9b8a : 0x73f7c0;
+    const radius = 2.4 / this.cameras.main.zoom;
     prediction.points.forEach((point, index) => {
       if (index % 2 !== 0) {
         return;
       }
-      const progress = index / Math.max(prediction.points.length - 1, 1);
-      this.trajectoryGraphics.fillStyle(0x8fd7ff, 0.16 + progress * 0.18);
-      this.trajectoryGraphics.fillCircle(point.x, point.y, 1.5 + progress * 1.4);
+      const fade = 1 - index / prediction.points.length;
+      const renderPoint = toRenderSpace(point);
+      this.trajectoryGraphics.fillStyle(color, 0.2 + fade * 0.6);
+      fillDot(this.trajectoryGraphics, renderPoint.x, renderPoint.y, radius);
     });
-
-    if (prediction.apoapsisPoint) {
-      this.drawOrbitMarker(
-        prediction.apoapsisPoint,
-        0xffd773,
-        this.apoapsisLabel,
-        `AP ${prediction.apoapsis.toFixed(0)} km`,
-        12,
-        -22,
-      );
-    }
-
-    if (prediction.periapsisPoint) {
-      const periapsisSafe = prediction.periapsis >= FLIGHT_WORLD.orbitMinAltitude;
-      this.drawOrbitMarker(
-        prediction.periapsisPoint,
-        periapsisSafe ? 0x73f7c0 : 0xff8d8d,
-        this.periapsisLabel,
-        `PE ${prediction.periapsis.toFixed(0)} km`,
-        12,
-        22,
-      );
-    }
-
-    if (prediction.corridorPoint) {
-      this.drawCorridorMarker(
-        prediction.corridorPoint,
-        `TARGET ${FLIGHT_WORLD.targetOrbitAltitude} km`,
-      );
-    }
   },
 
-  drawOrbitMarker(point, color, label, text, offsetX, offsetY) {
-    this.markerGraphics.lineStyle(2, color, 0.88);
-    this.markerGraphics.strokeCircle(point.x, point.y, 8);
-    this.markerGraphics.lineStyle(1, color, 0.55);
-    this.markerGraphics.beginPath();
-    this.markerGraphics.moveTo(point.x - 12, point.y);
-    this.markerGraphics.lineTo(point.x + 12, point.y);
-    this.markerGraphics.moveTo(point.x, point.y - 12);
-    this.markerGraphics.lineTo(point.x, point.y + 12);
-    this.markerGraphics.moveTo(point.x, point.y);
-    this.markerGraphics.lineTo(point.x + offsetX, point.y + offsetY);
-    this.markerGraphics.strokePath();
+  // Arrow from the rocket towards the heading the pilot should hold.
+  updateGuidanceArrow(state) {
+    const arrow = this.guidanceArrow;
+    arrow.clear();
 
-    label
-      .setText(text)
-      .setPosition(point.x + offsetX, point.y + offsetY)
-      .setTint(color)
-      .setVisible(true);
-  },
+    if (this.finished || !state.launched || state.cutEngineCue || state.fuelRemaining <= 0.01) {
+      return;
+    }
 
-  drawCorridorMarker(point, text) {
-    const size = 8;
-    this.markerGraphics.lineStyle(2, 0x73f7c0, 0.88);
-    this.markerGraphics.beginPath();
-    this.markerGraphics.moveTo(point.x, point.y - size);
-    this.markerGraphics.lineTo(point.x + size, point.y);
-    this.markerGraphics.lineTo(point.x, point.y + size);
-    this.markerGraphics.lineTo(point.x - size, point.y);
-    this.markerGraphics.closePath();
-    this.markerGraphics.strokePath();
-    this.markerGraphics.lineStyle(1, 0x73f7c0, 0.5);
-    this.markerGraphics.beginPath();
-    this.markerGraphics.moveTo(point.x, point.y);
-    this.markerGraphics.lineTo(point.x + 12, point.y - 22);
-    this.markerGraphics.strokePath();
+    const zoom = Math.max(this.cameras.main.zoom, 0.01);
+    const angle = state.guidanceAngle + (state.arcAngle || 0);
+    const aligned = Math.abs(state.guidanceError) < Phaser.Math.DegToRad(7);
+    const color = aligned ? 0x73f7c0 : 0xffd166;
+    const centerX = this.rocket.x + Math.cos(this.getVisualOrientation()) * (this.rocketHeight / 2);
+    const centerY = this.rocket.y + Math.sin(this.getVisualOrientation()) * (this.rocketHeight / 2);
+    const start = this.rocketHeight * 0.65 + 6 / zoom;
+    const length = start + 70 / zoom;
+    const head = 14 / zoom;
+    const tipX = centerX + Math.cos(angle) * length;
+    const tipY = centerY + Math.sin(angle) * length;
 
-    this.corridorLabel
-      .setText(text)
-      .setPosition(point.x + 12, point.y - 22)
-      .setTint(0x73f7c0)
-      .setVisible(true);
+    arrow.lineStyle(4 / zoom, color, 0.95);
+    arrow.lineBetween(
+      centerX + Math.cos(angle) * start,
+      centerY + Math.sin(angle) * start,
+      tipX,
+      tipY,
+    );
+    arrow.fillStyle(color, 0.95);
+    arrow.fillTriangle(
+      tipX + Math.cos(angle) * head,
+      tipY + Math.sin(angle) * head,
+      tipX + Math.cos(angle + 2.5) * head,
+      tipY + Math.sin(angle + 2.5) * head,
+      tipX + Math.cos(angle - 2.5) * head,
+      tipY + Math.sin(angle - 2.5) * head,
+    );
   },
 
   updateRocketPose(state) {
     const renderPosition = getRenderPosition(state);
-    const launchPoseProgress = Phaser.Math.Clamp(
-      (state.altitude - 34) / 110,
-      0,
-      1,
-    );
-    const targetRotation = state.orientation + Math.PI / 2;
 
     this.rocket.x = renderPosition.x;
     this.rocket.y = renderPosition.y;
-    this.rocket.setScale(this.getRocketVisualScale());
-    this.rocket.rotation =
-      angleDifference(targetRotation, 0) * launchPoseProgress;
-  },
-
-  updateLaunchMomentum(state, time) {
-    this.launchSpeedLines.clear();
-
-    if (state.launched && !this.launchBurstPlayed) {
-      this.launchBurstPlayed = true;
-      this.cameras.main.shake(220, 0.0044);
-    }
-  },
-
-  updateExhaust(state, time, delta) {
-    const thrustVisual = getThrustVisual(state);
-    const visualScale = this.getRocketVisualScale();
-    const groundBoost = Phaser.Math.Clamp((80 - state.altitude) / 80, 0, 1);
-    const speedFeel = Phaser.Math.Clamp(
-      (Math.abs(state.verticalVelocity) + Math.abs(state.horizontalVelocity) * 0.25) / 1.3,
-      0,
-      1,
-    );
-    const flameLength =
-      thrustVisual > 0
-        ? 34 +
-          Math.sin(time / 55) * 5 +
-          thrustVisual * 24 +
-          groundBoost * thrustVisual * 22 +
-          speedFeel * 14
-        : 0;
-
-    this.exhaust.clear();
-    this.exhaustFire.clear();
-    this.exhaustSmoke.clear();
-    if (this.getMapViewProgress() < 0.6) {
-      this.updateLaunchParticles(state, delta / 1000);
-    }
-
-    if (flameLength <= 0) {
-      return;
-    }
-
-    this.drawExhaustFlame(thrustVisual, flameLength * visualScale, visualScale);
-  },
-
-  drawExhaustFlame(thrustVisual, flameLength, visualScale = 1) {
-    const orientation = this.getVisualOrientation();
-    const rear = this.getExhaustAnchor();
-    const rearAngle = orientation + Math.PI / 2;
-    const lateralX = Math.cos(rearAngle);
-    const lateralY = Math.sin(rearAngle);
-    const plumeX = -Math.cos(orientation);
-    const plumeY = -Math.sin(orientation);
-    const flickerTime = this.time.now * 0.045;
-    const segmentCount = 7;
-
-    this.exhaust.fillStyle(0xfff7d6, 0.98);
-    this.exhaust.fillCircle(rear.x, rear.y, (6 + thrustVisual * 4) * visualScale);
-    this.exhaust.fillStyle(0xffe7a8, 0.42);
-    this.exhaust.fillCircle(rear.x, rear.y, (12 + thrustVisual * 6) * visualScale);
-
-    for (let index = 0; index < segmentCount; index += 1) {
-      const t = index / (segmentCount - 1);
-      const plumeOffset = flameLength * (0.14 + t * 0.82);
-      const wobble =
-        Math.sin(flickerTime + index * 1.35) * (1 - t) * (2.2 + thrustVisual * 2.8);
-      const px = rear.x + plumeX * plumeOffset + lateralX * wobble;
-      const py = rear.y + plumeY * plumeOffset + lateralY * wobble;
-      const outerRadius =
-        Phaser.Math.Linear(9 + thrustVisual * 4, 2.4, t) * visualScale;
-      const midRadius = outerRadius * Phaser.Math.Linear(0.76, 0.58, t);
-      const coreRadius = outerRadius * Phaser.Math.Linear(0.42, 0.28, t);
-      const alpha = Phaser.Math.Linear(0.72, 0.18, t);
-
-      this.exhaust.fillStyle(0xff7b2f, alpha * 0.9);
-      this.exhaust.fillCircle(px, py, outerRadius);
-      this.exhaust.fillStyle(0xffb347, alpha * 0.95);
-      this.exhaust.fillCircle(
-        px - plumeX * outerRadius * 0.1,
-        py - plumeY * outerRadius * 0.1,
-        midRadius,
-      );
-      this.exhaust.fillStyle(0xfff2bf, Phaser.Math.Linear(0.8, 0.14, t));
-      this.exhaust.fillCircle(
-        px - plumeX * outerRadius * 0.18,
-        py - plumeY * outerRadius * 0.18,
-        coreRadius,
-      );
-    }
-
-    const tipX = rear.x + plumeX * (flameLength * 0.98);
-    const tipY = rear.y + plumeY * (flameLength * 0.98);
-    this.exhaust.fillStyle(0xff8c3b, 0.26);
-    this.exhaust.fillCircle(tipX, tipY, (2 + thrustVisual * 1.2) * visualScale);
-  },
-
-  updateLaunchParticles(state, dt) {
-    const thrustVisual = getThrustVisual(state);
-    const ignitionEmissionActive =
-      state.launched &&
-      state.altitude < LAUNCH_PARTICLE_ALTITUDE &&
-      thrustVisual > 0;
-    const ascentEmissionActive =
-      state.launched &&
-      state.altitude >= LAUNCH_PARTICLE_ALTITUDE &&
-      state.altitude < DAY_SKY_FADE_END_ALTITUDE &&
-      thrustVisual > 0;
-
-    if (ignitionEmissionActive) {
-      this.emitLaunchParticles(state, thrustVisual);
-    }
-    if (ascentEmissionActive) {
-      this.emitAscentSmokeTrail(state, thrustVisual);
-    }
-
-    this.renderSmokeParticles(dt);
-    this.renderFireParticles(dt);
-  },
-
-  emitLaunchParticles(state, thrustVisual) {
-    const rear = this.getExhaustAnchor();
-    const orientation = this.getVisualOrientation();
-    const exhaustX = -Math.cos(orientation);
-    const exhaustY = -Math.sin(orientation);
-    const lateralX = Math.cos(orientation + Math.PI / 2);
-    const lateralY = Math.sin(orientation + Math.PI / 2);
-    const groundBoost = Phaser.Math.Clamp(
-      (LAUNCH_PARTICLE_ALTITUDE - state.altitude) / LAUNCH_PARTICLE_ALTITUDE,
-      0,
-      1,
-    );
-    const intensity = thrustVisual * (1.15 + groundBoost * 1.6);
-    const mobile =
-      this.scale.width < 760 ||
-      (this.scale.width < 920 && this.scale.height > this.scale.width * 1.15);
-    const particleScale = mobile ? 0.58 : 1;
-    const smokeCount = Math.round(Phaser.Math.Clamp((3 + intensity * 3) * particleScale, 2, 8));
-    const fireCount = Math.round(Phaser.Math.Clamp((2 + intensity * 2.5) * particleScale, 1, 6));
-
-    for (let index = 0; index < smokeCount; index += 1) {
-      const particle = acquireParticle(this.smokeParticlePool);
-      if (!particle) {
-        break;
-      }
-
-      const spread = Phaser.Math.FloatBetween(-28, 28);
-      particle.x = rear.x + lateralX * spread + Phaser.Math.FloatBetween(-6, 6);
-      particle.y = rear.y + lateralY * spread + Phaser.Math.FloatBetween(-4, 8);
-      particle.vx =
-        exhaustX * Phaser.Math.FloatBetween(18, 58) +
-        lateralX * Phaser.Math.FloatBetween(-30, 30);
-      particle.vy =
-        exhaustY * Phaser.Math.FloatBetween(26, 70) +
-        lateralY * Phaser.Math.FloatBetween(-20, 20);
-      particle.size = Phaser.Math.FloatBetween(8, 14);
-      particle.growth = Phaser.Math.FloatBetween(14, 28);
-      particle.drag = Phaser.Math.FloatBetween(1.1, 1.8);
-      particle.buoyancy = Phaser.Math.FloatBetween(90, 150);
-      particle.life = Phaser.Math.FloatBetween(0.65, 1.1);
-      particle.maxLife = particle.life;
-      particle.variant = "ignition";
-      this.smokeParticles.push(particle);
-    }
-
-    for (let index = 0; index < fireCount; index += 1) {
-      const particle = acquireParticle(this.fireParticlePool);
-      if (!particle) {
-        break;
-      }
-
-      const spread = Phaser.Math.FloatBetween(-10, 10);
-      particle.x = rear.x + lateralX * spread + Phaser.Math.FloatBetween(-3, 3);
-      particle.y = rear.y + lateralY * spread + Phaser.Math.FloatBetween(-2, 4);
-      particle.vx =
-        exhaustX * Phaser.Math.FloatBetween(100, 185) +
-        lateralX * Phaser.Math.FloatBetween(-38, 38);
-      particle.vy =
-        exhaustY * Phaser.Math.FloatBetween(110, 200) +
-        lateralY * Phaser.Math.FloatBetween(-34, 34);
-      particle.size = Phaser.Math.FloatBetween(3, 6);
-      particle.growth = Phaser.Math.FloatBetween(24, 46);
-      particle.drag = Phaser.Math.FloatBetween(2.8, 4.1);
-      particle.life = Phaser.Math.FloatBetween(0.1, 0.2);
-      particle.maxLife = particle.life;
-      this.fireParticles.push(particle);
-    }
-  },
-
-  emitAscentSmokeTrail(state, thrustVisual) {
-    const rear = this.getExhaustAnchor();
-    const orientation = this.getVisualOrientation();
-    const exhaustX = -Math.cos(orientation);
-    const exhaustY = -Math.sin(orientation);
-    const lateralX = Math.cos(orientation + Math.PI / 2);
-    const lateralY = Math.sin(orientation + Math.PI / 2);
-    const speedFeel = Phaser.Math.Clamp(
-      (Math.abs(state.verticalVelocity) + Math.abs(state.horizontalVelocity) * 0.35) / 1.8,
-      0,
-      1,
-    );
-    const smokeCount = Math.round(
-      Phaser.Math.Clamp(0.8 + thrustVisual * 0.8 + speedFeel * 0.5, 1, 2),
-    );
-
-    for (let index = 0; index < smokeCount; index += 1) {
-      const particle = acquireParticle(this.smokeParticlePool);
-      if (!particle) {
-        break;
-      }
-
-      const spread = Phaser.Math.FloatBetween(-5, 5);
-      particle.x = rear.x + lateralX * spread + Phaser.Math.FloatBetween(-2, 2);
-      particle.y = rear.y + lateralY * spread + Phaser.Math.FloatBetween(-2, 2);
-      particle.vx =
-        exhaustX * Phaser.Math.FloatBetween(46, 78) +
-        lateralX * Phaser.Math.FloatBetween(-10, 10);
-      particle.vy =
-        exhaustY * Phaser.Math.FloatBetween(52, 92) +
-        lateralY * Phaser.Math.FloatBetween(-10, 10);
-      particle.size = Phaser.Math.FloatBetween(4, 7);
-      particle.growth = Phaser.Math.FloatBetween(6, 12);
-      particle.drag = Phaser.Math.FloatBetween(1.9, 2.7);
-      particle.buoyancy = Phaser.Math.FloatBetween(18, 42);
-      particle.life = Phaser.Math.FloatBetween(0.45, 0.8);
-      particle.maxLife = particle.life;
-      particle.variant = "trail";
-      this.smokeParticles.push(particle);
-    }
-  },
-
-  renderSmokeParticles(dt) {
-    for (let index = this.smokeParticles.length - 1; index >= 0; index -= 1) {
-      const particle = this.smokeParticles[index];
-      particle.life -= dt;
-
-      if (particle.life <= 0) {
-        releaseParticle(this.smokeParticles, this.smokeParticlePool, index);
-        continue;
-      }
-
-      const lifeRatio = particle.life / particle.maxLife;
-      const ageRatio = 1 - lifeRatio;
-      const damping = Math.max(0.1, 1 - particle.drag * dt * (1 + ageRatio));
-
-      particle.vx *= damping;
-      particle.vy *= damping;
-      particle.vy -= particle.buoyancy * dt * ageRatio * 2;
-      particle.x += particle.vx * dt;
-      particle.y += particle.vy * dt;
-
-      const currentGrowth =
-        particle.variant === "trail"
-          ? particle.growth * (0.35 + lifeRatio * 0.6)
-          : particle.growth * (0.2 + lifeRatio * 1.8);
-      particle.size += currentGrowth * dt;
-
-      let alpha = Phaser.Math.Clamp(lifeRatio * 2, 0, 1);
-      let coreColor;
-      let midColor;
-      let edgeColor;
-
-      if (particle.variant === "trail") {
-        if (lifeRatio > 0.65) {
-          coreColor = 0xf7fbff;
-          midColor = 0xd1d9e1;
-          edgeColor = 0x9ba4ae;
-        } else {
-          coreColor = 0xa8b1ba;
-          midColor = 0x6f7781;
-          edgeColor = 0x454b53;
-        }
-        alpha *= 0.48;
-      } else if (lifeRatio > 0.85) {
-        coreColor = 0xffffff;
-        midColor = 0xffe270;
-        edgeColor = 0xff6600;
-        alpha *= 0.6;
-      } else if (lifeRatio > 0.5) {
-        coreColor = 0xffffff;
-        midColor = 0xe0e6ed;
-        edgeColor = 0xbac3ce;
-        alpha *= 0.4;
-      } else {
-        coreColor = 0xbac3ce;
-        midColor = 0x858b92;
-        edgeColor = 0x4a5058;
-        alpha *= 0.25;
-      }
-
-      this.exhaustSmoke.fillStyle(edgeColor, alpha * 0.7);
-      this.exhaustSmoke.fillCircle(particle.x, particle.y, particle.size);
-
-      this.exhaustSmoke.fillStyle(midColor, alpha * 0.9);
-      this.exhaustSmoke.fillCircle(
-        particle.x + particle.size * 0.06,
-        particle.y + particle.size * 0.04,
-        particle.size * 0.74,
-      );
-
-      this.exhaustSmoke.fillStyle(coreColor, alpha);
-      this.exhaustSmoke.fillCircle(
-        particle.x - particle.size * 0.04,
-        particle.y - particle.size * 0.02,
-        particle.size * 0.45,
-      );
-    }
-  },
-
-  renderFireParticles(dt) {
-    for (let index = this.fireParticles.length - 1; index >= 0; index -= 1) {
-      const particle = this.fireParticles[index];
-      particle.life -= dt;
-
-      if (particle.life <= 0) {
-        releaseParticle(this.fireParticles, this.fireParticlePool, index);
-        continue;
-      }
-
-      const lifeRatio = particle.life / particle.maxLife;
-      const damping = Math.max(0.12, 1 - particle.drag * 0.5 * dt);
-
-      particle.vx *= damping;
-      particle.vy *= damping;
-      particle.x += particle.vx * dt;
-      particle.y += particle.vy * dt;
-      particle.size += particle.growth * dt * lifeRatio;
-
-      const alpha = Phaser.Math.Clamp(lifeRatio, 0, 1);
-      let colorCore;
-      let colorMid;
-      let colorEdge;
-
-      if (lifeRatio > 0.7) {
-        colorCore = 0xffffff;
-        colorMid = 0xfff0b3;
-        colorEdge = 0xff9f2f;
-      } else {
-        colorCore = 0xff9f2f;
-        colorMid = 0xff5d1a;
-        colorEdge = 0x8b0000;
-      }
-
-      this.exhaustFire.fillStyle(colorEdge, alpha * 0.4);
-      this.exhaustFire.fillCircle(particle.x, particle.y, particle.size * 1.2);
-
-      this.exhaustFire.fillStyle(colorMid, alpha * 0.8);
-      this.exhaustFire.fillCircle(particle.x, particle.y, particle.size * 0.8);
-
-      const offsetX = particle.vx * 0.02;
-      const offsetY = particle.vy * 0.02;
-
-      this.exhaustFire.fillStyle(colorCore, alpha);
-      this.exhaustFire.fillCircle(
-        particle.x - offsetX,
-        particle.y - offsetY,
-        particle.size * 0.4,
-      );
-    }
-  },
-
-  activateStage() {
-    if (this.finished || !this.stages || this.stages.length === 0) return;
-    const nextStage = this.stages[0];
-    const separatedParts = this.build.filter((p) => nextStage.parts.includes(p));
-    if (separatedParts.length === 0) return;
-
-    this.audio?.playStageSeparation();
-    this.cameras.main.shake(200, 0.005);
-
-    separatedParts.forEach((part) => {
-      const def = PARTS_BY_ID[part.partId];
-      if (!def) return;
-      for (let i = 0; i < 12; i++) {
-        const debris = this.add.circle(
-          (part.cellX + def.gridWidth / 2 - this.stats.bounds.minX - (this.stats.bounds.maxX - this.stats.bounds.minX) / 2) * ROCKET_CELL_SIZE + this.rocket.x,
-          (part.cellY + def.gridHeight / 2 - this.stats.bounds.minY - (this.stats.bounds.maxY - this.stats.bounds.minY) / 2) * ROCKET_CELL_SIZE + this.rocket.y,
-          2 + Math.random() * 3,
-          def.color,
-          0.8
-        );
-        debris.setDepth(25);
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 30 + Math.random() * 80;
-        this.tweens.add({
-          targets: debris,
-          x: debris.x + Math.cos(angle) * speed,
-          y: debris.y + Math.sin(angle) * speed - 20,
-          alpha: 0,
-          scale: 0,
-          duration: 400 + Math.random() * 400,
-          onComplete: () => debris.destroy()
-        });
-      }
-    });
-
-    this.build = this.build.filter((p) => !nextStage.parts.includes(p));
-    this.stages.shift();
-    const newStats = ShipStatsCalculator.calculate(this.build);
-    if (newStats) {
-      this.stats = newStats;
-      this.simulator.stats = newStats;
-    }
-    this.rebuildRocket();
-
-    if (this.hud) {
-      this.hud.updateStageIndicator(this.stages.length);
-    }
-  },
-
-  rebuildRocket() {
-    this.rocket.removeAll(true);
-    this.primaryEngineView = null;
-    this.primaryEngineDefinition = null;
-    this.primaryEngineBottom = Number.NEGATIVE_INFINITY;
-    const bounds = this.stats.bounds || { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-    const center = getBuildCenter(bounds);
-    this.build.forEach((part) => {
-      const definition = PARTS_BY_ID[part.partId];
-      if (!definition) return;
-      const partView = new ShipPart(
-        this,
-        (part.cellX + definition.gridWidth / 2 - center.x) * ROCKET_CELL_SIZE,
-        (part.cellY + definition.gridHeight / 2 - center.y) * ROCKET_CELL_SIZE,
-        definition,
-        { cellSize: ROCKET_CELL_SIZE, padding: 0, showLabel: false, showPlate: false }
-      );
-      this.rocket.add(partView);
-      if (definition.type === "engine") {
-        const partBottom = part.cellY + definition.gridHeight;
-        if (partBottom > this.primaryEngineBottom) {
-          this.primaryEngineBottom = partBottom;
-          this.primaryEngineView = partView;
-          this.primaryEngineDefinition = definition;
-        }
-      }
-    });
+    this.rocket.rotation = state.orientation + Math.PI / 2;
   },
 };

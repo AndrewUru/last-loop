@@ -1,38 +1,33 @@
 export const ROCKET_CELL_SIZE = 5;
-export const TRAIL_LIMIT = 180;
+// Trail samples are taken every 0.25 s, so this keeps the whole flight.
+export const TRAIL_LIMIT = 480;
 export const STAR_COUNT = 130;
-export const LAUNCH_PRESENTATION_ALTITUDE = 180;
-export const ORBIT_CAMERA_START_ALTITUDE = 150;
-export const ORBIT_CAMERA_END_ALTITUDE = 220;
-export const PLANET_REVEAL_ALTITUDE = 132;
-export const GUIDANCE_REVEAL_ALTITUDE = 118;
-export const PAD_FADE_ALTITUDE = 140;
-export const INITIAL_CAMERA_ZOOM = 4.4;
-export const MIN_ORBIT_CAMERA_ZOOM = 0.24;
-export const MIN_CAMERA_ZOOM = 0.06;
-export const MAX_CAMERA_ZOOM = 4.2;
-export const MIN_ZOOM_FACTOR = 0.035;
-export const MAX_ZOOM_FACTOR = 2.8;
-export const ZOOM_WHEEL_STEP = 0.12;
-export const DAY_SKY_FADE_START_ALTITUDE = 72;
-export const DAY_SKY_FADE_END_ALTITUDE = 220;
-export const LAUNCH_BURST_ALTITUDE = 72;
-export const LAUNCH_SPEED_LINE_COUNT = 20;
-export const LAUNCH_CAMERA_CENTER_OFFSET = -52;
-export const LAUNCH_PARTICLE_ALTITUDE = 84;
-export const FLAT_GROUND_FADE_ALTITUDE = 205;
-export const CURVATURE_REVEAL_START_ALTITUDE = 188;
-export const CURVATURE_REVEAL_END_ALTITUDE = 248;
-export const SMOKE_POOL_SIZE = 140;
-export const FIRE_POOL_SIZE = 96;
-export const VISUAL_TARGET_ORBIT_OFFSET = 42;
-
-export const LAUNCH_PAD_COLORS = Object.freeze({
-  baseDark: 0x2c3e50,
-  baseMed: 0x4f6478,
-  baseLight: 0x8fa5b8,
-  highlight: 0xb7c8d6,
-  accent: 0xc0392b,
-  lightWarn: 0xff8457,
-  lightBlink: 0xffb65d,
-});
+export const TRAJECTORY_REVEAL_ALTITUDE = 30;
+export const PAD_FADE_ALTITUDE = 60;
+export const DAY_SKY_FADE_START_ALTITUDE = 40;
+export const DAY_SKY_FADE_END_ALTITUDE = 160;
+// The planet is small next to the rocket, so on the pad its edge would curve
+// on screen. There the ground is drawn as a circle this many times larger,
+// touching the pad (a flat horizon), and it bends into the real planet while
+// the camera pulls back between these rendered altitudes.
+export const FLAT_GROUND_SCALE = 100;
+export const GROUND_CURVE_START = 2;
+export const GROUND_CURVE_END = 30;
+// Chase camera, as shares of the shorter screen side: how tall the rocket is
+// drawn on the pad and in flight, how much the view widens at orbital speed,
+// and how far it leans ahead of the rocket. The orbit shot is the pull-back
+// that frames the whole planet once the orbit locks, in seconds.
+export const CAMERA_PAD_FILL = 0.3;
+export const CAMERA_FLIGHT_FILL = 0.26;
+export const CAMERA_SPEED_PULLBACK = 0.3;
+export const CAMERA_LEAD = 0.12;
+export const CAMERA_ORBIT_SHOT_TIME = 2.5;
+// Sprites kept ready for exhaust particles; fewer are used on phones.
+export const SMOKE_POOL_SIZE = 150;
+export const FIRE_POOL_SIZE = 70;
+// Extra altitude added on screen low down so liftoff reads as fast; it fades
+// out before the orbit band so the orbit is drawn at its true size.
+export const PRESENTATION_BOOST = 40;
+export const PRESENTATION_BOOST_SCALE = 4;
+export const PRESENTATION_FADE_START = 100;
+export const PRESENTATION_FADE_END = 200;

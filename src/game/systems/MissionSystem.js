@@ -1,113 +1,81 @@
-const MISSIONS_KEY = "last-loop-missions";
-const PROGRESS_KEY = "last-loop-progress";
+import { ROCKETS, ROCKETS_BY_ID, evaluateChallenge } from "../data/rockets.js";
 
-const DEFAULT_MISSIONS = [
-  {
-    id: "first-orbit",
-    title: "First Orbit",
-    description: "Achieve a stable orbit around the planet.",
-    condition: (stats) => stats.result === "success" && stats.altitude >= 70,
-    reward: 100,
-    completed: false,
-  },
-  {
-    id: "efficient-launch",
-    title: "Efficient Launch",
-    description: "Reach orbit with more than 30% fuel remaining.",
-    condition: (stats) => stats.result === "success" && stats.fuelRemaining > 30,
-    reward: 150,
-    completed: false,
-  },
-  {
-    id: "speed-demon",
-    title: "Speed Demon",
-    description: "Reach orbit with a speed over 2.5 km/s.",
-    condition: (stats) => stats.result === "success" && stats.horizontalVelocity > 2.5,
-    reward: 200,
-    completed: false,
-  },
-  {
-    id: "high-orbit",
-    title: "High Orbit",
-    description: "Achieve orbit at 120km or higher.",
-    condition: (stats) => stats.result === "success" && stats.altitude >= 120,
-    reward: 250,
-    completed: false,
-  },
-  {
-    id: "minimalist",
-    title: "Minimalist Design",
-    description: "Reach orbit using 4 or fewer parts.",
-    condition: (stats) => stats.result === "success" && stats.partCount <= 4,
-    reward: 300,
-    completed: false,
-  },
-];
+const PROGRESS_KEY = "last-loop-progress-v3";
 
+function readProgress() {
+  try {
+    const data = JSON.parse(localStorage.getItem(PROGRESS_KEY));
+    if (data && Array.isArray(data.completed)) {
+      return { launches: 0, orbits: 0, ...data };
+    }
+  } catch (error) {
+    // Private mode or corrupt data: start fresh.
+  }
+  return { completed: [], launches: 0, orbits: 0 };
+}
+
+function writeProgress(progress) {
+  try {
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+  } catch (error) {
+    // Progress just won't persist.
+  }
+}
+
+// Every rocket has one mission, and it only counts when flown with that
+// rocket. `completed` holds the ids of the rockets whose mission is done.
 export default class MissionSystem {
-  static getMissions() {
-    try {
-      const data = localStorage.getItem(MISSIONS_KEY);
-      if (data) return JSON.parse(data);
-    } catch (e) {}
-    return DEFAULT_MISSIONS.map((m) => ({ ...m }));
-  }
-
-  static saveMissions(missions) {
-    try {
-      localStorage.setItem(MISSIONS_KEY, JSON.stringify(missions));
-    } catch (e) {}
-  }
-
-  static checkMissions(stats) {
-    const missions = this.getMissions();
-    const newlyCompleted = [];
-    missions.forEach((m) => {
-      if (!m.completed && m.condition(stats)) {
-        m.completed = true;
-        newlyCompleted.push(m);
-      }
-    });
-    if (newlyCompleted.length > 0) {
-      this.saveMissions(missions);
-      this.addFunds(newlyCompleted.reduce((sum, m) => sum + m.reward, 0));
-    }
-    return newlyCompleted;
-  }
-
-  static getFunds() {
-    try {
-      const data = localStorage.getItem(PROGRESS_KEY);
-      return data ? JSON.parse(data).funds || 0 : 0;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  static addFunds(amount) {
-    try {
-      const data = localStorage.getItem(PROGRESS_KEY);
-      const progress = data ? JSON.parse(data) : {};
-      progress.funds = (progress.funds || 0) + amount;
-      localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
-    } catch (e) {}
-  }
-
   static getProgress() {
-    try {
-      const data = localStorage.getItem(PROGRESS_KEY);
-      return data ? JSON.parse(data) : { funds: 0, launches: 0, successes: 0 };
-    } catch (e) {
-      return { funds: 0, launches: 0, successes: 0 };
-    }
+    return readProgress();
   }
 
-  static recordLaunch(success) {
-    try {
-      const progress = this.getProgress();
-      progress.launches = (progress.launches || 0) + 1;
-      if (success) progress.successes = (progress.successes || 0) + 1;
-      localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
-    } catch (e) {}
+  static isCompleted(rocketId) {
+    return readProgress().completed.includes(rocketId);
+  }
+
+  // { time, fuelPercent } over every orbit reached with the rocket, or null.
+  static getBest(rocketId) {
+    return readProgress().best?.[rocketId] || null;
+  }
+
+  static isUnlocked(rocketId) {
+    const index = ROCKETS.findIndex((rocket) => rocket.id === rocketId);
+    return index === 0 || (index > 0 && MissionSystem.isCompleted(ROCKETS[index - 1].id));
+  }
+
+  // The first rocket whose mission is still open: always the newest unlocked one.
+  static getCurrentRocket() {
+    const { completed } = readProgress();
+    return ROCKETS.find((rocket) => !completed.includes(rocket.id)) || null;
+  }
+
+  // flight: { rocketId, success, fuelPercent, time, ...mission counters }
+  // Returns whether this flight met the rocket's mission (achieved), whether
+  // that is new (completed), why not (missed) and the rocket it unlocked.
+  static recordFlight(flight) {
+    const progress = readProgress();
+    progress.launches += 1;
+    if (flight.success) {
+      progress.orbits += 1;
+      const best = progress.best?.[flight.rocketId];
+      progress.best = {
+        ...progress.best,
+        [flight.rocketId]: {
+          time: Math.min(best?.time ?? Number.POSITIVE_INFINITY, flight.time),
+          fuelPercent: Math.max(best?.fuelPercent ?? 0, flight.fuelPercent),
+        },
+      };
+    }
+
+    const rocket = ROCKETS_BY_ID[flight.rocketId];
+    const outcome = rocket ? evaluateChallenge(rocket.challenge, flight) : { completed: false, missed: null };
+    const completed = outcome.completed && !progress.completed.includes(rocket.id);
+    if (completed) {
+      progress.completed.push(rocket.id);
+    }
+    writeProgress(progress);
+
+    const unlocked = completed ? ROCKETS[ROCKETS.indexOf(rocket) + 1] || null : null;
+    return { achieved: outcome.completed, completed, unlocked, missed: outcome.missed };
   }
 }

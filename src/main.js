@@ -1,11 +1,14 @@
 import Phaser from "phaser";
 import BootScene from "./game/scenes/BootScene.js";
-import BuildScene from "./game/scenes/BuildScene.js";
+import HangarScene from "./game/scenes/HangarScene.js";
 import FlightScene from "./game/scenes/FlightScene.js";
-import DeepSpaceScene from "./game/scenes/DeepSpaceScene.js";
-import ResultScene from "./game/scenes/ResultScene.js";
 import config from "./game/config.js";
 
-config.scene = [BootScene, BuildScene, FlightScene, DeepSpaceScene, ResultScene];
+config.scene = [BootScene, HangarScene, FlightScene];
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+
+if (import.meta.env.DEV) {
+  // Handy for poking at scenes from the browser console while developing.
+  window.__game = game;
+}

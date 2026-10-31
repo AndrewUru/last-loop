@@ -21,43 +21,42 @@ function angleDifference(target, current) {
   return delta;
 }
 
-function length(vector) {
-  return Math.hypot(vector.x, vector.y);
-}
-
 export const FLIGHT_WORLD = {
   planetRadius: 260,
   atmosphereHeight: 110,
+  orbitMinAltitude: 170,
   targetOrbitAltitude: 220,
   earthEscapeAltitude: 430,
-  orbitLockDuration: 3.4,
-  missionTimeout: 420,
-  // Core jam tuning: lighter gravity, a touch more thrust, and a gentler
-  // orbital target make the climb readable without turning the game into a toy.
-  gravity: 0.098,
-  thrustScale: 0.2,
-  fuelBurnScale: 0.32,
+  // Lateral speed at which the rocket stops falling. Gravity fades out as the
+  // rocket approaches it, so "go sideways fast enough" is the whole orbit rule.
+  orbitTargetHorizontalSpeed: 5,
+  orbitSpeedRatio: 0.96,
+  // Flight path must be within this many degrees of level to lock the orbit.
+  orbitMaxPathAngle: 15,
+  orbitLockDuration: 1.5,
+  guidanceStartAltitude: 2,
+  guidanceAltitude: 190,
+  guidanceGain: 0.3,
+  guidanceGravityFloor: 0.05,
+  turnProfileAltitude: 150,
+  turnProfileEndPitch: 10,
+  missionTimeout: 300,
+  // Seconds the engines run against the hold-down clamps before liftoff.
+  // Letting go of the thrust on the pad starts the count again.
+  holdDownTime: 0.7,
+  gravity: 0.196,
+  fuelBurnScale: 1.1,
   fuelMassFactor: 0.16,
-  baseTurnAuthority: 3.1,
-  angularDamping: 4.2,
-  dragBase: 0.0078,
-  dragWidthPenalty: 0.001,
-  dragInstabilityPenalty: 0.0035,
-  liftoffAltitude: 28,
-  turnStartAltitude: 120,
-  orbitMinAltitude: 170,
-  orbitTargetHorizontalSpeed: 1.82,
-  orbitVerticalTolerance: 0.42,
-  orbitAngleMin: -26,
-  orbitAngleMax: 8,
+  // Degrees per second while a steer key is held. The rocket holds its
+  // heading as soon as the key is released.
+  baseTurnRate: 34,
+  turnResponse: 7,
+  dragBase: 0.006,
+  dragWidthPenalty: 0.0025,
   safeLandingSpeed: 0.46,
   safeLandingHorizontalSpeed: 0.26,
   safeLandingAngle: 16,
-  outOfFuelGraceTime: 28,
-  outOfFuelFallSpeed: 0.18,
-  launchAssistAltitude: 55,
-  launchAssistMultiplier: 1.45,
-  assistErrorDeadZone: 0.018,
+  outOfFuelGraceTime: 1.5,
 };
 
 export const FLIGHT_TARGETS = {
@@ -66,15 +65,12 @@ export const FLIGHT_TARGETS = {
 };
 
 export default class FlightModel {
-  constructor(stats) {
+  // options.wind: strength of the gusts that push the nose around in the
+  // atmosphere (radians per second at sea level); windPhase varies them.
+  constructor(stats, options = {}) {
     this.stats = stats;
-    this.guidance = clamp(
-      stats.stability * 0.68 +
-        stats.balanceScore * 0.32 +
-        (stats.controlAuthority || 0) * 0.2,
-      0.18,
-      1,
-    );
+    this.wind = options.wind || 0;
+    this.windPhase = options.windPhase || 0;
     this.fuelMassFactor =
       stats.fuel > 0
         ? clamp(
@@ -83,17 +79,19 @@ export default class FlightModel {
             FLIGHT_WORLD.fuelMassFactor,
           )
         : 0;
-    this.dryMass = Math.max(10, stats.mass - stats.fuel * this.fuelMassFactor);
-    this.turnAuthority =
-      FLIGHT_WORLD.baseTurnAuthority *
-      (0.75 + this.guidance * 0.55 + (stats.controlAuthority || 0) * 0.24);
+    this.dryMass = Math.max(1, stats.mass - stats.fuel * this.fuelMassFactor);
+    // stats.twr is the liftoff thrust-to-weight ratio shown in the hangar.
+    this.thrustForce = (stats.twr || 0) * FLIGHT_WORLD.gravity * stats.mass;
+    this.burnRate = Math.max(0.2, stats.fuelUse * FLIGHT_WORLD.fuelBurnScale);
+    this.turnRate = degToRad(
+      FLIGHT_WORLD.baseTurnRate * (1 + (stats.controlAuthority || 0) * 2),
+    );
     this.dragCoefficient =
-      FLIGHT_WORLD.dragBase +
-      Math.max(0, (stats.width || 1) - 1) * FLIGHT_WORLD.dragWidthPenalty +
-      (1 - this.guidance) * FLIGHT_WORLD.dragInstabilityPenalty;
-    this.burnRate = Math.max(0.24, stats.fuelUse * FLIGHT_WORLD.fuelBurnScale);
+      (FLIGHT_WORLD.dragBase +
+        Math.max(0, (stats.width || 1) - 1) * FLIGHT_WORLD.dragWidthPenalty) *
+      (1 - clamp(stats.dragReduction || 0, 0, 0.5));
     this.maxPitchUp = degToRad(-170);
-    this.maxPitchDown = degToRad(20);
+    this.maxPitchDown = degToRad(30);
   }
 
   createInitialState() {
@@ -106,39 +104,33 @@ export default class FlightModel {
       velocity: { x: 0, y: 0 },
       radius: FLIGHT_WORLD.planetRadius,
       speed: 0,
-      radialVelocity: 0,
-      tangentialVelocity: 0,
       fuelRemaining: this.stats.fuel,
       time: 0,
-      simulationTime: 0,
       localOrientation: -Math.PI / 2,
       orientation: -Math.PI / 2,
       angularVelocity: 0,
       throttle: 0,
       steerInput: 0,
-      pilotSteerInput: 0,
-      assistSteerInput: 0,
-      assistEnabled: false,
-      assistTargetAngle: -Math.PI / 2,
-      assistError: 0,
-      assistStrength: this.guidance,
+      guidanceAngle: -Math.PI / 2,
+      guidanceError: 0,
+      insertionStarted: false,
       engineOn: false,
+      ignitionTime: 0,
+      windGust: 0,
       launched: false,
       result: null,
+      failure: null,
       reason: "",
       phaseId: FLIGHT_PHASES.PAD,
       phase: getPhaseLabel(FLIGHT_PHASES.PAD),
-      flightScore: 0,
-      wobble: 0,
       atmosphereDensity: 1,
       apoapsis: 0,
-      periapsis: 0,
+      orbitWindow: false,
+      cutEngineCue: false,
+      pathAngle: 90,
       orbitHoldTime: 0,
       orbitAchieved: false,
-      escapeProgress: 0,
-      targetOrbitRadius:
-        FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude,
-      targetOrbitVelocity: FLIGHT_TARGETS.orbitalVelocity,
+      outOfFuelTime: 0,
       currentG: 1,
     };
 
@@ -152,90 +144,74 @@ export default class FlightModel {
 
   getCurrentTwr(state) {
     const mass = Math.max(this.getCurrentMass(state), 1);
-    return (this.stats.thrust * FLIGHT_WORLD.thrustScale) / mass / FLIGHT_WORLD.gravity;
+    return this.thrustForce / mass / FLIGHT_WORLD.gravity;
   }
 
-  getStabilityTargetAngle(state) {
-    const altitude = state.altitude;
+  getEffectiveGravity(horizontalVelocity) {
+    const ratio = horizontalVelocity / FLIGHT_WORLD.orbitTargetHorizontalSpeed;
+    return FLIGHT_WORLD.gravity * Math.max(0, 1 - ratio * ratio);
+  }
 
-    if (altitude < FLIGHT_WORLD.liftoffAltitude) {
+  estimateCoastApoapsis(state) {
+    if (state.verticalVelocity <= 0) {
+      return state.altitude;
+    }
+
+    const gravity = this.getEffectiveGravity(state.horizontalVelocity);
+    if (gravity <= 0.001) {
+      return FLIGHT_WORLD.earthEscapeAltitude;
+    }
+
+    return Math.min(
+      FLIGHT_WORLD.earthEscapeAltitude,
+      state.altitude + (state.verticalVelocity * state.verticalVelocity) / (2 * gravity),
+    );
+  }
+
+  // Heading the HUD arrow asks the pilot to hold, as a local orientation
+  // (-90 deg is straight up, 0 deg is level flight towards orbit).
+  // Picks the climb rate that would coast up to the guidance altitude and
+  // tilts the thrust so only the vertical share needed for it goes up;
+  // everything else becomes orbital speed. A pitch cap that drops with
+  // altitude keeps the turn gradual instead of "straight up, then sideways".
+  getGuidanceTarget(state) {
+    const world = FLIGHT_WORLD;
+
+    if (!state.launched || state.altitude < world.guidanceStartAltitude) {
       return degToRad(-90);
     }
 
-    if (altitude < FLIGHT_WORLD.turnStartAltitude) {
-      const progress = clamp(
-        (altitude - FLIGHT_WORLD.liftoffAltitude) /
-          Math.max(FLIGHT_WORLD.turnStartAltitude - FLIGHT_WORLD.liftoffAltitude, 1),
-        0,
-        1,
-      );
-      return degToRad(-90 + progress * 18);
-    }
-
-    if (altitude < FLIGHT_WORLD.orbitMinAltitude) {
-      const progress = clamp(
-        (altitude - FLIGHT_WORLD.turnStartAltitude) /
-          Math.max(FLIGHT_WORLD.orbitMinAltitude - FLIGHT_WORLD.turnStartAltitude, 1),
-        0,
-        1,
-      );
-      return degToRad(-72 + progress * 58);
-    }
-
-    if (altitude < FLIGHT_WORLD.targetOrbitAltitude) {
-      const progress = clamp(
-        (altitude - FLIGHT_WORLD.orbitMinAltitude) /
-          Math.max(FLIGHT_WORLD.targetOrbitAltitude - FLIGHT_WORLD.orbitMinAltitude, 1),
-        0,
-        1,
-      );
-      return degToRad(-14 + progress * 16);
-    }
-
-    return degToRad(2);
+    const altitudeError = world.guidanceAltitude - state.altitude;
+    const gravity = Math.max(this.getEffectiveGravity(state.horizontalVelocity), 0);
+    const desiredClimb =
+      altitudeError >= 0
+        ? Math.sqrt((gravity + world.guidanceGravityFloor) * altitudeError)
+        : Math.max(-0.3, altitudeError / 20);
+    const mass = Math.max(this.getCurrentMass(state), 1);
+    const thrustAcceleration = Math.max(this.thrustForce / mass, 0.01);
+    const verticalNeed =
+      gravity + (desiredClimb - state.verticalVelocity) * world.guidanceGain;
+    const turnProgress = clamp(state.altitude / world.turnProfileAltitude, 0, 1);
+    const pitchCap = degToRad(90 - (90 - world.turnProfileEndPitch) * Math.pow(turnProgress, 0.75));
+    const pitch = Math.min(
+      Math.asin(clamp(verticalNeed / thrustAcceleration, -0.5, 1)),
+      pitchCap,
+    );
+    return -pitch;
   }
 
-  getLaunchAssistMultiplier(state) {
-    const assistProgress = clamp(
-      state.altitude / Math.max(FLIGHT_WORLD.launchAssistAltitude, 1),
-      0,
-      1,
-    );
-    return clamp(
-      FLIGHT_WORLD.launchAssistMultiplier -
-        (FLIGHT_WORLD.launchAssistMultiplier - 1) * assistProgress,
-      1,
-      FLIGHT_WORLD.launchAssistMultiplier,
-    );
+  updateGuidance(state, dt) {
+    const target = this.getGuidanceTarget(state);
+    state.guidanceAngle +=
+      angleDifference(target, state.guidanceAngle) * Math.min(1, dt * 2.5);
+    state.guidanceError = angleDifference(state.guidanceAngle, state.localOrientation);
   }
 
   updateOrientation(state, dt) {
-    const controlAuthority = degToRad(130 + this.guidance * 42) * this.turnAuthority;
-    const angularDrag = 1.35 - this.guidance * 0.28;
-    const maxTurnRate = degToRad(110 + this.guidance * 34);
-    const pilotActive = Math.abs(state.pilotSteerInput) > 0.04;
-    const assistContribution = state.assistEnabled
-      ? state.assistSteerInput * (pilotActive ? 0.38 : 1)
-      : 0;
-    const effectiveSteer = clamp(
-      state.pilotSteerInput + assistContribution,
-      -1,
-      1,
-    );
-
-    state.steerInput = effectiveSteer;
-
-    if (Math.abs(effectiveSteer) > 0.001) {
-      state.angularVelocity += effectiveSteer * controlAuthority * dt;
-    } else {
-      state.angularVelocity *= Math.max(0, 1 - dt * angularDrag);
-    }
-
-    state.angularVelocity = clamp(
-      state.angularVelocity,
-      -maxTurnRate,
-      maxTurnRate,
-    );
+    const targetRate = state.steerInput * this.turnRate;
+    state.angularVelocity +=
+      (targetRate - state.angularVelocity) *
+      Math.min(1, dt * FLIGHT_WORLD.turnResponse);
     state.localOrientation = clamp(
       state.localOrientation + state.angularVelocity * dt,
       this.maxPitchUp,
@@ -250,40 +226,22 @@ export default class FlightModel {
     }
   }
 
-  updateAssistState(state) {
-    state.assistTargetAngle = this.getStabilityTargetAngle(state);
-    state.assistError = angleDifference(
-      state.assistTargetAngle,
-      state.localOrientation,
-    );
-    state.assistStrength = state.assistEnabled ? this.guidance : 0;
-
-    if (!state.assistEnabled) {
-      state.assistSteerInput = 0;
+  // Gusts turn the rocket while the air is thick; the pilot steers against them.
+  applyWind(state, dt) {
+    if (this.wind <= 0) {
       return;
     }
-
-    const deadZone = FLIGHT_WORLD.assistErrorDeadZone;
-    const proportional =
-      Math.abs(state.assistError) < deadZone ? 0 : state.assistError * 1.55;
-    const damping = state.angularVelocity * (0.34 + this.guidance * 0.18);
-    const lowAltitudeBoost =
-      state.altitude < FLIGHT_WORLD.liftoffAltitude ? 1.18 : 1;
-
-    state.assistSteerInput = clamp(
-      (proportional - damping) * lowAltitudeBoost * (0.66 + this.guidance * 0.42),
-      -1,
-      1,
+    const time = state.time + this.windPhase;
+    state.windGust =
+      this.wind * state.atmosphereDensity * (Math.sin(time * 0.9) + 0.6 * Math.sin(time * 2.3 + 1.3));
+    state.localOrientation = clamp(
+      state.localOrientation + state.windGust * dt,
+      this.maxPitchUp,
+      this.maxPitchDown,
     );
   }
 
-  buildWorldPose(
-    altitude,
-    downrange,
-    localOrientation,
-    horizontalVelocity,
-    verticalVelocity,
-  ) {
+  buildWorldPose(altitude, downrange, localOrientation, horizontalVelocity, verticalVelocity) {
     const radius = FLIGHT_WORLD.planetRadius + Math.max(altitude, 0);
     const arcAngle = downrange / Math.max(radius, FLIGHT_WORLD.planetRadius);
     const radialUnit = {
@@ -297,17 +255,14 @@ export default class FlightModel {
 
     return {
       radius,
+      arcAngle,
       position: {
         x: radialUnit.x * radius,
         y: radialUnit.y * radius,
       },
       velocity: {
-        x:
-          tangentUnit.x * horizontalVelocity +
-          radialUnit.x * verticalVelocity,
-        y:
-          tangentUnit.y * horizontalVelocity +
-          radialUnit.y * verticalVelocity,
+        x: tangentUnit.x * horizontalVelocity + radialUnit.x * verticalVelocity,
+        y: tangentUnit.y * horizontalVelocity + radialUnit.y * verticalVelocity,
       },
       orientation: localOrientation + arcAngle,
     };
@@ -325,141 +280,70 @@ export default class FlightModel {
     state.position = pose.position;
     state.velocity = pose.velocity;
     state.orientation = pose.orientation;
+    state.arcAngle = pose.arcAngle;
     state.radius = pose.radius;
     state.speed = Math.hypot(state.horizontalVelocity, state.verticalVelocity);
-    state.radialVelocity = state.verticalVelocity;
-    state.tangentialVelocity = state.horizontalVelocity;
-    state.flightScore = clamp(
-      state.altitude / Math.max(FLIGHT_WORLD.targetOrbitAltitude, 1) * 0.45 +
-        Math.abs(state.horizontalVelocity) /
-          Math.max(FLIGHT_TARGETS.orbitalVelocity, 0.01) *
-          0.55,
-      0,
-      1,
-    );
-    state.escapeProgress = clamp(
-      state.altitude / Math.max(FLIGHT_WORLD.earthEscapeAltitude, 1),
-      0,
-      1,
-    );
+    state.apoapsis = this.estimateCoastApoapsis(state);
     return state;
   }
 
   step(state, dt, controls = {}) {
+    if (state.orbitAchieved) {
+      state.time += dt;
+      return this.updateStableOrbit(state, dt);
+    }
+
     if (state.result) {
       return state;
     }
 
     state.time += dt;
-    state.simulationTime += dt;
-
-    if (state.orbitAchieved) {
-      return this.updateStableOrbit(state, dt, controls);
-    }
-
-    state.engineOn = Boolean(controls.engineOn ?? state.engineOn);
-    state.assistEnabled = Boolean(controls.assistEnabled ?? state.assistEnabled);
-    state.pilotSteerInput = clamp(controls.steer ?? 0, -1, 1);
-    state.steerInput = state.pilotSteerInput;
-    state.throttle = state.engineOn
-      ? clamp(controls.throttle ?? state.throttle, 0, 1)
-      : 0;
-
-    if (!state.launched && state.throttle > 0.08 && this.getCurrentTwr(state) > 1) {
-      state.launched = true;
-    }
-
-    state.atmosphereDensity = clamp(
-      1 - state.altitude / FLIGHT_WORLD.atmosphereHeight,
-      0,
-      1,
-    );
+    state.engineOn = Boolean(controls.engineOn) && state.fuelRemaining > 0.01;
+    state.throttle = state.engineOn ? clamp(controls.throttle ?? 1, 0, 1) : 0;
+    state.steerInput = state.launched ? clamp(controls.steer ?? 0, -1, 1) : 0;
 
     if (!state.launched) {
-      this.updateAssistState(state);
-      state.angularVelocity *= Math.max(0, 1 - dt * (FLIGHT_WORLD.angularDamping + 1));
-      state.localOrientation +=
-        angleDifference(-Math.PI / 2, state.localOrientation) *
-        Math.min(1, dt * (3 + this.guidance * 2));
-      state.currentG =
-        state.engineOn && state.throttle > 0
-          ? clamp(this.getCurrentTwr(state) * state.throttle, 1, 4)
-          : 1;
+      state.ignitionTime = state.throttle > 0 ? state.ignitionTime + dt : 0;
+      if (
+        state.ignitionTime >= FLIGHT_WORLD.holdDownTime &&
+        this.getCurrentTwr(state) * state.throttle > 1
+      ) {
+        state.launched = true;
+      }
+    }
+
+    state.atmosphereDensity = clamp(1 - state.altitude / FLIGHT_WORLD.atmosphereHeight, 0, 1);
+    this.updateGuidance(state, dt);
+
+    if (!state.launched) {
+      state.currentG = 1;
       return this.syncDerivedState(state);
     }
 
-    this.updateAssistState(state);
     this.updateOrientation(state, dt);
+    this.applyWind(state, dt);
 
-    let throttle = state.throttle;
-    if (state.fuelRemaining <= 0.01) {
-      throttle = 0;
-      state.throttle = 0;
-    }
-
+    const throttle = state.throttle;
     if (throttle > 0) {
-      state.fuelRemaining = Math.max(
-        0,
-        state.fuelRemaining - this.burnRate * throttle * dt,
-      );
+      state.fuelRemaining = Math.max(0, state.fuelRemaining - this.burnRate * throttle * dt);
     }
 
     const mass = Math.max(this.getCurrentMass(state), 1);
-    const launchAssist = this.getLaunchAssistMultiplier(state);
-    const thrustAcceleration =
-      throttle > 0
-        ? (this.stats.thrust *
-            FLIGHT_WORLD.thrustScale *
-            throttle *
-            launchAssist) /
-          mass
-        : 0;
-    const thrustVector = {
+    const thrustAcceleration = throttle > 0 ? (this.thrustForce * throttle) / mass : 0;
+    const thrust = {
       x: Math.cos(state.localOrientation) * thrustAcceleration,
       y: -Math.sin(state.localOrientation) * thrustAcceleration,
     };
-    const localVelocity = {
-      x: state.horizontalVelocity,
-      y: state.verticalVelocity,
-    };
-    const speed = length(localVelocity);
-    const dragStrength =
-      speed * speed * this.dragCoefficient * state.atmosphereDensity;
-    const dragVector =
-      speed > 0
-        ? {
-            x: (localVelocity.x / speed) * dragStrength,
-            y: (localVelocity.y / speed) * dragStrength,
-          }
-        : { x: 0, y: 0 };
+    const drag = this.getDrag(state.horizontalVelocity, state.verticalVelocity, state.atmosphereDensity);
+    const gravity = this.getEffectiveGravity(state.horizontalVelocity);
 
-    state.horizontalVelocity += (thrustVector.x - dragVector.x) * dt;
-    state.verticalVelocity +=
-      (thrustVector.y - FLIGHT_WORLD.gravity - dragVector.y) * dt;
+    state.horizontalVelocity += (thrust.x - drag.x) * dt;
+    state.verticalVelocity += (thrust.y - gravity - drag.y) * dt;
     state.downrange += state.horizontalVelocity * dt;
     state.altitude = Math.max(0, state.altitude + state.verticalVelocity * dt);
-    state.atmosphereDensity = clamp(
-      1 - state.altitude / FLIGHT_WORLD.atmosphereHeight,
-      0,
-      1,
-    );
-    state.apoapsis = Math.max(
-      state.apoapsis,
-      state.altitude,
-      this.estimateBallisticApoapsis(state),
-    );
-    state.periapsis =
-      state.time > 0.5
-        ? Math.min(
-            state.periapsis || state.altitude,
-            this.estimateBallisticPeriapsis(state),
-          )
-        : state.altitude;
+    state.atmosphereDensity = clamp(1 - state.altitude / FLIGHT_WORLD.atmosphereHeight, 0, 1);
     state.currentG = clamp(
-      Math.hypot(
-        thrustVector.x - dragVector.x,
-        thrustVector.y - dragVector.y - FLIGHT_WORLD.gravity,
-      ) / Math.max(FLIGHT_WORLD.gravity, 0.001),
+      Math.hypot(thrust.x - drag.x, thrust.y - drag.y) / FLIGHT_WORLD.gravity,
       0,
       9.9,
     );
@@ -467,65 +351,34 @@ export default class FlightModel {
     return this.syncDerivedState(state);
   }
 
-  estimateBallisticApoapsis(state) {
-    if (state.verticalVelocity <= 0) {
-      return state.altitude;
+  getDrag(horizontalVelocity, verticalVelocity, atmosphereDensity) {
+    const speed = Math.hypot(horizontalVelocity, verticalVelocity);
+    if (speed <= 0) {
+      return { x: 0, y: 0 };
     }
 
-    const falloff = 1 - state.atmosphereDensity * 0.35;
-    return (
-      state.altitude +
-      (state.verticalVelocity * state.verticalVelocity) /
-        (2 * Math.max(FLIGHT_WORLD.gravity, 0.001)) *
-        falloff
-    );
+    const strength = speed * speed * this.dragCoefficient * atmosphereDensity;
+    return {
+      x: (horizontalVelocity / speed) * strength,
+      y: (verticalVelocity / speed) * strength,
+    };
   }
 
-  estimateBallisticPeriapsis(state) {
-    if (state.verticalVelocity >= 0) {
-      return state.altitude;
-    }
-
-    const descent =
-      (state.verticalVelocity * state.verticalVelocity) /
-      (2 * Math.max(FLIGHT_WORLD.gravity, 0.001));
-    return Math.max(0, state.altitude - descent);
-  }
-
-  updateStableOrbit(state, dt, controls = {}) {
+  // After the orbit locks the vehicle glides onto the target orbit so the
+  // camera can pull back for the victory shot.
+  updateStableOrbit(state, dt) {
     const targetAltitude = FLIGHT_WORLD.targetOrbitAltitude;
-    const targetVelocity = FLIGHT_TARGETS.orbitalVelocity;
-    const engineOn = Boolean(controls.engineOn ?? state.engineOn);
-    const throttle = engineOn
-      ? clamp(controls.throttle ?? state.throttle, 0, 1)
-      : 0;
+    const targetVelocity = FLIGHT_TARGETS.orbitalVelocity * Math.sign(state.horizontalVelocity || 1);
 
-    state.engineOn = engineOn;
-    state.throttle = throttle;
-    if (throttle > 0 && state.fuelRemaining > 0.01) {
-      const mass = Math.max(this.getCurrentMass(state), 1);
-      const thrustAcceleration =
-        (this.stats.thrust * FLIGHT_WORLD.thrustScale * throttle) / mass;
-      state.horizontalVelocity += thrustAcceleration * dt * 0.42;
-      state.fuelRemaining = Math.max(
-        0,
-        state.fuelRemaining - this.burnRate * throttle * dt,
-      );
-    }
-    if (state.fuelRemaining <= 0.01) {
-      state.engineOn = false;
-      state.throttle = 0;
-    }
+    state.engineOn = false;
+    state.throttle = 0;
     state.altitude += (targetAltitude - state.altitude) * Math.min(1, dt * 0.8);
-    state.horizontalVelocity +=
-      (targetVelocity - state.horizontalVelocity) * Math.min(1, dt * 0.8);
+    state.horizontalVelocity += (targetVelocity - state.horizontalVelocity) * Math.min(1, dt * 0.8);
     state.verticalVelocity *= Math.max(0, 1 - dt * 2.4);
     state.downrange += state.horizontalVelocity * dt;
-    state.localOrientation +=
-      angleDifference(0, state.localOrientation) * Math.min(1, dt * 1.4);
+    const prograde = state.horizontalVelocity >= 0 ? 0 : -Math.PI;
+    state.localOrientation += angleDifference(prograde, state.localOrientation) * Math.min(1, dt * 1.4);
     state.angularVelocity = 0;
-    state.apoapsis = targetAltitude;
-    state.periapsis = targetAltitude;
     state.currentG = 0;
     state.atmosphereDensity = 0;
 
@@ -534,181 +387,67 @@ export default class FlightModel {
 
   predictStableOrbit(state) {
     const radius = FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude;
-    const currentAngle =
-      state.downrange / Math.max(radius, FLIGHT_WORLD.planetRadius);
     const points = [];
-    let apoapsisPoint = null;
-    let periapsisPoint = null;
-    let corridorPoint = null;
     const count = 192;
 
     for (let index = 0; index <= count; index += 1) {
-      const angle = currentAngle + (Math.PI * 2 * index) / count;
-      const point = {
-        x: Math.sin(angle) * radius,
-        y: -Math.cos(angle) * radius,
-      };
-      points.push(point);
-
-      if (index === Math.floor(count * 0.25)) {
-        apoapsisPoint = point;
-      }
-      if (index === Math.floor(count * 0.75)) {
-        periapsisPoint = point;
-      }
-      if (index === Math.floor(count * 0.08)) {
-        corridorPoint = point;
-      }
+      const angle = (Math.PI * 2 * index) / count;
+      points.push({ x: Math.sin(angle) * radius, y: -Math.cos(angle) * radius });
     }
 
-    return {
-      points,
-      apoapsis: FLIGHT_WORLD.targetOrbitAltitude,
-      periapsis: FLIGHT_WORLD.targetOrbitAltitude,
-      apoapsisPoint,
-      periapsisPoint,
-      corridorPoint,
-      completeOrbit: true,
-    };
+    return { points, completeOrbit: true, impact: false };
   }
 
+  // Where the rocket goes if the engine is cut right now.
   predictPath(state) {
     if (!state.launched) {
-      return {
-        points: [],
-        apoapsis: state.altitude,
-        periapsis: state.altitude,
-        apoapsisPoint: null,
-        periapsisPoint: null,
-        corridorPoint: null,
-        completeOrbit: false,
-      };
+      return { points: [], completeOrbit: false, impact: false };
     }
 
     if (state.orbitAchieved) {
       return this.predictStableOrbit(state);
     }
 
-    const step = state.altitude >= FLIGHT_WORLD.orbitMinAltitude ? 0.6 : 0.12;
-    const steps = state.altitude >= FLIGHT_WORLD.orbitMinAltitude ? 1500 : 420;
-    const burnSteps =
-      state.engineOn && state.fuelRemaining > 0.01
-        ? Math.round(steps * 0.2)
-        : 0;
+    const step = 0.5;
+    const steps = 720;
     const predicted = {
       altitude: state.altitude,
       downrange: state.downrange,
       horizontalVelocity: state.horizontalVelocity,
       verticalVelocity: state.verticalVelocity,
-      localOrientation: state.localOrientation,
-      fuelRemaining: state.fuelRemaining,
     };
-
     const points = [];
-    let apoapsis = state.altitude;
-    let periapsis = state.altitude;
-    let apoapsisPoint = { ...state.position };
-    let periapsisPoint = { ...state.position };
-    let corridorPoint = null;
-    let bestCorridorDelta = Number.POSITIVE_INFINITY;
-    const sampleEvery = state.altitude >= FLIGHT_WORLD.orbitMinAltitude ? 8 : 3;
+    let impact = false;
 
     for (let index = 0; index < steps; index += 1) {
-      const atmosphereDensity = clamp(
-        1 - predicted.altitude / FLIGHT_WORLD.atmosphereHeight,
-        0,
-        1,
-      );
-      const mass =
-        this.dryMass + predicted.fuelRemaining * this.fuelMassFactor;
-      const throttle = index < burnSteps ? state.throttle : 0;
+      const density = clamp(1 - predicted.altitude / FLIGHT_WORLD.atmosphereHeight, 0, 1);
+      const drag = this.getDrag(predicted.horizontalVelocity, predicted.verticalVelocity, density);
+      const gravity = this.getEffectiveGravity(predicted.horizontalVelocity);
 
-      if (throttle > 0 && predicted.fuelRemaining > 0) {
-        predicted.fuelRemaining = Math.max(
-          0,
-          predicted.fuelRemaining - this.burnRate * throttle * step,
-        );
-      }
-
-      const thrustAcceleration =
-        throttle > 0
-          ? (this.stats.thrust * FLIGHT_WORLD.thrustScale * throttle) /
-            Math.max(mass, 1)
-          : 0;
-      const thrustVector = {
-        x: Math.cos(predicted.localOrientation) * thrustAcceleration,
-        y: -Math.sin(predicted.localOrientation) * thrustAcceleration,
-      };
-      const speed = Math.hypot(
-        predicted.horizontalVelocity,
-        predicted.verticalVelocity,
-      );
-      const dragStrength =
-        speed * speed * this.dragCoefficient * atmosphereDensity;
-      const dragVector =
-        speed > 0
-          ? {
-              x: (predicted.horizontalVelocity / speed) * dragStrength,
-              y: (predicted.verticalVelocity / speed) * dragStrength,
-            }
-          : { x: 0, y: 0 };
-
-      predicted.horizontalVelocity += (thrustVector.x - dragVector.x) * step;
-      predicted.verticalVelocity +=
-        (thrustVector.y - FLIGHT_WORLD.gravity - dragVector.y) * step;
+      predicted.horizontalVelocity -= drag.x * step;
+      predicted.verticalVelocity -= (gravity + drag.y) * step;
       predicted.downrange += predicted.horizontalVelocity * step;
-      predicted.altitude = Math.max(
-        0,
-        predicted.altitude + predicted.verticalVelocity * step,
-      );
+      predicted.altitude += predicted.verticalVelocity * step;
 
-      const pose = this.buildWorldPose(
-        predicted.altitude,
-        predicted.downrange,
-        predicted.localOrientation,
-        predicted.horizontalVelocity,
-        predicted.verticalVelocity,
-      );
-
-      if (index % sampleEvery === 0) {
-        points.push({ ...pose.position });
+      if (index % 4 === 0) {
+        const radius = FLIGHT_WORLD.planetRadius + Math.max(predicted.altitude, 0);
+        const arcAngle = predicted.downrange / radius;
+        points.push({ x: Math.sin(arcAngle) * radius, y: -Math.cos(arcAngle) * radius });
       }
 
-      if (predicted.altitude > apoapsis) {
-        apoapsis = predicted.altitude;
-        apoapsisPoint = { ...pose.position };
+      if (predicted.altitude <= 0) {
+        impact = true;
+        break;
       }
-      if (predicted.altitude < periapsis) {
-        periapsis = predicted.altitude;
-        periapsisPoint = { ...pose.position };
-      }
-
-      const corridorDelta =
-        Math.abs(predicted.altitude - FLIGHT_WORLD.targetOrbitAltitude) +
-        Math.abs(
-          Math.abs(predicted.horizontalVelocity) -
-            FLIGHT_TARGETS.orbitalVelocity,
-        ) *
-          45 +
-        Math.abs(predicted.verticalVelocity) * 28;
-      if (corridorDelta < bestCorridorDelta) {
-        bestCorridorDelta = corridorDelta;
-        corridorPoint = { ...pose.position };
-      }
-
-      if (predicted.altitude <= 0 && index > 12) {
+      if (
+        predicted.altitude >= FLIGHT_WORLD.earthEscapeAltitude ||
+        Math.abs(predicted.downrange - state.downrange) >
+          Math.PI * 2 * (FLIGHT_WORLD.planetRadius + predicted.altitude)
+      ) {
         break;
       }
     }
 
-    return {
-      points,
-      apoapsis,
-      periapsis,
-      apoapsisPoint,
-      periapsisPoint,
-      corridorPoint,
-      completeOrbit: false,
-    };
+    return { points, completeOrbit: false, impact };
   }
 }

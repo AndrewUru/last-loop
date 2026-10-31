@@ -1,78 +1,62 @@
 import Phaser from "phaser";
+import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 import {
-  LAUNCH_PRESENTATION_ALTITUDE,
-  MAX_ZOOM_FACTOR,
-  MIN_ZOOM_FACTOR,
-  ZOOM_WHEEL_STEP,
+  PRESENTATION_BOOST,
+  PRESENTATION_BOOST_SCALE,
+  PRESENTATION_FADE_END,
+  PRESENTATION_FADE_START,
 } from "./FlightSceneConstants.js";
 
-export function angleDifference(target, current) {
-  let delta = target - current;
+// Phaser's WebGL renderer turns every Graphics circle into ~100 points and
+// re-triangulates it on the CPU each frame. The trajectory line draws hundreds
+// of them, so they use a 12-sided triangle fan instead.
+const DOT_SIDES = 12;
+const DOT_COS = Array.from({ length: DOT_SIDES }, (_, i) => Math.cos((i / DOT_SIDES) * Math.PI * 2));
+const DOT_SIN = Array.from({ length: DOT_SIDES }, (_, i) => Math.sin((i / DOT_SIDES) * Math.PI * 2));
 
-  while (delta > Math.PI) {
-    delta -= Math.PI * 2;
+export function fillDot(graphics, x, y, radius) {
+  const x0 = x + DOT_COS[0] * radius;
+  const y0 = y + DOT_SIN[0] * radius;
+  for (let i = 1; i < DOT_SIDES - 1; i += 1) {
+    graphics.fillTriangle(
+      x0,
+      y0,
+      x + DOT_COS[i] * radius,
+      y + DOT_SIN[i] * radius,
+      x + DOT_COS[i + 1] * radius,
+      y + DOT_SIN[i + 1] * radius,
+    );
   }
-  while (delta < -Math.PI) {
-    delta += Math.PI * 2;
-  }
-
-  return delta;
 }
 
-export function getBuildCenter(bounds) {
-  return {
-    x: (bounds.minX + bounds.maxX) / 2,
-    y: bounds.maxY,
-  };
-}
-
+// Monotonic: the rocket always moves up on screen while it climbs.
 export function getPresentationAltitude(altitude) {
-  const earlyProgress = Phaser.Math.Clamp(
-    altitude / LAUNCH_PRESENTATION_ALTITUDE,
+  const clamped = Math.max(0, altitude);
+  const fade = Phaser.Math.Clamp(
+    (clamped - PRESENTATION_FADE_START) / (PRESENTATION_FADE_END - PRESENTATION_FADE_START),
     0,
     1,
   );
-  const padClearanceBoost = Phaser.Math.Clamp(1 - altitude / 24, 0, 1) * 42;
-  const ascentReadabilityBoost = (1 - Math.pow(earlyProgress, 0.72)) * 7.5;
-  const presentationBoost = 1 + padClearanceBoost + ascentReadabilityBoost;
+  const keep = 1 - fade * fade * (3 - 2 * fade);
+  return (
+    clamped +
+    PRESENTATION_BOOST * (1 - Math.exp(-clamped / PRESENTATION_BOOST_SCALE)) * keep
+  );
+}
 
-  return altitude * presentationBoost;
+// Moves a physics-space point radially into the space the rocket is drawn in.
+export function toRenderSpace(point) {
+  const radius = Math.hypot(point.x, point.y);
+  const altitude = radius - FLIGHT_WORLD.planetRadius;
+  const scale =
+    (FLIGHT_WORLD.planetRadius + getPresentationAltitude(altitude)) / Math.max(radius, 1);
+  return { x: point.x * scale, y: point.y * scale };
 }
 
 export function getRenderPosition(state) {
-  const altitude = getPresentationAltitude(state.altitude);
-
-  return {
-    x: state.position.x,
-    y: state.position.y - (altitude - state.altitude),
-    altitude,
-  };
-}
-
-export function updateZoomFactor(currentZoomFactor, deltaY) {
-  return Phaser.Math.Clamp(
-    currentZoomFactor + (deltaY > 0 ? -ZOOM_WHEEL_STEP : ZOOM_WHEEL_STEP),
-    MIN_ZOOM_FACTOR,
-    MAX_ZOOM_FACTOR,
-  );
+  return toRenderSpace(state.position);
 }
 
 export function getThrustVisual(state) {
   return state.engineOn && state.fuelRemaining > 0 ? state.throttle : 0;
-}
-
-export function acquireParticle(pool) {
-  return pool.pop() || null;
-}
-
-export function releaseParticle(activeParticles, pool, index) {
-  const lastParticle = activeParticles[activeParticles.length - 1];
-  const particleToRelease = activeParticles[index];
-
-  activeParticles[index] = lastParticle;
-  activeParticles.pop();
-
-  if (particleToRelease) {
-    pool.push(particleToRelease);
-  }
 }
