@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { getRocket, getRocketTextureKey, loadSelectedRocketId } from "../data/rockets.js";
 import FlightHud from "../ui/FlightHud.js";
 import FlightTouchControls from "../ui/FlightTouchControls.js";
-import { ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
+import { CAMERA_PAD_FILL, ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
 import { flightSceneCloudMethods } from "./flight/FlightSceneClouds.js";
 import { flightSceneEnvironmentMethods } from "./flight/FlightSceneEnvironment.js";
 import { flightSceneExhaustMethods } from "./flight/FlightSceneExhaust.js";
@@ -108,12 +108,51 @@ class FlightScene extends Phaser.Scene {
       .setDepth(1000);
   }
 
+  applyLaunchCinematicCamera(state, remainingMs = 0) {
+    const { width, height } = this.scale;
+    const minViewport = Math.min(width, height);
+    const padZoom =
+      (minViewport * CAMERA_PAD_FILL) / Math.max(this.rocketHeight, ROCKET_CELL_SIZE * 3);
+
+    // T-1: extreme close-up on the lower stage / engine bell. The world camera
+    // is deliberately overridden after the normal camera update so the rocket
+    // can stay physically frozen on the pad while the shot changes.
+    if (this.launchSequence?.active && remainingMs <= 1000) {
+      const ignitionProgress = Phaser.Math.Clamp((1000 - remainingMs) / 1000, 0, 1);
+      const eased = Phaser.Math.Easing.Cubic.Out(ignitionProgress);
+      const closeZoom = padZoom * 3.15;
+      const zoom = Phaser.Math.Linear(padZoom, closeZoom, eased);
+      const engineY = this.rocket.y - this.rocketHeight * 0.08;
+      const targetY = Phaser.Math.Linear(this.rocket.y - this.rocketHeight * 0.45, engineY, eased);
+      this.cameras.main.setZoom(zoom);
+      this.cameras.main.centerOn(this.rocket.x, targetY);
+      Object.assign(this.cameraState, { initialized: true, x: this.rocket.x, y: targetY, zoom });
+      return;
+    }
+
+    // Liftoff shot: keep the camera tied to the launch site for the first 2 km.
+    // Between 2 and 7 km the normal chase camera progressively takes over.
+    if (!this.launchSequence?.active && state.launched && state.altitude < 7) {
+      const catchUp = Phaser.Math.Clamp((state.altitude - 2) / 5, 0, 1);
+      const blend = catchUp * catchUp * (3 - 2 * catchUp);
+      const chase = { ...this.cameraState };
+      const launchY = -this.simulator.world.planetRadius - this.rocketHeight * 0.42;
+      const launchZoom = padZoom * 0.92;
+      const targetX = Phaser.Math.Linear(0, chase.x, blend);
+      const targetY = Phaser.Math.Linear(launchY, chase.y, blend);
+      const zoom = Phaser.Math.Linear(launchZoom, chase.zoom, blend);
+      this.cameras.main.setZoom(zoom);
+      this.cameras.main.centerOn(targetX, targetY);
+    }
+  }
+
   updateLaunchCountdown(delta) {
     const sequence = this.launchSequence;
     if (!sequence?.active) return false;
 
     sequence.elapsed += delta;
     const remainingMs = Math.max(0, sequence.duration - sequence.elapsed);
+    sequence.remainingMs = remainingMs;
     const second = Math.max(1, Math.ceil(remainingMs / 1000));
 
     if (second !== sequence.lastSecond) {
@@ -127,7 +166,6 @@ class FlightScene extends Phaser.Scene {
       });
     }
 
-    // During the final second, cut to an extreme close-up around the engines.
     if (remainingMs <= 1000 && !sequence.ignitionStarted) {
       sequence.ignitionStarted = true;
       this.launchCountdownText?.setText("IGNITION").setScale(0.72);
@@ -136,6 +174,7 @@ class FlightScene extends Phaser.Scene {
 
     if (remainingMs <= 0) {
       sequence.active = false;
+      sequence.completed = true;
       this.launchCountdownText?.setText("LIFTOFF");
       this.tweens.add({
         targets: this.launchCountdownText,
@@ -145,6 +184,9 @@ class FlightScene extends Phaser.Scene {
         ease: "Cubic.easeOut",
         onComplete: () => this.launchCountdownText?.destroy(),
       });
+      // Reset the chase interpolation after the close-up so the launch shot can
+      // start from the pad instead of snapping back to the previous framing.
+      this.cameraState.initialized = false;
       return false;
     }
 
@@ -156,10 +198,10 @@ class FlightScene extends Phaser.Scene {
 
   update(time, delta) {
     if (this.updateLaunchCountdown(delta)) {
-      // Keep the rocket and launch site rendered while the physics clock is frozen.
       const state = this.simulator.update(0, this.controls);
       const prediction = this.simulator.predictPath(state);
       this.renderFlight(state, prediction, time, delta);
+      this.applyLaunchCinematicCamera(state, this.launchSequence.remainingMs);
       this.updateHud(state);
       return;
     }
@@ -174,6 +216,7 @@ class FlightScene extends Phaser.Scene {
     }
 
     this.renderFlight(state, prediction, time, delta);
+    this.applyLaunchCinematicCamera(state);
     this.updateHud(state);
     this.handleMissionEnd(state);
     this.updateAudio(state);
