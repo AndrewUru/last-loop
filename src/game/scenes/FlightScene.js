@@ -104,8 +104,8 @@ class FlightScene extends Phaser.Scene {
     const padZoom =
       (minViewport * CAMERA_PAD_FILL) / Math.max(this.rocketHeight, ROCKET_CELL_SIZE * 3);
 
-    if (this.launchSequence?.active && remainingMs <= 1000) {
-      const ignitionProgress = Phaser.Math.Clamp((1000 - remainingMs) / 1000, 0, 1);
+    if (this.launchSequence?.active && remainingMs <= 5000) {
+      const ignitionProgress = Phaser.Math.Clamp((5000 - remainingMs) / 5000, 0, 1);
       const eased = Phaser.Math.Easing.Cubic.Out(ignitionProgress);
       const closeZoom = padZoom * 3.15;
       const zoom = Phaser.Math.Linear(padZoom, closeZoom, eased);
