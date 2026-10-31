@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { ART } from "../data/art.js";
 import {
   ROCKETS,
   describeChallenge,
@@ -9,10 +10,34 @@ import {
 } from "../data/rockets.js";
 import FlightPredictor from "../systems/FlightPredictor.js";
 import MissionSystem from "../systems/MissionSystem.js";
-import { UI_COLORS, addText, drawPanel, formatSeconds } from "../ui/theme.js";
+import { UI_COLORS, addText, formatSeconds } from "../ui/theme.js";
 
 const TALLEST = Math.max(...ROCKETS.map((rocket) => rocket.height));
 const SILHOUETTE = 0x1c2c3d;
+// Hangar palette, taken from the work lights and steel in the backdrop.
+const AMBER = 0xf2a33a;
+const AMBER_TEXT = "#ffc46b";
+const PANEL = 0x0a1520;
+const PANEL_EDGE = 0x4a6a8c;
+// The floor colour along the bottom edge of the backdrop, for screens taller
+// than the picture.
+const FLOOR = 0x22283a;
+// Neighbours on the side gantries are drawn smaller and in the shade.
+const SIDE_SCALE = 0.62;
+const SIDE_TINT = 0x9aa8ba;
+const STATUS = {
+  done: { label: "COMPLETADA", background: "#22508a", color: "#d6e8ff" },
+  open: { label: "DISPONIBLE", background: "#1f7a4d", color: "#dcffec" },
+  locked: { label: "BLOQUEADA", background: "#7a2a2a", color: "#ffdcdc" },
+};
+// Pilot rank, earned with missions.
+const RANKS = [
+  { from: 0, title: "CADETE" },
+  { from: 1, title: "PILOTO" },
+  { from: 3, title: "COMANDANTE" },
+  { from: 6, title: "VETERANO" },
+  { from: ROCKETS.length, title: "LEYENDA" },
+];
 const predictions = new Map();
 
 // What a perfect pilot gets out of each rocket. The numbers never change, so
@@ -28,10 +53,24 @@ function getPrediction(rocket) {
 function getRatings(rocket) {
   const { twr, controlAuthority } = rocket.stats;
   return [
-    { label: "Potencia", value: (twr - 1) / 1.8 },
-    { label: "Combustible", value: getPrediction(rocket).fuelPercent / 80 },
-    { label: "Agilidad", value: 0.3 + controlAuthority * 2 },
+    { label: "POTENCIA", value: (twr - 1) / 1.8 },
+    { label: "COMBUSTIBLE", value: getPrediction(rocket).fuelPercent / 80 },
+    { label: "AGILIDAD", value: 0.3 + controlAuthority * 2 },
   ];
+}
+
+function getStatus(rocket) {
+  if (!MissionSystem.isUnlocked(rocket.id)) {
+    return STATUS.locked;
+  }
+  return MissionSystem.isCompleted(rocket.id) ? STATUS.done : STATUS.open;
+}
+
+function drawPanel(graphics, x, y, width, height, { radius = 10, alpha = 0.86, edge = PANEL_EDGE, edgeAlpha = 0.55 } = {}) {
+  graphics.fillStyle(PANEL, alpha);
+  graphics.fillRoundedRect(x, y, width, height, radius);
+  graphics.lineStyle(1, edge, edgeAlpha);
+  graphics.strokeRoundedRect(x, y, width, height, radius);
 }
 
 export default class HangarScene extends Phaser.Scene {
@@ -49,11 +88,12 @@ export default class HangarScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor(UI_COLORS.background);
     this.layout = this.computeLayout(this.scale.width, this.scale.height);
-    this.drawBackground();
+    this.createBackground();
     this.createHeader();
     this.createStage();
-    this.createThumbnails();
-    this.createInfoPanel();
+    this.createNameCard();
+    this.createCarousel();
+    this.createMissionPanel();
     this.createLaunchButton();
     this.registerInput();
     this.select(this.selectedIndex, { silent: true });
@@ -63,294 +103,558 @@ export default class HangarScene extends Phaser.Scene {
     }
   }
 
+  // The rocket stands on the backdrop's pedestal at (stageX, pedestalY); the
+  // name card sits on the pedestal's front, the carousel on the floor below
+  // and, on wide screens, the missions down the dark right side.
   computeLayout(width, height) {
     const compact = width < 760;
     const short = height < 560;
     const small = compact || short;
-    const margin = compact ? 12 : 20;
-    const gap = Math.round(margin * 0.6);
-    const headerHeight = small ? 50 : 64;
-    const header = { x: margin, y: margin, width: width - margin * 2, height: headerHeight };
-    const top = header.y + headerHeight + gap;
+    const margin = compact ? 10 : 18;
+    const gap = compact ? 8 : 12;
+    const headerHeight = small ? 48 : 58;
+    const top = headerHeight + gap;
     const bottom = height - margin;
 
     if (!compact) {
-      const infoWidth = Phaser.Math.Clamp(Math.round(width * 0.32), 300, 380);
-      const launchHeight = short ? 52 : 60;
-      const thumbsHeight = Phaser.Math.Clamp(Math.round(height * 0.16), 76, 116);
-      const leftWidth = width - infoWidth - margin * 2 - gap;
+      const panelWidth = Phaser.Math.Clamp(Math.round(width * 0.27), 280, 360);
+      const launchHeight = short ? 50 : 62;
+      const thumbsHeight = Phaser.Math.Clamp(Math.round(height * 0.15), 70, 104);
+      const leftWidth = width - panelWidth - margin * 2 - gap;
       const thumbs = { x: margin, y: bottom - thumbsHeight, width: leftWidth, height: thumbsHeight };
-      const info = { x: width - margin - infoWidth, y: top, width: infoWidth };
-      info.height = bottom - launchHeight - gap - top;
+      const cardHeight = short ? 66 : 96;
+      const cardWidth = Math.min(leftWidth * 0.72, 540);
+      const stageX = margin + leftWidth / 2;
+      const card = { x: stageX - cardWidth / 2, y: thumbs.y - gap - cardHeight, width: cardWidth, height: cardHeight };
+      const panel = { x: width - margin - panelWidth, y: top, width: panelWidth, height: bottom - launchHeight - gap - top };
       return {
         compact,
+        short,
         small,
-        header,
-        stage: { x: margin, y: top, width: leftWidth, height: thumbs.y - gap - top },
+        margin,
+        headerHeight,
+        stageX,
+        pedestalY: card.y - 6,
+        stageTop: top + (short ? 8 : 26),
+        card,
         thumbs,
-        info,
-        launch: { x: info.x, y: bottom - launchHeight, width: infoWidth, height: launchHeight },
+        panel,
+        launch: { x: panel.x, y: bottom - launchHeight, width: panelWidth, height: launchHeight },
+        sideRockets: leftWidth >= 700,
+        missionCards: short ? 1 : 3,
       };
     }
 
     const fullWidth = width - margin * 2;
     const launchHeight = 54;
-    const thumbsHeight = Phaser.Math.Clamp(Math.round(height * 0.1), 60, 80);
-    const infoHeight = Phaser.Math.Clamp(Math.round(height * 0.3), 204, 240);
+    const thumbsHeight = Phaser.Math.Clamp(Math.round(height * 0.09), 58, 76);
+    const panelHeight = Phaser.Math.Clamp(Math.round(height * 0.19), 132, 170);
+    const cardHeight = 64;
     const launch = { x: margin, y: bottom - launchHeight, width: fullWidth, height: launchHeight };
-    const info = { x: margin, y: launch.y - gap - infoHeight, width: fullWidth, height: infoHeight };
-    const thumbs = { x: margin, y: info.y - gap - thumbsHeight, width: fullWidth, height: thumbsHeight };
+    const thumbs = { x: margin, y: launch.y - gap - thumbsHeight, width: fullWidth, height: thumbsHeight };
+    const panel = { x: margin, y: thumbs.y - gap - panelHeight, width: fullWidth, height: panelHeight };
+    const card = { x: margin, y: panel.y - gap - cardHeight, width: fullWidth, height: cardHeight };
     return {
       compact,
+      short,
       small,
-      header,
-      stage: { x: margin, y: top, width: fullWidth, height: thumbs.y - gap - top },
+      margin,
+      headerHeight,
+      stageX: width / 2,
+      pedestalY: card.y - 6,
+      stageTop: top + 10,
+      card,
       thumbs,
-      info,
+      panel,
       launch,
+      sideRockets: false,
+      missionCards: 1,
     };
   }
 
-  drawBackground() {
+  // The backdrop is scaled and shifted so its pedestal lands under the stage
+  // and it still covers the screen sideways and above.
+  createBackground() {
     const { width, height } = this.scale;
-    const grid = this.add.graphics();
-    grid.lineStyle(1, 0x1c2c3d, 0.6);
-    for (let x = 0; x < width; x += 40) {
-      grid.lineBetween(x, 0, x, height);
-    }
-    for (let y = 0; y < height; y += 40) {
-      grid.lineBetween(0, y, width, y);
-    }
+    const { stageX, pedestalY, card } = this.layout;
+    const { pedestal } = ART.hangar;
+    this.add.rectangle(0, 0, width, height, FLOOR).setOrigin(0);
+    const backdrop = this.add.image(stageX, pedestalY, ART.hangar.key).setOrigin(pedestal.x, pedestal.y);
+    backdrop.setScale(
+      Math.max(
+        stageX / (pedestal.x * backdrop.width),
+        (width - stageX) / ((1 - pedestal.x) * backdrop.width),
+        pedestalY / (pedestal.y * backdrop.height),
+      ),
+    );
+    this.backdrop = backdrop;
 
-    const panels = this.add.graphics();
-    const { header, stage, info } = this.layout;
-    drawPanel(panels, header.x, header.y, header.width, header.height);
-    drawPanel(panels, info.x, info.y, info.width, info.height);
-    drawPanel(panels, stage.x, stage.y, stage.width, stage.height, { alpha: 0.35, edgeAlpha: 0.12 });
+    // Darken the floor behind the cards and the carousel so they read.
+    const shade = this.add.graphics();
+    shade.fillGradientStyle(0x050b12, 0x050b12, 0x050b12, 0x050b12, 0, 0, 0.85, 0.85);
+    shade.fillRect(0, card.y, width, height - card.y);
+  }
+
+  // Screen position of a point on the backdrop, given as shares of its size.
+  backdropPoint(u, v) {
+    const { pedestal } = ART.hangar;
+    return {
+      x: this.backdrop.x + (u - pedestal.x) * this.backdrop.displayWidth,
+      y: this.backdrop.y + (v - pedestal.y) * this.backdrop.displayHeight,
+    };
   }
 
   createHeader() {
-    const { header, compact, small } = this.layout;
-    const pad = compact ? 12 : 18;
-    const { completed } = MissionSystem.getProgress();
+    const { width } = this.scale;
+    const { headerHeight: height, margin, compact, small } = this.layout;
+    const { completed, orbits } = MissionSystem.getProgress();
+    const middle = height / 2;
 
-    if (small) {
-      addText(this, header.x + pad, header.y + header.height / 2, "Elige tu cohete", { size: 18, bold: true }).setOrigin(
-        0,
-        0.5,
-      );
-    } else {
-      addText(this, header.x + pad, header.y + 10, "HANGAR", { size: 12, bold: true, color: UI_COLORS.textMuted });
-      addText(this, header.x + pad, header.y + 28, "Elige tu cohete", { size: 22, bold: true });
+    const bar = this.add.graphics();
+    bar.fillGradientStyle(0x050b12, 0x050b12, 0x050b12, 0x050b12, 0.95, 0.95, 0.8, 0.8);
+    bar.fillRect(0, 0, width, height);
+    bar.lineStyle(1, PANEL_EDGE, 0.5);
+    bar.lineBetween(0, height, width, height);
+
+    // Pilot badge: the patch of the last mission completed, and the rank.
+    const radius = Math.round(height * 0.36);
+    const badgeX = margin + radius;
+    bar.fillStyle(0x0f1d2b, 1);
+    bar.fillCircle(badgeX, middle, radius);
+    bar.lineStyle(2, AMBER, 0.9);
+    bar.strokeCircle(badgeX, middle, radius);
+    const lastDone = [...ROCKETS].reverse().find((rocket) => completed.includes(rocket.id));
+    const patch = this.add
+      .image(badgeX, middle, getPatchTextureKey(lastDone || ROCKETS[0]))
+      .setDisplaySize(radius * 1.7, radius * 1.7);
+    if (!lastDone) {
+      patch.setTint(0x6c7b8c);
     }
 
-    // A row of stars does not fit next to the title on a phone.
-    const stars = compact ? "★" : ROCKETS.map((rocket) => (completed.includes(rocket.id) ? "★" : "☆")).join(" ");
-    const right = header.x + header.width - pad;
-    const count = addText(this, right, header.y + header.height / 2, `${completed.length}/${ROCKETS.length}`, {
-      size: small ? 13 : 15,
-      bold: true,
+    const rank = [...RANKS].reverse().find((entry) => completed.length >= entry.from);
+    const textX = badgeX + radius + 10;
+    addText(this, textX, middle - 3, rank.title, { size: small ? 12 : 14, bold: true, letterSpacing: 1 }).setOrigin(0, 1);
+    const progressWidth = small ? 80 : 120;
+    bar.fillStyle(0x1d2f42, 1);
+    bar.fillRoundedRect(textX, middle + 3, progressWidth, 5, 2.5);
+    if (completed.length > 0) {
+      bar.fillStyle(AMBER, 1);
+      bar.fillRoundedRect(textX, middle + 3, Math.max(5, (progressWidth * completed.length) / ROCKETS.length), 5, 2.5);
+    }
+    addText(this, textX + progressWidth + 8, middle + 5, `${completed.length}/${ROCKETS.length}`, {
+      size: 11,
       color: UI_COLORS.textMuted,
-    }).setOrigin(1, 0.5);
-    addText(this, right - count.width - 10, header.y + header.height / 2, stars, {
-      size: small ? 16 : 20,
-      color: UI_COLORS.warningText,
-    }).setOrigin(1, 0.5);
+    }).setOrigin(0, 0.5);
+
+    if (!compact) {
+      const title = addText(this, width / 2, middle - 2, "HANGAR", {
+        size: small ? 14 : 16,
+        bold: true,
+        color: AMBER_TEXT,
+        letterSpacing: 3,
+      }).setOrigin(0.5);
+      bar.fillStyle(AMBER, 1);
+      bar.fillRect(title.x - title.width / 2 - 8, height - 3, title.width + 16, 3);
+    }
+
+    // Counters on the right, each in its own chip.
+    const chips = compact ? [`★ ${completed.length}/${ROCKETS.length}`] : [`ÓRBITAS  ${orbits}`, `★  ${completed.length}/${ROCKETS.length}`];
+    let right = width - margin;
+    [...chips].reverse().forEach((label) => {
+      const text = addText(this, 0, middle, label, {
+        size: small ? 12 : 14,
+        bold: true,
+        color: label.startsWith("★") ? AMBER_TEXT : UI_COLORS.text,
+      }).setOrigin(1, 0.5);
+      const chipWidth = text.width + 24;
+      const chipHeight = small ? 26 : 30;
+      drawPanel(bar, right - chipWidth, middle - chipHeight / 2, chipWidth, chipHeight, { radius: chipHeight / 2 });
+      text.setX(right - 12);
+      right -= chipWidth + 8;
+    });
   }
 
   createStage() {
-    const { stage, compact, small } = this.layout;
-    const pad = small ? 12 : 22;
-    // On wide screens the rocket stands right of the text; on phones it is centred.
-    this.stageCenterX = compact ? stage.x + stage.width / 2 : stage.x + stage.width * 0.66;
-    this.stageGroundY = stage.y + stage.height - (compact ? 16 : 30);
-    // Leave the top of the stage for the name, even for the tallest rocket.
-    this.stageScale = (stage.height * (compact ? 0.72 : 0.84)) / TALLEST;
+    const { stageX, pedestalY, stageTop, compact, sideRockets } = this.layout;
+    // Every rocket shares one scale, so the tallest just fits under the header.
+    this.stageScale = ((pedestalY - stageTop) * 0.97) / TALLEST;
 
-    const floor = this.add.graphics();
-    floor.fillStyle(UI_COLORS.accent, 0.07);
-    floor.fillEllipse(this.stageCenterX, this.stageGroundY + 2, Math.min(stage.width * 0.7, 360), 30);
-    floor.fillStyle(0x3a4654, 1);
-    floor.fillRect(this.stageCenterX - 60, this.stageGroundY, 120, 6);
+    if (sideRockets) {
+      const { bays } = ART.hangar;
+      this.sideRockets = [
+        { offset: -1, ...this.backdropPoint(bays.left, bays.floor) },
+        { offset: 1, ...this.backdropPoint(bays.right, bays.floor) },
+      ].map((side) => {
+        const image = this.add
+          .image(side.x, side.y, getRocketTextureKey(ROCKETS[0]))
+          .setOrigin(0.5, 1)
+          .setInteractive({ useHandCursor: true });
+        image.on("pointerdown", () => this.select(this.selectedIndex + side.offset));
+        image.on("pointerover", () => image.setAlpha(1));
+        image.on("pointerout", () => image.setAlpha(0.9));
+        return { ...side, image };
+      });
+    }
 
-    this.stageRocket = this.add.image(this.stageCenterX, this.stageGroundY, getRocketTextureKey(ROCKETS[0])).setOrigin(
-      0.5,
-      1,
-    );
+    this.rocketShadow = this.add.graphics();
+    this.stageRocket = this.add.image(stageX, pedestalY + 2, getRocketTextureKey(ROCKETS[0])).setOrigin(0.5, 1);
     this.lockIcon = this.add.graphics();
-    this.lockLabel = addText(this, this.stageCenterX, 0, "BLOQUEADO", {
+    this.lockLabel = addText(this, stageX, 0, "BLOQUEADO", {
       size: compact ? 12 : 14,
       bold: true,
       color: UI_COLORS.textMuted,
+      letterSpacing: 1,
     }).setOrigin(0.5, 0);
+  }
 
-    this.nameText = addText(this, stage.x + pad, stage.y + pad - 4, "", {
-      size: small ? 22 : 30,
+  // Name, origin and the three bars, on the front of the pedestal.
+  createNameCard() {
+    const { card, small, short } = this.layout;
+    const pad = small ? 12 : 16;
+    const frame = this.add.graphics();
+    drawPanel(frame, card.x, card.y, card.width, card.height, { alpha: 0.9 });
+    frame.fillStyle(AMBER, 1);
+    frame.fillRect(card.x, card.y + 10, 3, card.height - 20);
+
+    const textWidth = card.width * 0.54 - pad;
+    this.nameText = addText(this, card.x + pad, card.y + (small ? 9 : 12), "", {
+      size: small ? 18 : 24,
       bold: true,
-      wordWrap: { width: compact ? stage.width * 0.6 : stage.width * 0.46 },
+      letterSpacing: 1,
     });
-    this.metaText = addText(this, stage.x + pad, 0, "", { size: small ? 12 : 14, color: UI_COLORS.textMuted });
-    this.factText = compact
+    this.metaText = addText(this, card.x + pad, 0, "", { size: small ? 11 : 13, color: AMBER_TEXT });
+    this.factText = short || small
       ? null
-      : addText(this, stage.x + pad, 0, "", {
-          size: small ? 13 : 15,
-          color: UI_COLORS.text,
-          wordWrap: { width: stage.width * 0.42 },
-          lineSpacing: 4,
+      : addText(this, card.x + pad, 0, "", {
+          size: 12,
+          color: UI_COLORS.textMuted,
+          wordWrap: { width: textWidth },
+          maxLines: 2,
         });
 
-    // Wide screens have the keyboard and room for the text; phones get arrows.
-    if (compact) {
-      const arrowY = stage.y + stage.height * 0.55;
-      this.createArrow(stage.x + 22, arrowY, "◀", () => this.select(this.selectedIndex - 1));
-      this.createArrow(stage.x + stage.width - 22, arrowY, "▶", () => this.select(this.selectedIndex + 1));
-    }
+    this.bars = this.add.graphics();
+    const barsX = card.x + card.width * 0.56;
+    const rowGap = (card.height - pad * 2) / 3;
+    this.barRows = [0, 1, 2].map((index) => {
+      const y = card.y + pad + rowGap * (index + 0.5);
+      const label = addText(this, barsX, y, "", { size: small ? 9 : 10, bold: true, color: UI_COLORS.textMuted, letterSpacing: 1 }).setOrigin(0, 0.5);
+      return { y, label };
+    });
+    this.barX = barsX + (small ? 74 : 92);
+    this.barWidth = card.x + card.width - pad - this.barX;
   }
 
-  createArrow(x, y, symbol, onPress) {
-    const arrow = addText(this, x, y, symbol, { size: 22, color: "#9fd7ff" })
-      .setOrigin(0.5)
-      .setPadding(10, 14, 10, 14)
-      .setInteractive({ useHandCursor: true });
-    arrow.on("pointerover", () => arrow.setColor("#d6f1ff"));
-    arrow.on("pointerout", () => arrow.setColor("#9fd7ff"));
-    arrow.on("pointerdown", onPress);
-  }
-
-  createThumbnails() {
+  createCarousel() {
     const { thumbs, compact } = this.layout;
-    const gap = compact ? 6 : 10;
-    const cellWidth = (thumbs.width - gap * (ROCKETS.length - 1)) / ROCKETS.length;
-    const showNames = cellWidth >= 70;
-    const imageArea = thumbs.height - (showNames ? 26 : 12);
+    const arrowWidth = 28;
+    const gap = compact ? 6 : 8;
+    const stripX = thumbs.x + arrowWidth + gap;
+    const stripWidth = thumbs.width - (arrowWidth + gap) * 2;
+    const minCell = compact ? 58 : 70;
+    this.visibleThumbs = Math.min(ROCKETS.length, Math.floor((stripWidth + gap) / (minCell + gap)));
+    this.thumbWidth = (stripWidth - gap * (this.visibleThumbs - 1)) / this.visibleThumbs;
+    this.thumbGap = gap;
+    this.stripX = stripX;
     const { completed } = MissionSystem.getProgress();
+    const showNames = this.thumbWidth >= 66;
+    const imageArea = thumbs.height - (showNames ? 26 : 12);
 
     this.thumbs = ROCKETS.map((rocket, index) => {
-      const x = thumbs.x + index * (cellWidth + gap);
-      const centerX = x + cellWidth / 2;
+      const container = this.add.container(0, thumbs.y);
       const unlocked = MissionSystem.isUnlocked(rocket.id);
       const background = this.add
-        .rectangle(centerX, thumbs.y + thumbs.height / 2, cellWidth, thumbs.height, UI_COLORS.panel, 0.85)
+        .rectangle(0, 0, this.thumbWidth, thumbs.height, PANEL, 0.85)
+        .setOrigin(0)
         .setInteractive({ useHandCursor: true });
       background.on("pointerdown", () => this.select(index));
-      background.on("pointerover", () => index !== this.selectedIndex && background.setFillStyle(UI_COLORS.rowHover, 1));
-      background.on("pointerout", () => background.setFillStyle(UI_COLORS.panel, 0.85));
+      background.on("pointerover", () => index !== this.selectedIndex && background.setFillStyle(UI_COLORS.rowHover, 0.95));
+      background.on("pointerout", () => background.setFillStyle(PANEL, 0.85));
 
-      const image = this.add.image(centerX, thumbs.y + 6 + imageArea, getRocketTextureKey(rocket)).setOrigin(0.5, 1);
+      const image = this.add.image(this.thumbWidth / 2, 6 + imageArea, getRocketTextureKey(rocket)).setOrigin(0.5, 1);
       // Sizes stay relative, but a tiny rocket like Electron would vanish in a thumbnail.
       const relativeHeight = Math.max(rocket.height / TALLEST, 0.7);
-      image.setScale(Math.min((imageArea * relativeHeight) / image.height, (cellWidth - 12) / image.width));
+      image.setScale(Math.min((imageArea * relativeHeight) / image.height, (this.thumbWidth - 12) / image.width));
       if (!unlocked) {
         image.setTintFill(SILHOUETTE);
       }
+      container.add([background, image]);
 
       if (showNames) {
-        addText(this, centerX, thumbs.y + thumbs.height - 6, rocket.shortName || rocket.name, {
-          size: 12,
-          bold: true,
-          color: unlocked ? UI_COLORS.text : UI_COLORS.textDim,
-        }).setOrigin(0.5, 1);
+        container.add(
+          addText(this, this.thumbWidth / 2, thumbs.height - 6, (rocket.shortName || rocket.name).toUpperCase(), {
+            size: 10,
+            bold: true,
+            color: unlocked ? UI_COLORS.text : UI_COLORS.textDim,
+          }).setOrigin(0.5, 1),
+        );
       }
       if (completed.includes(rocket.id)) {
-        addText(this, x + cellWidth - 5, thumbs.y + 3, "★", { size: 14, color: UI_COLORS.warningText }).setOrigin(1, 0);
+        container.add(addText(this, this.thumbWidth - 5, 3, "★", { size: 13, color: AMBER_TEXT }).setOrigin(1, 0));
       }
+      return { container, background };
+    });
 
-      return { background };
+    const arrowY = thumbs.y + thumbs.height / 2;
+    this.createArrow(thumbs.x + arrowWidth / 2, arrowY, "‹", () => this.select(this.selectedIndex - 1));
+    this.createArrow(thumbs.x + thumbs.width - arrowWidth / 2, arrowY, "›", () => this.select(this.selectedIndex + 1));
+  }
+
+  createArrow(x, y, symbol, onPress) {
+    const arrow = addText(this, x, y - 3, symbol, { size: 40, color: "#9fb8d2" })
+      .setOrigin(0.5)
+      .setPadding(8, 4, 8, 4)
+      .setInteractive({ useHandCursor: true });
+    arrow.on("pointerover", () => arrow.setColor(AMBER_TEXT));
+    arrow.on("pointerout", () => arrow.setColor("#9fb8d2"));
+    arrow.on("pointerdown", onPress);
+  }
+
+  // Shows the cards around the selected rocket when they do not all fit.
+  layoutCarousel() {
+    const first = Phaser.Math.Clamp(
+      this.selectedIndex - Math.floor(this.visibleThumbs / 2),
+      0,
+      ROCKETS.length - this.visibleThumbs,
+    );
+    this.thumbs.forEach(({ container, background }, index) => {
+      const slot = index - first;
+      const visible = slot >= 0 && slot < this.visibleThumbs;
+      container.setVisible(visible).setX(this.stripX + slot * (this.thumbWidth + this.thumbGap));
+      background.input.enabled = visible;
+      const selected = index === this.selectedIndex;
+      background.setStrokeStyle(selected ? 2 : 1, selected ? AMBER : PANEL_EDGE, selected ? 1 : 0.4);
     });
   }
 
-  createInfoPanel() {
-    const { info, small } = this.layout;
-    const pad = small ? 12 : 18;
-    const innerWidth = info.width - pad * 2;
-    let y = info.y + pad;
+  createMissionPanel() {
+    const { panel, compact } = this.layout;
+    this.missionFrame = this.add.graphics();
+    drawPanel(this.missionFrame, panel.x, panel.y, panel.width, panel.height, { alpha: compact ? 0.9 : 0.82 });
+    if (!compact) {
+      addText(this, panel.x + 16, panel.y + 14, "MISIONES", { size: 14, bold: true, letterSpacing: 2 });
+      const { completed } = MissionSystem.getProgress();
+      addText(this, panel.x + panel.width - 16, panel.y + 14, `★ ${completed.length}/${ROCKETS.length}`, {
+        size: 13,
+        bold: true,
+        color: AMBER_TEXT,
+      }).setOrigin(1, 0);
+    }
+    this.missionLayer = this.add.container(0, 0);
+  }
 
-    this.bars = this.add.graphics();
-    this.barRows = [0, 1, 2].map(() => {
-      const label = addText(this, info.x + pad, y, "", { size: small ? 12 : 14, color: UI_COLORS.textMuted });
-      const row = { y: y + label.height / 2, label };
-      y += small ? 20 : 26;
-      return row;
+  // The selected rocket's mission in full, then the next ones in short.
+  renderMissions() {
+    const { panel, compact, missionCards } = this.layout;
+    this.missionLayer.removeAll(true);
+    const pad = compact ? 10 : 12;
+    const x = panel.x + pad;
+    const width = panel.width - pad * 2;
+    let y = panel.y + (compact ? pad : 44);
+    y += this.addMissionDetail(ROCKETS[this.selectedIndex], x, y, width) + 10;
+
+    const later = [];
+    for (let offset = 1; later.length < missionCards - 1 && offset < ROCKETS.length; offset += 1) {
+      const index = this.selectedIndex + offset;
+      if (index < ROCKETS.length) {
+        later.push(index);
+      }
+    }
+    later.forEach((index) => {
+      if (y + 66 <= panel.y + panel.height - pad) {
+        y += this.addMissionSummary(index, x, y, width) + 8;
+      }
     });
-    this.barX = info.x + pad + (small ? 92 : 108);
-    this.barWidth = info.x + info.width - pad - this.barX;
+  }
 
-    y += small ? 6 : 12;
-    const cardPad = small ? 10 : 14;
-    this.challengeCard = { x: info.x + pad, y, width: innerWidth, maxHeight: info.y + info.height - pad - y, pad: cardPad };
-    this.challengeFrame = this.add.graphics();
-    const textX = this.challengeCard.x + cardPad;
-    // The mission patch sits in the card's top right corner; the text wraps beside it.
-    this.patchSize = small ? 48 : 72;
-    this.challengePatch = this.add
-      .image(
-        this.challengeCard.x + innerWidth - cardPad - this.patchSize / 2,
-        y + cardPad + this.patchSize / 2,
-        getPatchTextureKey(ROCKETS[0]),
-      )
-      .setDisplaySize(this.patchSize, this.patchSize);
-    const textWidth = innerWidth - cardPad * 2 - this.patchSize - 8;
-    this.challengeLabel = addText(this, textX, y + cardPad - 2, "", {
-      size: small ? 11 : 12,
+  addMissionDetail(rocket, x, y, width) {
+    const { compact } = this.layout;
+    const pad = compact ? 10 : 12;
+    const patchSize = compact ? 48 : 64;
+    const status = getStatus(rocket);
+    const unlocked = status !== STATUS.locked;
+    const layer = this.missionLayer;
+    const frame = this.add.graphics();
+    layer.add(frame);
+
+    const patch = this.add
+      .image(x + pad + patchSize / 2, y + pad + patchSize / 2, getPatchTextureKey(rocket))
+      .setDisplaySize(patchSize, patchSize);
+    if (!unlocked) {
+      patch.setTint(0x3a4a5c);
+    }
+    const textX = x + pad + patchSize + 10;
+    const textWidth = x + width - pad - textX;
+    const title = addText(this, textX, y + pad - 1, rocket.challenge.title, {
+      size: compact ? 15 : 17,
       bold: true,
-      color: UI_COLORS.warningText,
-    });
-    this.challengeTitle = addText(this, textX, 0, "", { size: small ? 15 : 18, bold: true, wordWrap: { width: textWidth } });
-    this.challengeBody = addText(this, textX, 0, "", {
-      size: small ? 12 : 14,
-      color: UI_COLORS.textMuted,
       wordWrap: { width: textWidth },
-      lineSpacing: 3,
     });
-    this.challengeFooter = addText(this, textX, 0, "", {
-      size: small ? 11 : 13,
+    const chip = addText(this, textX, title.y + title.height + 5, status.label, {
+      size: 10,
+      bold: true,
+      color: status.color,
+      backgroundColor: status.background,
+      padding: { x: 7, y: 3 },
+      letterSpacing: 1,
+    });
+    layer.add([patch, title, chip]);
+
+    let body;
+    if (unlocked) {
+      body = describeChallenge(rocket.challenge);
+    } else {
+      const previous = ROCKETS[ROCKETS.indexOf(rocket) - 1];
+      body = `Completa «${previous.challenge.title}» con el ${previous.name} para desbloquear este cohete.`;
+    }
+    let bottom = Math.max(chip.y + chip.height, y + pad + patchSize) + 8;
+    const description = addText(this, x + pad, bottom, body, {
+      size: compact ? 12 : 13,
       color: UI_COLORS.textMuted,
-      wordWrap: { width: textWidth },
+      wordWrap: { width: width - pad * 2 },
       lineSpacing: 2,
     });
+    layer.add(description);
+    bottom = description.y + description.height + 8;
 
-    // Small screens stop at the challenge card.
-    if (small) {
-      return;
+    if (unlocked) {
+      const perfect = getPrediction(rocket);
+      const best = MissionSystem.getBest(rocket.id);
+      const { maxTime, minFuel } = rocket.challenge;
+      const next = ROCKETS[ROCKETS.indexOf(rocket) + 1];
+      const rows = [
+        { label: "Vuelo perfecto", value: `${formatSeconds(perfect.time)} · ${perfect.fuelPercent}%` },
+        {
+          label: "Tu mejor marca",
+          value: best ? `${formatSeconds(best.time)} · ${best.fuelPercent}%` : "—",
+          good: best && ((maxTime && best.time < maxTime) || (minFuel && best.fuelPercent >= minFuel)),
+        },
+      ];
+      if (!compact) {
+        rows.push({ label: "Desbloquea", value: next ? next.name : "Última misión" });
+      }
+      rows.forEach((row) => {
+        layer.add(addText(this, x + pad, bottom, row.label, { size: compact ? 11 : 12, color: UI_COLORS.textMuted }));
+        layer.add(
+          addText(this, x + width - pad, bottom, row.value, {
+            size: compact ? 11 : 12,
+            bold: true,
+            color: row.good ? UI_COLORS.accentText : UI_COLORS.text,
+          }).setOrigin(1, 0),
+        );
+        bottom += compact ? 16 : 19;
+      });
     }
-    this.recordTitle = addText(this, info.x + pad, 0, "TU MEJOR MARCA", { size: 12, bold: true, color: UI_COLORS.textMuted });
-    this.recordEmpty = addText(this, info.x + pad, 0, "Aún no has llegado a la órbita con este cohete.", {
+
+    const height = bottom - y + pad - 6;
+    const done = status === STATUS.done;
+    frame.fillStyle(done ? 0x15243a : 0x0f1c29, 1);
+    frame.fillRoundedRect(x, y, width, height, 8);
+    frame.lineStyle(1.5, AMBER, 0.85);
+    frame.strokeRoundedRect(x, y, width, height, 8);
+    return height;
+  }
+
+  addMissionSummary(index, x, y, width) {
+    const rocket = ROCKETS[index];
+    const status = getStatus(rocket);
+    const height = 62;
+    const patchSize = 44;
+    const background = this.add
+      .rectangle(x, y, width, height, 0x0f1c29, 1)
+      .setOrigin(0)
+      .setStrokeStyle(1, PANEL_EDGE, 0.45)
+      .setInteractive({ useHandCursor: true });
+    background.on("pointerdown", () => this.select(index));
+    background.on("pointerover", () => background.setFillStyle(UI_COLORS.rowHover, 1));
+    background.on("pointerout", () => background.setFillStyle(0x0f1c29, 1));
+
+    const patch = this.add
+      .image(x + 10 + patchSize / 2, y + height / 2, getPatchTextureKey(rocket))
+      .setDisplaySize(patchSize, patchSize);
+    if (status === STATUS.locked) {
+      patch.setTint(0x3a4a5c);
+    }
+    const textX = x + 10 + patchSize + 10;
+    const title = addText(this, textX, y + 10, rocket.challenge.title, {
       size: 14,
-      color: UI_COLORS.textDim,
-      wordWrap: { width: innerWidth },
+      bold: true,
+      color: status === STATUS.locked ? UI_COLORS.textMuted : UI_COLORS.text,
+      wordWrap: { width: width - (textX - x) - 30 },
+      maxLines: 1,
     });
-    this.recordRows = ["Tiempo", "Combustible"].map((text) => ({
-      label: addText(this, info.x + pad, 0, text, { size: 15, color: UI_COLORS.textMuted }),
-      value: addText(this, info.x + info.width - pad, 0, "", { size: 15, bold: true }).setOrigin(1, 0),
-    }));
+    const star = addText(this, x + width - 10, y + 10, status === STATUS.done ? "★" : "☆", {
+      size: 14,
+      color: status === STATUS.done ? AMBER_TEXT : UI_COLORS.textDim,
+    }).setOrigin(1, 0);
+    const chip = addText(this, textX, y + height - 10, status.label, {
+      size: 9,
+      bold: true,
+      color: status.color,
+      backgroundColor: status.background,
+      padding: { x: 6, y: 2 },
+      letterSpacing: 1,
+    }).setOrigin(0, 1);
+    this.missionLayer.add([background, patch, title, star, chip]);
+    return height;
   }
 
   createLaunchButton() {
     const { launch, compact } = this.layout;
-    this.launchButton = this.add
-      .rectangle(launch.x + launch.width / 2, launch.y + launch.height / 2, launch.width, launch.height, 0x1f8a5f, 1)
-      .setStrokeStyle(2, UI_COLORS.accent, 0.9)
-      .setInteractive({ useHandCursor: true });
-    this.launchLabel = addText(this, this.launchButton.x, this.launchButton.y, "", {
-      size: compact ? 20 : 24,
+    this.launchGraphics = this.add.graphics();
+    const centerY = launch.y + launch.height / 2;
+    this.launchLabel = addText(this, launch.x + launch.width / 2, centerY, "", {
+      size: compact ? 19 : 19,
       bold: true,
+      letterSpacing: 1,
     }).setOrigin(0.5);
-    this.launchHint = addText(this, launch.x + launch.width - 12, this.launchButton.y, compact ? "" : "ENTER", {
-      size: 11,
-      color: "#c9f7e3",
+    this.launchHint = addText(this, launch.x + launch.width - 12, centerY, compact ? "" : "ENTER", {
+      size: 10,
       bold: true,
+      color: "#6b4510",
     }).setOrigin(1, 0.5);
+    this.launchHover = false;
 
-    this.launchButton.on("pointerover", () => this.selectedUnlocked && this.launchButton.setFillStyle(0x27a873, 1));
-    this.launchButton.on("pointerout", () => this.updateLaunchButton());
-    this.launchButton.on("pointerdown", () => this.launchRocket());
+    const zone = this.add
+      .zone(launch.x, launch.y, launch.width, launch.height)
+      .setOrigin(0)
+      .setInteractive({ useHandCursor: true });
+    zone.on("pointerover", () => {
+      this.launchHover = true;
+      this.drawLaunchButton();
+    });
+    zone.on("pointerout", () => {
+      this.launchHover = false;
+      this.drawLaunchButton();
+    });
+    zone.on("pointerdown", () => this.launchRocket());
   }
 
-  updateLaunchButton() {
+  drawLaunchButton() {
+    const { launch, compact } = this.layout;
+    const { x, y, width, height } = launch;
     const enabled = this.selectedUnlocked;
-    this.launchButton.setFillStyle(enabled ? 0x1f8a5f : 0x2a3542, 1);
-    this.launchButton.setStrokeStyle(2, enabled ? UI_COLORS.accent : 0x4a5a6b, 0.9);
-    this.launchLabel.setText(enabled ? "¡LANZAR!" : "BLOQUEADO").setAlpha(enabled ? 1 : 0.45);
+    const graphics = this.launchGraphics;
+    graphics.clear();
+
+    if (enabled) {
+      graphics.fillStyle(AMBER, 0.18);
+      graphics.fillRoundedRect(x - 3, y - 3, width + 6, height + 6, 12);
+      graphics.fillStyle(this.launchHover ? 0xffb84d : AMBER, 1);
+      graphics.fillRoundedRect(x, y, width, height, 10);
+      graphics.fillStyle(0xffe1a0, 0.32);
+      graphics.fillRoundedRect(x + 3, y + 3, width - 6, height * 0.42, 8);
+      graphics.lineStyle(2, 0xffd88a, 1);
+      graphics.strokeRoundedRect(x, y, width, height, 10);
+    } else {
+      graphics.fillStyle(0x1e2733, 0.95);
+      graphics.fillRoundedRect(x, y, width, height, 10);
+      graphics.lineStyle(2, 0x4a5a6b, 0.9);
+      graphics.strokeRoundedRect(x, y, width, height, 10);
+    }
+
+    this.launchLabel
+      .setText(enabled ? (compact ? "¡LANZAR!" : "INICIAR LANZAMIENTO") : "BLOQUEADO")
+      .setColor(enabled ? "#1b1206" : "#7d8a99");
     this.launchHint.setAlpha(enabled ? 1 : 0);
   }
 
@@ -395,17 +699,15 @@ export default class HangarScene extends Phaser.Scene {
       this.revealBanner?.setVisible(false);
     }
 
-    this.thumbs.forEach(({ background }, thumbIndex) => {
-      const selected = thumbIndex === this.selectedIndex;
-      background.setStrokeStyle(selected ? 2 : 1, selected ? UI_COLORS.accent : UI_COLORS.panelEdge, selected ? 0.95 : 0.2);
-    });
-
+    this.layoutCarousel();
     this.renderStage(rocket);
-    this.renderInfo(rocket);
-    this.updateLaunchButton();
+    this.renderNameCard(rocket);
+    this.renderMissions();
+    this.drawLaunchButton();
   }
 
   renderStage(rocket) {
+    const { stageX, pedestalY } = this.layout;
     this.tweens.killTweensOf(this.stageRocket);
     const image = this.stageRocket.setTexture(getRocketTextureKey(rocket));
     image.setScale((rocket.height * this.stageScale) / image.height);
@@ -415,19 +717,53 @@ export default class HangarScene extends Phaser.Scene {
       image.setTintFill(SILHOUETTE);
     }
 
+    // A soft contact shadow so the rocket sits on the pedestal.
+    this.rocketShadow.clear();
+    this.rocketShadow.fillStyle(0x000000, 0.4);
+    this.rocketShadow.fillEllipse(stageX, pedestalY + 1, image.displayWidth * 1.5, Math.max(6, image.displayWidth * 0.12), 24);
+
+    this.sideRockets?.forEach((side) => {
+      const neighbour = ROCKETS[Phaser.Math.Wrap(this.selectedIndex + side.offset, 0, ROCKETS.length)];
+      side.image.setTexture(getRocketTextureKey(neighbour)).setAlpha(0.9);
+      side.image.setScale((neighbour.height * this.stageScale * SIDE_SCALE) / side.image.height);
+      if (MissionSystem.isUnlocked(neighbour.id)) {
+        side.image.setTint(SIDE_TINT);
+      } else {
+        side.image.setTintFill(SILHOUETTE);
+      }
+      // Never let a neighbour slide under the missions panel.
+      side.image.setVisible(side.image.x + side.image.displayWidth / 2 < this.layout.panel.x - 8);
+    });
+
     this.lockIcon.clear();
     this.lockLabel.setVisible(!this.selectedUnlocked);
     if (!this.selectedUnlocked) {
-      const lockY = this.stageGroundY - image.displayHeight * 0.5;
-      this.drawLock(this.stageCenterX, lockY);
+      const lockY = pedestalY - image.displayHeight * 0.5;
+      this.drawLock(stageX, lockY);
       this.lockLabel.setY(lockY + 26);
     }
+  }
 
-    this.nameText.setText(rocket.name);
+  renderNameCard(rocket) {
+    const { small } = this.layout;
+    const unlocked = this.selectedUnlocked;
+    this.nameText.setText(rocket.name.toUpperCase());
     this.metaText
-      .setText(`${rocket.year} · ${rocket.country} · ${rocket.realHeight} m de altura`)
+      .setText(`${rocket.year} · ${rocket.country} · ${rocket.realHeight} m`)
       .setY(this.nameText.y + this.nameText.height + 2);
-    this.factText?.setText(rocket.fact).setY(this.metaText.y + this.metaText.height + (this.layout.small ? 8 : 14));
+    this.factText?.setText(rocket.fact).setY(this.metaText.y + this.metaText.height + 4);
+
+    this.bars.clear();
+    getRatings(rocket).forEach((rating, index) => {
+      const row = this.barRows[index];
+      const height = small ? 6 : 8;
+      const value = Phaser.Math.Clamp(rating.value, 0.05, 1);
+      row.label.setText(rating.label);
+      this.bars.fillStyle(0x1d2f42, 1);
+      this.bars.fillRoundedRect(this.barX, row.y - height / 2, this.barWidth, height, height / 2);
+      this.bars.fillStyle(unlocked ? AMBER : 0x4a5a6b, 1);
+      this.bars.fillRoundedRect(this.barX, row.y - height / 2, Math.max(height, this.barWidth * value), height, height / 2);
+    });
   }
 
   drawLock(x, y) {
@@ -444,122 +780,20 @@ export default class HangarScene extends Phaser.Scene {
     lock.fillRoundedRect(x - 9, y - 2, 18, 13, 3);
   }
 
-  renderInfo(rocket) {
-    const { small } = this.layout;
-    const unlocked = this.selectedUnlocked;
-    this.bars.clear();
-    getRatings(rocket).forEach((rating, index) => {
-      const row = this.barRows[index];
-      const height = small ? 8 : 10;
-      const value = Phaser.Math.Clamp(rating.value, 0.05, 1);
-      row.label.setText(rating.label);
-      this.bars.fillStyle(0x1d2f42, 1);
-      this.bars.fillRoundedRect(this.barX, row.y - height / 2, this.barWidth, height, height / 2);
-      this.bars.fillStyle(unlocked ? UI_COLORS.accent : 0x4a5a6b, 1);
-      this.bars.fillRoundedRect(this.barX, row.y - height / 2, this.barWidth * value, height, height / 2);
-    });
-
-    const index = ROCKETS.indexOf(rocket);
-    const done = MissionSystem.isCompleted(rocket.id);
-    const card = this.challengeCard;
-    let label;
-    let title;
-    let body;
-    let footer;
-
-    if (!unlocked) {
-      const previous = ROCKETS[index - 1];
-      label = "BLOQUEADO";
-      title = "Desbloquéalo";
-      body = `Completa la misión «${previous.challenge.title}» con el ${previous.name}.`;
-      footer = "";
-    } else {
-      const next = ROCKETS[index + 1];
-      const best = getPrediction(rocket);
-      label = done ? "★ MISIÓN CUMPLIDA" : "☆ MISIÓN";
-      title = rocket.challenge.title;
-      body = describeChallenge(rocket.challenge);
-      const lines = [next ? `Desbloquea: ${next.name}` : "Es la última misión"];
-      // Small screens have no room for the reference flight.
-      if (!small) {
-        lines.push(`Vuelo perfecto: ${formatSeconds(best.time)} · sobra un ${best.fuelPercent}%`);
-      }
-      footer = lines.join("\n");
-    }
-
-    this.challengeLabel.setText(label).setColor(unlocked ? UI_COLORS.warningText : UI_COLORS.textMuted);
-    this.challengeTitle.setText(title).setY(this.challengeLabel.y + this.challengeLabel.height + 4);
-    this.challengeBody.setText(body).setY(this.challengeTitle.y + this.challengeTitle.height + 4);
-    this.challengeFooter.setText(footer).setY(this.challengeBody.y + this.challengeBody.height + (small ? 6 : 10));
-
-    // In colour once earned, faded while it is still to win, a shadow while locked.
-    this.challengePatch.setTexture(getPatchTextureKey(rocket)).setDisplaySize(this.patchSize, this.patchSize);
-    if (!unlocked) {
-      this.challengePatch.setTintFill(0x2a3a4c).setAlpha(1);
-    } else if (done) {
-      this.challengePatch.clearTint().setAlpha(1);
-    } else {
-      this.challengePatch.setTint(0x8a96a3).setAlpha(0.55);
-    }
-
-    const last = footer ? this.challengeFooter : this.challengeBody;
-    const textBottom = Math.max(last.y + last.height, card.y + card.pad + this.patchSize);
-    const height = Math.min(textBottom + card.pad - card.y, card.maxHeight);
-    this.challengeFrame.clear();
-    this.challengeFrame.fillStyle(done ? 0x2a2a14 : 0x101c28, 1);
-    this.challengeFrame.fillRoundedRect(card.x, card.y, card.width, height, 10);
-    this.challengeFrame.lineStyle(1, done ? UI_COLORS.warning : UI_COLORS.panelEdge, done ? 0.6 : 0.25);
-    this.challengeFrame.strokeRoundedRect(card.x, card.y, card.width, height, 10);
-
-    this.renderRecord(rocket, card.y + height + 22);
-  }
-
-  // Best time and best leftover fuel, each from the player's best flight for it,
-  // in green once they are good enough for the challenge.
-  renderRecord(rocket, y) {
-    if (!this.recordTitle) {
-      return;
-    }
-    const best = this.selectedUnlocked ? MissionSystem.getBest(rocket.id) : null;
-    this.recordTitle.setVisible(this.selectedUnlocked).setY(y);
-    this.recordEmpty.setVisible(this.selectedUnlocked && !best).setY(y + 22);
-    this.recordRows.forEach((row) => {
-      row.label.setVisible(Boolean(best));
-      row.value.setVisible(Boolean(best));
-    });
-    if (!best) {
-      return;
-    }
-
-    const { maxTime, minFuel } = rocket.challenge;
-    const values = [
-      { text: formatSeconds(best.time), good: maxTime && best.time < maxTime },
-      { text: `${best.fuelPercent}%`, good: minFuel && best.fuelPercent >= minFuel },
-    ];
-    this.recordRows.forEach((row, index) => {
-      const rowY = y + 24 + index * 26;
-      row.label.setY(rowY);
-      row.value
-        .setY(rowY)
-        .setText(values[index].text)
-        .setColor(values[index].good ? UI_COLORS.accentText : UI_COLORS.text);
-    });
-  }
-
   // A rocket just unlocked: show its silhouette, then flash it into colour.
   playReveal() {
-    const { stage, small } = this.layout;
+    const { stageX, stageTop, small } = this.layout;
     const image = this.stageRocket;
     const baseScale = image.scale;
     image.setTintFill(SILHOUETTE);
 
-    // Bottom left of the stage is the one corner neither the text nor the rocket uses.
-    this.revealBanner = addText(this, stage.x + (small ? 12 : 22), this.stageGroundY, "★ ¡NUEVO COHETE!", {
+    this.revealBanner = addText(this, stageX, stageTop - 14, "★ ¡NUEVO COHETE!", {
       size: small ? 14 : 18,
       bold: true,
-      color: UI_COLORS.warningText,
+      color: AMBER_TEXT,
+      letterSpacing: 1,
     })
-      .setOrigin(0, 1)
+      .setOrigin(0.5, 0)
       .setAlpha(0);
 
     this.time.delayedCall(550, () => {
