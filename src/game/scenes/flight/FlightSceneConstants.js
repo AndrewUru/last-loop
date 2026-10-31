@@ -3,10 +3,10 @@ export const ROCKET_CELL_SIZE = 5;
 export const TRAIL_LIMIT = 480;
 export const STAR_COUNT = 130;
 export const TRAJECTORY_REVEAL_ALTITUDE = 30;
-// The pad and tower fade out between these altitudes (km), once the rocket
-// has left them behind.
-export const PAD_FADE_START = 3;
-export const PAD_FADE_END = 7;
+// The pad and tower fade earlier so the first kilometres read as a decisive
+// departure from the launch site instead of visually sticking to the rocket.
+export const PAD_FADE_START = 1.5;
+export const PAD_FADE_END = 4.5;
 export const DAY_SKY_FADE_START_ALTITUDE = 40;
 export const DAY_SKY_FADE_END_ALTITUDE = 160;
 // The planet is small next to the rocket, so on the pad its edge would curve
@@ -17,12 +17,10 @@ export const DAY_SKY_FADE_END_ALTITUDE = 160;
 export const FLAT_GROUND_SCALE = 100;
 export const GROUND_CURVE_START = 35;
 export const GROUND_CURVE_END = 75;
-// Chase camera, as shares of the shorter screen side: how tall the rocket is
-// drawn on the pad and in flight, how much the view widens at orbital speed,
-// and how far it leans ahead of the rocket. The orbit shot is the pull-back
-// that frames the whole planet once the orbit locks, in seconds.
-export const CAMERA_PAD_FILL = 0.3;
-export const CAMERA_FLIGHT_FILL = 0.26;
+// Chase camera, as shares of the shorter screen side: keep a slightly wider
+// launch framing so ground separation is easier to perceive before chase mode.
+export const CAMERA_PAD_FILL = 0.26;
+export const CAMERA_FLIGHT_FILL = 0.24;
 export const CAMERA_SPEED_PULLBACK = 0.3;
 export const CAMERA_LEAD = 0.12;
 export const CAMERA_ORBIT_SHOT_TIME = 2.5;
