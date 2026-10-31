@@ -3,6 +3,7 @@ import { getRocket, getRocketTextureKey, loadSelectedRocketId } from "../data/ro
 import FlightHud from "../ui/FlightHud.js";
 import FlightTouchControls from "../ui/FlightTouchControls.js";
 import { ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
+import { flightSceneCloudMethods } from "./flight/FlightSceneClouds.js";
 import { flightSceneEnvironmentMethods } from "./flight/FlightSceneEnvironment.js";
 import { flightSceneExhaustMethods } from "./flight/FlightSceneExhaust.js";
 import { flightSceneMissionMethods } from "./flight/FlightSceneMission.js";
@@ -28,6 +29,7 @@ class FlightScene extends Phaser.Scene {
     this.createBackdrop();
     this.createWorld();
     this.createRocket();
+    this.createClouds();
     this.createSpeedEffects();
     this.createHud();
     this.createMission();
@@ -128,6 +130,7 @@ class FlightScene extends Phaser.Scene {
 
 Object.assign(
   FlightScene.prototype,
+  flightSceneCloudMethods,
   flightSceneEnvironmentMethods,
   flightSceneExhaustMethods,
   flightSceneMissionMethods,

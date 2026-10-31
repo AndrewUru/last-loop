@@ -1,15 +1,6 @@
 import Phaser from "phaser";
-import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
-import { FX_TEXTURES, createShadedTexture } from "./FlightSceneExhaust.js";
-import { getPresentationAltitude } from "./FlightSceneUtils.js";
+import { createShadedTexture } from "./FlightSceneExhaust.js";
 
-// Low cloud banks the rocket punches through on the way up: altitude in km
-// and how many puffs. Some are drawn in front of the rocket.
-const CLOUD_BANKS = [
-  { altitude: 3, count: 9 },
-  { altitude: 6, count: 8 },
-  { altitude: 10, count: 7 },
-];
 const VAPOR_CONE_TIME = 0.8;
 const VAPOR_TEXTURE = "fx-vapor-cone";
 
@@ -33,22 +24,6 @@ export const flightSceneSpeedMethods = {
       placed: false,
     }));
     this.starDepths = this.stars.map(() => Phaser.Math.FloatBetween(0.2, 1));
-
-    this.cloudPuffs = [];
-    CLOUD_BANKS.forEach(({ altitude, count }) => {
-      const y = -(FLIGHT_WORLD.planetRadius + getPresentationAltitude(altitude));
-      for (let index = 0; index < Math.ceil(count * (mobile ? 0.6 : 1)); index += 1) {
-        const size = Phaser.Math.FloatBetween(30, 70);
-        const front = Math.random() < 0.4;
-        const puff = this.add
-          .image(Phaser.Math.FloatBetween(-260, 360), y + Phaser.Math.FloatBetween(-5, 5), FX_TEXTURES.smoke)
-          .setDisplaySize(size * 1.6, size)
-          .setRotation(Phaser.Math.FloatBetween(-0.2, 0.2))
-          .setDepth(front ? 22 : -7)
-          .setAlpha(0);
-        this.cloudPuffs.push({ image: puff, alpha: front ? Phaser.Math.FloatBetween(0.25, 0.4) : Phaser.Math.FloatBetween(0.4, 0.65) });
-      }
-    });
 
     // Vapor cone: the white shroud that forms around a rocket breaking the
     // sound barrier. Seen from the side it is densest along its outline, which
@@ -74,7 +49,7 @@ export const flightSceneSpeedMethods = {
   },
 
   getSpeedWorldObjects() {
-    return [...this.cloudPuffs.map((puff) => puff.image), this.vaporCone];
+    return [this.vaporCone];
   },
 
   showVaporCone() {
@@ -89,10 +64,6 @@ export const flightSceneSpeedMethods = {
     // Gusts slant the streaks, so a storm shows in the air as well as in the controls.
     const angle = (heading > 0.001 ? Math.atan2(state.velocity.y, state.velocity.x) : -Math.PI / 2) + state.windGust * 0.5;
     const direction = { x: Math.cos(angle), y: Math.sin(angle) };
-    const night = this.rocketDef.challenge.night ? 0.4 : 1;
-    const cloudAlpha = Phaser.Math.Clamp(1 - state.altitude / 40, 0, 1) * night;
-    this.cloudPuffs.forEach((puff) => puff.image.setAlpha(puff.alpha * cloudAlpha));
-
     this.updateStreaks(state, direction, dt);
     this.updateStarDrift(state, direction, dt);
     this.updateVaporCone(dt);

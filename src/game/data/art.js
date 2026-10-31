@@ -6,4 +6,8 @@ export const ART = {
   earth: { key: "world-earth", path: "assets/world/earth.webp", haloScale: 1.04 },
   // Side view with its access arms pointing right, towards the rocket.
   launchTower: { key: "world-launch-tower", path: "assets/world/launch-tower.webp" },
+  // Clouds with flat bases at the bottom of the image and soft edges.
+  cloudCumulus: { key: "world-cloud-cumulus", path: "assets/world/cloud-cumulus.webp" },
+  cloudStratus: { key: "world-cloud-stratus", path: "assets/world/cloud-stratus.webp" },
+  cloudStorm: { key: "world-cloud-storm", path: "assets/world/cloud-storm.webp" },
 };
