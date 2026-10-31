@@ -60,14 +60,11 @@ class FlightScene extends Phaser.Scene {
     this.onEscapeToHangar = () => this.returnToHangar();
   }
 
-  // The container origin is the bottom centre of the rocket: the point that
-  // sits on the pad and that the physics position describes.
   createRocket() {
     const image = this.add.image(0, 0, getRocketTextureKey(this.rocketDef)).setOrigin(0.5, 1);
     this.rocketHeight = this.rocketDef.height * ROCKET_CELL_SIZE;
     image.setScale(this.rocketHeight / image.height);
     this.rocketWidth = image.displayWidth;
-
     this.rocket = this.add.container(0, 0, [image]).setDepth(20);
     this.createExhaust();
     this.drawLaunchPad();
@@ -76,17 +73,10 @@ class FlightScene extends Phaser.Scene {
   createHud() {
     this.hud = new FlightHud(this);
     this.hud.create();
-
     this.touchControlsUi = new FlightTouchControls(this, {
-      onSteerLeft: (active) => {
-        this.touchControls.steerLeft = active;
-      },
-      onSteerRight: (active) => {
-        this.touchControls.steerRight = active;
-      },
-      onThrust: (active) => {
-        this.touchControls.thrust = active;
-      },
+      onSteerLeft: (active) => { this.touchControls.steerLeft = active; },
+      onSteerRight: (active) => { this.touchControls.steerRight = active; },
+      onThrust: (active) => { this.touchControls.thrust = active; },
     });
     this.touchControlsUi.create();
   }
@@ -114,9 +104,6 @@ class FlightScene extends Phaser.Scene {
     const padZoom =
       (minViewport * CAMERA_PAD_FILL) / Math.max(this.rocketHeight, ROCKET_CELL_SIZE * 3);
 
-    // T-1: extreme close-up on the lower stage / engine bell. The world camera
-    // is deliberately overridden after the normal camera update so the rocket
-    // can stay physically frozen on the pad while the shot changes.
     if (this.launchSequence?.active && remainingMs <= 1000) {
       const ignitionProgress = Phaser.Math.Clamp((1000 - remainingMs) / 1000, 0, 1);
       const eased = Phaser.Math.Easing.Cubic.Out(ignitionProgress);
@@ -130,13 +117,12 @@ class FlightScene extends Phaser.Scene {
       return;
     }
 
-    // Liftoff shot: keep the camera tied to the launch site for the first 2 km.
-    // Between 2 and 7 km the normal chase camera progressively takes over.
     if (!this.launchSequence?.active && state.launched && state.altitude < 7) {
       const catchUp = Phaser.Math.Clamp((state.altitude - 2) / 5, 0, 1);
       const blend = catchUp * catchUp * (3 - 2 * catchUp);
       const chase = { ...this.cameraState };
-      const launchY = -this.simulator.world.planetRadius - this.rocketHeight * 0.42;
+      const planetRadius = Math.hypot(state.position.x, state.position.y) - state.altitude;
+      const launchY = -planetRadius - this.rocketHeight * 0.42;
       const launchZoom = padZoom * 0.92;
       const targetX = Phaser.Math.Linear(0, chase.x, blend);
       const targetY = Phaser.Math.Linear(launchY, chase.y, blend);
@@ -149,7 +135,6 @@ class FlightScene extends Phaser.Scene {
   updateLaunchCountdown(delta) {
     const sequence = this.launchSequence;
     if (!sequence?.active) return false;
-
     sequence.elapsed += delta;
     const remainingMs = Math.max(0, sequence.duration - sequence.elapsed);
     sequence.remainingMs = remainingMs;
@@ -158,12 +143,7 @@ class FlightScene extends Phaser.Scene {
     if (second !== sequence.lastSecond) {
       sequence.lastSecond = second;
       this.launchCountdownText?.setText(String(second)).setScale(1.18).setAlpha(1);
-      this.tweens.add({
-        targets: this.launchCountdownText,
-        scale: 1,
-        duration: 240,
-        ease: "Cubic.easeOut",
-      });
+      this.tweens.add({ targets: this.launchCountdownText, scale: 1, duration: 240, ease: "Cubic.easeOut" });
     }
 
     if (remainingMs <= 1000 && !sequence.ignitionStarted) {
@@ -184,8 +164,6 @@ class FlightScene extends Phaser.Scene {
         ease: "Cubic.easeOut",
         onComplete: () => this.launchCountdownText?.destroy(),
       });
-      // Reset the chase interpolation after the close-up so the launch shot can
-      // start from the pad instead of snapping back to the previous framing.
       this.cameraState.initialized = false;
       return false;
     }
@@ -207,14 +185,12 @@ class FlightScene extends Phaser.Scene {
     }
 
     this.updateControls();
-
     const state = this.simulator.update(delta, this.controls);
     const prediction = this.simulator.predictPath(state);
     if (this.lastPhaseId !== state.phaseId) {
       this.handlePhaseTransition(state);
       this.lastPhaseId = state.phaseId;
     }
-
     this.renderFlight(state, prediction, time, delta);
     this.applyLaunchCinematicCamera(state);
     this.updateHud(state);
