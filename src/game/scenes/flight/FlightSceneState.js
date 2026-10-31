@@ -26,6 +26,15 @@ export function createFlightRuntimeState(input, stats, options) {
     touchControls: { steerLeft: false, steerRight: false, thrust: false },
     cameraState: { initialized: false, x: 0, y: 0, zoom: 1 },
     orbitShot: 0,
+    // Five-second cinematic pre-launch. Controls and simulation remain locked
+    // until the countdown reaches zero, then the normal flight loop takes over.
+    launchSequence: {
+      active: true,
+      elapsed: 0,
+      duration: 5000,
+      lastSecond: 5,
+      ignitionStarted: false,
+    },
     keys: createFlightKeys(input),
     sonicBoomPlayed: false,
     lastWhooshAlt: null,
