@@ -23,6 +23,7 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    this.load.image("cover-hangar", `${import.meta.env.BASE_URL}assets/cover-hangar.webp`);
     ROCKETS.forEach((rocket) => {
       this.load.image(getRocketTextureKey(rocket), getRocketImagePath(rocket));
       this.load.image(getPatchTextureKey(rocket), getPatchImagePath(rocket));
@@ -37,6 +38,7 @@ export default class BootScene extends Phaser.Scene {
     // The game renders without antialiasing, which turns scaled-down artwork
     // into jagged pixels; the artwork is smooth images, so filter it.
     [
+      "cover-hangar",
       ...ROCKETS.flatMap((rocket) => [getRocketTextureKey(rocket), getPatchTextureKey(rocket)]),
       ...Object.values(ART).map((art) => art.key),
     ].forEach((key) => this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR));
@@ -76,72 +78,27 @@ export default class BootScene extends Phaser.Scene {
     const buttonY = y + (compact ? 10 : 18);
     this.createStartButton(left, buttonY, compact ? width - 48 : 260, label);
 
-    if (compact) {
-      const top = buttonY + 110;
-      this.drawLineup(24, top, width - 48, height - 24 - top);
-    } else {
-      const x = Math.max(left + textWidth + 40, width * 0.52);
-      this.drawLineup(x, height * 0.2, width - 40 - x, height * 0.68);
-    }
   }
 
   drawBackdrop(width, height) {
-    const stars = this.add.graphics();
-    for (let i = 0; i < 120; i += 1) {
-      stars.fillStyle(0xffffff, Phaser.Math.FloatBetween(0.15, 0.7));
-      stars.fillRect(Phaser.Math.Between(0, width), Phaser.Math.Between(0, height), 2, 2);
-    }
-
-    const radius = Math.max(width, height) * 0.55;
-    const planetX = width * 0.72;
-    const planetY = height + radius * 0.62;
-    const glow = this.add.graphics();
-    glow.fillStyle(0x52d9ff, 0.12);
-    glow.fillCircle(planetX, planetY, radius + 26);
-    const size = radius * 2 * ART.earth.haloScale;
-    this.add.image(planetX, planetY, ART.earth.key).setDisplaySize(size, size);
-    const orbit = this.add.graphics();
-    orbit.lineStyle(3, UI_COLORS.accent, 0.5);
-    orbit.strokeCircle(planetX, planetY, radius + 90);
-  }
-
-  // The whole collection standing side by side; locked rockets are silhouettes.
-  drawLineup(x, y, width, height) {
-    if (width < 120 || height < 60) {
-      return;
-    }
-
-    const tallest = Math.max(...ROCKETS.map((rocket) => rocket.height));
-    const images = ROCKETS.map((rocket) => {
-      const image = this.add.image(0, 0, getRocketTextureKey(rocket)).setOrigin(0.5, 1);
-      image.setScale(rocket.height / tallest / image.height);
-      if (!MissionSystem.isUnlocked(rocket.id)) {
-        image.setTintFill(0x1c2c3d);
-      }
-      return image;
-    });
-
-    // Fit the row: images are scaled to 1 unit for the tallest rocket, so the
-    // total width at that size tells how big the row can be drawn.
-    const gap = 0.04;
-    const rowWidth = images.reduce((sum, image) => sum + image.displayWidth, 0) + gap * (images.length - 1);
-    const size = Math.min(height, width / rowWidth);
-    const baseY = y + height;
-    let cursor = x + (width - rowWidth * size) / 2;
-
-    images.forEach((image, index) => {
-      const rocketWidth = image.displayWidth * size;
-      image.setScale(image.scale * size).setPosition(cursor + rocketWidth / 2, baseY);
-      cursor += rocketWidth + gap * size;
-      this.tweens.add({
-        targets: image,
-        y: baseY - 6,
-        duration: 1800,
-        delay: index * 160,
-        yoyo: true,
-        repeat: -1,
-        ease: "Sine.easeInOut",
-      });
+    const background = this.add.image(0, 0, "cover-hangar").setOrigin(0);
+    const shade = this.add.rectangle(0, 0, width, height, 0x08111b).setOrigin(0);
+    const layout = ({ width, height }) => {
+      // Cover the viewport without stretching the artwork. Keep the rocket
+      // visible on portrait screens, with a scrim for readable menu text.
+      const scale = Math.max(width / background.width, height / background.height);
+      background.setScale(scale);
+      const focus = width < 700 ? 0.72 : 0.5;
+      background.setPosition(
+        (width - background.displayWidth) * focus,
+        (height - background.displayHeight) / 2,
+      );
+      shade.setSize(width, height).setAlpha(width < 700 ? 0.58 : 0.22);
+    };
+    layout({ width, height });
+    this.scale.on("resize", layout);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", layout);
     });
   }
 
