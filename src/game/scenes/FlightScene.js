@@ -117,8 +117,10 @@ class FlightScene extends Phaser.Scene {
       return;
     }
 
-    if (!this.launchSequence?.active && state.launched && state.altitude < 7) {
-      const catchUp = Phaser.Math.Clamp((state.altitude - 2) / 5, 0, 1);
+    // Hold the launch-site shot for the first kilometre, then hand over to the
+    // normal chase camera smoothly between 1 and 2 km of real flight altitude.
+    if (!this.launchSequence?.active && state.launched && state.altitude < 2) {
+      const catchUp = Phaser.Math.Clamp((state.altitude - 1) / 1, 0, 1);
       const blend = catchUp * catchUp * (3 - 2 * catchUp);
       const chase = { ...this.cameraState };
       const planetRadius = Math.hypot(state.position.x, state.position.y) - state.altitude;
