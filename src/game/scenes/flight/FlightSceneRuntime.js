@@ -11,7 +11,8 @@ import {
   DAY_SKY_FADE_START_ALTITUDE,
   GROUND_CURVE_END,
   GROUND_CURVE_START,
-  PAD_FADE_ALTITUDE,
+  PAD_FADE_END,
+  PAD_FADE_START,
   ROCKET_CELL_SIZE,
   TRAIL_LIMIT,
   TRAJECTORY_REVEAL_ALTITUDE,
@@ -279,8 +280,7 @@ export const flightSceneRuntimeMethods = {
       overcast,
     );
     const guideProgress = Phaser.Math.Clamp((state.altitude - 30) / 90, 0, 1);
-    const padFade = Phaser.Math.Clamp(1 - state.altitude / PAD_FADE_ALTITUDE, 0, 1);
-    const cloudAlpha = Phaser.Math.Clamp(1 - state.altitude / 40, 0, 1) * 0.6 * (1 - night * 0.6);
+    const padFade = 1 - smoothstep((state.altitude - PAD_FADE_START) / (PAD_FADE_END - PAD_FADE_START));
     // Flat horizon on the pad, round planet once the camera has pulled back.
     // It stays round from then on, even if the rocket falls back down.
     const renderAltitude = Math.hypot(this.rocket.x, this.rocket.y) - FLIGHT_WORLD.planetRadius;
@@ -298,7 +298,7 @@ export const flightSceneRuntimeMethods = {
     this.orbitGuides.setAlpha((0.2 + guideProgress * 0.8) * this.groundCurve);
     this.pad.setAlpha(padFade);
     this.launchTower.setAlpha(padFade);
-    this.cloudLayers.forEach((layer) => layer.graphics.setAlpha(cloudAlpha));
+    this.updateClouds(state);
   },
 
   updateTrail(state) {

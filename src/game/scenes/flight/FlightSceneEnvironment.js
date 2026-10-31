@@ -43,33 +43,10 @@ export const flightSceneEnvironmentMethods = {
     this.trajectoryGraphics = this.add.graphics().setDepth(9);
     this.pad = this.add.graphics().setDepth(11);
     this.guidanceArrow = this.add.graphics().setDepth(24);
-    this.cloudLayers = [];
 
     this.groundCurve = -1;
     this.setGroundCurve(0);
     this.drawOrbitGuides();
-    this.createCloudLayers();
-  },
-
-  createCloudLayers() {
-    const mobile =
-      this.scale.width < 760 ||
-      (this.scale.width < 920 && this.scale.height > this.scale.width * 1.15);
-    const cloudCount = mobile ? 18 : 40;
-    [2, 4, 7, 11].forEach((altitude) => {
-      const cloud = this.add.graphics().setDepth(-8).setAlpha(0);
-      cloud.fillStyle(0xffffff, 0.25);
-      for (let i = 0; i < cloudCount; i += 1) {
-        cloud.fillEllipse(
-          Phaser.Math.Between(-400, 400),
-          -renderRadius(altitude) + Phaser.Math.Between(-6, 6),
-          12 + Math.random() * 30,
-          3 + Math.random() * 5,
-          12,
-        );
-      }
-      this.cloudLayers.push({ graphics: cloud, altitude });
-    });
   },
 
   // reveal: 0 draws a flat horizon at the pad, 1 the real planet. Blending the
@@ -85,6 +62,7 @@ export const flightSceneEnvironmentMethods = {
     // The circle always touches the pad, so its centre drops as it flattens.
     this.groundShape = { centerY: radius - planetRadius, radius };
     this.drawPlanetBody(reveal);
+    this.layoutClouds();
   },
 
   // Filled shapes only: translucent strokes leave seams where segments overlap.
@@ -186,7 +164,7 @@ export const flightSceneEnvironmentMethods = {
       this.pad,
       this.launchTower,
       this.guidanceArrow,
-      ...this.cloudLayers.map((layer) => layer.graphics),
+      ...this.getCloudObjects(),
       this.rocket,
       ...this.getExhaustObjects(),
       ...this.getSpeedWorldObjects(),
@@ -199,6 +177,7 @@ export const flightSceneEnvironmentMethods = {
       ...this.hud.getObjects(),
       ...this.touchControlsUi.getObjects(),
       ...this.getMissionUiObjects(),
+      ...this.getCloudUiObjects(),
       this.resultOverlay,
     ];
   },
