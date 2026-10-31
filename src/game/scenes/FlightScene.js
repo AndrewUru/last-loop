@@ -34,6 +34,7 @@ class FlightScene extends Phaser.Scene {
     this.createHud();
     this.createMission();
     this.createMissionOverlay();
+    this.createLaunchCountdown();
     this.createBackdropCamera();
     this.createUiCamera();
     this.registerInput();
@@ -90,7 +91,79 @@ class FlightScene extends Phaser.Scene {
     this.touchControlsUi.create();
   }
 
+  createLaunchCountdown() {
+    const { width, height } = this.scale;
+    this.launchCountdownText = this.add
+      .text(width / 2, height * 0.24, "5", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: `${Math.round(Math.min(width, height) * 0.16)}px`,
+        fontStyle: "bold",
+        color: "#ffffff",
+        stroke: "#08111f",
+        strokeThickness: 8,
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(1000);
+  }
+
+  updateLaunchCountdown(delta) {
+    const sequence = this.launchSequence;
+    if (!sequence?.active) return false;
+
+    sequence.elapsed += delta;
+    const remainingMs = Math.max(0, sequence.duration - sequence.elapsed);
+    const second = Math.max(1, Math.ceil(remainingMs / 1000));
+
+    if (second !== sequence.lastSecond) {
+      sequence.lastSecond = second;
+      this.launchCountdownText?.setText(String(second)).setScale(1.18).setAlpha(1);
+      this.tweens.add({
+        targets: this.launchCountdownText,
+        scale: 1,
+        duration: 240,
+        ease: "Cubic.easeOut",
+      });
+    }
+
+    // During the final second, cut to an extreme close-up around the engines.
+    if (remainingMs <= 1000 && !sequence.ignitionStarted) {
+      sequence.ignitionStarted = true;
+      this.launchCountdownText?.setText("IGNITION").setScale(0.72);
+      this.cameras.main.shake(900, 0.006);
+    }
+
+    if (remainingMs <= 0) {
+      sequence.active = false;
+      this.launchCountdownText?.setText("LIFTOFF");
+      this.tweens.add({
+        targets: this.launchCountdownText,
+        alpha: 0,
+        scale: 1.35,
+        duration: 520,
+        ease: "Cubic.easeOut",
+        onComplete: () => this.launchCountdownText?.destroy(),
+      });
+      return false;
+    }
+
+    this.controls.engineOn = false;
+    this.controls.throttle = 0;
+    this.controls.steer = 0;
+    return true;
+  }
+
   update(time, delta) {
+    if (this.updateLaunchCountdown(delta)) {
+      // Keep the rocket and launch site rendered while the physics clock is frozen.
+      const state = this.simulator.update(0, this.controls);
+      const prediction = this.simulator.predictPath(state);
+      this.renderFlight(state, prediction, time, delta);
+      this.updateHud(state);
+      return;
+    }
+
     this.updateControls();
 
     const state = this.simulator.update(delta, this.controls);
