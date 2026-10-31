@@ -98,10 +98,10 @@ src/
 │   ├── data/          # Los cohetes (estadísticas, datos reales, misiones) y el arte compartido
 │   └── ui/            # HUD de vuelo, controles táctiles y tema visual
 └── main.js            # Punto de entrada de Phaser
-art/                   # Ilustraciones originales: cohetes, parches, Tierra, torre y nubes (no se publican)
+art/                   # Ilustraciones originales: cohetes, parches, hangar, Tierra, torre y nubes (no se publican)
 public/assets/rockets/ # Cohetes recortados que carga el juego
 public/assets/patches/ # Parches de misión, uno por cohete
-public/assets/world/   # La Tierra, la torre de lanzamiento y las nubes
+public/assets/world/   # El hangar, la Tierra, la torre de lanzamiento y las nubes
 tools/                 # Script para preparar las ilustraciones
 ```
 

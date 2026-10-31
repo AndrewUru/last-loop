@@ -141,7 +141,8 @@ export default class HangarScene extends Phaser.Scene {
         panel,
         launch: { x: panel.x, y: bottom - launchHeight, width: panelWidth, height: launchHeight },
         sideRockets: leftWidth >= 700,
-        missionCards: short ? 1 : 3,
+        // As many of the following missions as fit under the selected one.
+        missionCards: short ? 1 : ROCKETS.length,
       };
     }
 
@@ -317,8 +318,10 @@ export default class HangarScene extends Phaser.Scene {
     frame.fillRect(card.x, card.y + 10, 3, card.height - 20);
 
     const textWidth = card.width * 0.54 - pad;
+    this.nameSize = small ? 18 : 24;
+    this.nameMaxWidth = card.width * 0.56 - pad - 10;
     this.nameText = addText(this, card.x + pad, card.y + (small ? 9 : 12), "", {
-      size: small ? 18 : 24,
+      size: this.nameSize,
       bold: true,
       letterSpacing: 1,
     });
@@ -337,7 +340,12 @@ export default class HangarScene extends Phaser.Scene {
     const rowGap = (card.height - pad * 2) / 3;
     this.barRows = [0, 1, 2].map((index) => {
       const y = card.y + pad + rowGap * (index + 0.5);
-      const label = addText(this, barsX, y, "", { size: small ? 9 : 10, bold: true, color: UI_COLORS.textMuted, letterSpacing: 1 }).setOrigin(0, 0.5);
+      const label = addText(this, barsX, y, "", {
+        size: small ? 9 : 10,
+        bold: true,
+        color: UI_COLORS.textMuted,
+        letterSpacing: small ? 0 : 1,
+      }).setOrigin(0, 0.5);
       return { y, label };
     });
     this.barX = barsX + (small ? 74 : 92);
@@ -652,8 +660,10 @@ export default class HangarScene extends Phaser.Scene {
       graphics.strokeRoundedRect(x, y, width, height, 10);
     }
 
+    // The long label only where it fits beside the ENTER hint.
+    const long = !compact && width >= 330;
     this.launchLabel
-      .setText(enabled ? (compact ? "¡LANZAR!" : "INICIAR LANZAMIENTO") : "BLOQUEADO")
+      .setText(enabled ? (long ? "INICIAR LANZAMIENTO" : "¡LANZAR!") : "BLOQUEADO")
       .setColor(enabled ? "#1b1206" : "#7d8a99");
     this.launchHint.setAlpha(enabled ? 1 : 0);
   }
@@ -747,7 +757,20 @@ export default class HangarScene extends Phaser.Scene {
   renderNameCard(rocket) {
     const { small } = this.layout;
     const unlocked = this.selectedUnlocked;
-    this.nameText.setText(rocket.name.toUpperCase());
+    // Long names shrink until they clear the bars beside them; past a point
+    // the short name reads better than tiny letters.
+    const fit = (name, minSize) => {
+      let size = this.nameSize;
+      this.nameText.setFontSize(size).setText(name.toUpperCase());
+      while (this.nameText.width > this.nameMaxWidth && size > minSize) {
+        size -= 1;
+        this.nameText.setFontSize(size);
+      }
+      return this.nameText.width <= this.nameMaxWidth;
+    };
+    if (!fit(rocket.name, 15) && rocket.shortName) {
+      fit(rocket.shortName, 12);
+    }
     this.metaText
       .setText(`${rocket.year} · ${rocket.country} · ${rocket.realHeight} m`)
       .setY(this.nameText.y + this.nameText.height + 2);
