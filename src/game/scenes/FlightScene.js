@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import { getRocket, getRocketTextureKey, loadSelectedRocketId } from "../data/rockets.js";
 import FlightHud from "../ui/FlightHud.js";
 import FlightTouchControls from "../ui/FlightTouchControls.js";
-import { CAMERA_PAD_FILL, ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
+import { CAMERA_PAD_FILL, CAMERA_LAUNCH_RELEASE_MS, ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
 import { flightSceneCloudMethods } from "./flight/FlightSceneClouds.js";
 import { flightSceneEnvironmentMethods } from "./flight/FlightSceneEnvironment.js";
 import { flightSceneExhaustMethods } from "./flight/FlightSceneExhaust.js";
@@ -98,7 +98,7 @@ class FlightScene extends Phaser.Scene {
       .setDepth(1000);
   }
 
-  applyLaunchCinematicCamera(state, remainingMs = 0) {
+  applyLaunchCinematicCamera(state, remainingMs = 0, delta = 0) {
     const { width, height } = this.scale;
     const minViewport = Math.min(width, height);
     const padZoom =
@@ -117,21 +117,34 @@ class FlightScene extends Phaser.Scene {
       return;
     }
 
-    // Hold the launch-site shot for the first kilometre, then hand over to the
-    // normal chase camera smoothly between 1 and 2 km of real flight altitude.
-    if (!this.launchSequence?.active && state.launched && state.altitude < 2) {
-      const catchUp = Phaser.Math.Clamp((state.altitude - 1) / 1, 0, 1);
-      const blend = catchUp * catchUp * (3 - 2 * catchUp);
-      const chase = { ...this.cameraState };
-      const planetRadius = Math.hypot(state.position.x, state.position.y) - state.altitude;
-      const launchY = -planetRadius - this.rocketHeight * 0.42;
-      const launchZoom = padZoom * 0.92;
-      const targetX = Phaser.Math.Linear(0, chase.x, blend);
-      const targetY = Phaser.Math.Linear(launchY, chase.y, blend);
-      const zoom = Phaser.Math.Linear(launchZoom, chase.zoom, blend);
-      this.cameras.main.setZoom(zoom);
-      this.cameras.main.centerOn(targetX, targetY);
+    // Keep the launch-site framing, blending into chase between 1 and 2 km.
+    // Ease out of the last countdown frame even if the player delays thrust.
+    const sequence = this.launchSequence;
+    if (!sequence?.completed) return;
+    const release = sequence.cameraRelease;
+    if (state.altitude >= 2 && !release) return;
+
+    const catchUp = Phaser.Math.Clamp(state.altitude - 1, 0, 1);
+    const blend = catchUp * catchUp * (3 - 2 * catchUp);
+    const chase = this.cameraState;
+    const planetRadius = Math.hypot(state.position.x, state.position.y) - state.altitude;
+    const launchY = -planetRadius - this.rocketHeight * 0.42;
+    let targetX = Phaser.Math.Linear(0, chase.x, blend);
+    let targetY = Phaser.Math.Linear(launchY, chase.y, blend);
+    let zoom = Phaser.Math.Linear(padZoom * 0.92, chase.zoom, blend);
+
+    if (release) {
+      const progress = Phaser.Math.Clamp(release.elapsed / CAMERA_LAUNCH_RELEASE_MS, 0, 1);
+      const eased = progress * progress * (3 - 2 * progress);
+      targetX = Phaser.Math.Linear(release.x, targetX, eased);
+      targetY = Phaser.Math.Linear(release.y, targetY, eased);
+      zoom = Math.exp(Phaser.Math.Linear(Math.log(release.zoom), Math.log(zoom), eased));
+      release.elapsed += Math.max(0, delta);
+      if (progress >= 1) sequence.cameraRelease = null;
     }
+
+    this.cameras.main.setZoom(zoom);
+    this.cameras.main.centerOn(targetX, targetY);
   }
 
   updateLaunchCountdown(delta) {
@@ -151,12 +164,12 @@ class FlightScene extends Phaser.Scene {
     if (remainingMs <= 1000 && !sequence.ignitionStarted) {
       sequence.ignitionStarted = true;
       this.launchCountdownText?.setText("IGNITION").setScale(0.72);
-      this.cameras.main.shake(900, 0.006);
     }
 
     if (remainingMs <= 0) {
       sequence.active = false;
       sequence.completed = true;
+      sequence.cameraRelease = { ...this.cameraState, elapsed: 0 };
       this.launchCountdownText?.setText("LIFTOFF");
       this.tweens.add({
         targets: this.launchCountdownText,
@@ -181,7 +194,8 @@ class FlightScene extends Phaser.Scene {
       const state = this.simulator.update(0, this.controls);
       const prediction = this.simulator.predictPath(state);
       this.renderFlight(state, prediction, time, delta);
-      this.applyLaunchCinematicCamera(state, this.launchSequence.remainingMs);
+      this.applyLaunchCinematicCamera(state, this.launchSequence.remainingMs, delta);
+      this.applyCameraRumble(state, time, delta);
       this.updateHud(state);
       return;
     }
@@ -194,7 +208,8 @@ class FlightScene extends Phaser.Scene {
       this.lastPhaseId = state.phaseId;
     }
     this.renderFlight(state, prediction, time, delta);
-    this.applyLaunchCinematicCamera(state);
+    this.applyLaunchCinematicCamera(state, 0, delta);
+    this.applyCameraRumble(state, time, delta);
     this.updateHud(state);
     this.handleMissionEnd(state);
     this.updateAudio(state);

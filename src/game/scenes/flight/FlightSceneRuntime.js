@@ -4,6 +4,7 @@ import { FLIGHT_PHASES, FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 import {
   CAMERA_FLIGHT_FILL,
   CAMERA_LEAD,
+  CAMERA_RUMBLE_MAX_PIXELS,
   CAMERA_ORBIT_SHOT_TIME,
   CAMERA_PAD_FILL,
   CAMERA_SPEED_PULLBACK,
@@ -90,9 +91,7 @@ export const flightSceneRuntimeMethods = {
   },
 
   handlePhaseTransition(state) {
-    if (state.phaseId === FLIGHT_PHASES.ASCENT) {
-      this.cameras.main.shake(260, 0.004);
-    } else if (state.phaseId === FLIGHT_PHASES.ORBIT) {
+    if (state.phaseId === FLIGHT_PHASES.ORBIT) {
       this.cameras.main.shake(112, 0.0015);
       this.audio?.playSuccess?.();
     }
@@ -237,31 +236,44 @@ export const flightSceneRuntimeMethods = {
     if (!camera.initialized) {
       Object.assign(camera, { initialized: true, x: targetX, y: targetY, zoom });
     } else {
-      camera.x = Phaser.Math.Linear(camera.x, targetX, 0.18);
-      camera.y = Phaser.Math.Linear(camera.y, targetY, 0.18);
-      camera.zoom = Phaser.Math.Linear(camera.zoom, zoom, 0.12);
+      camera.x = Phaser.Math.Linear(camera.x, targetX, 1 - Math.exp(-delta / 84));
+      camera.y = Phaser.Math.Linear(camera.y, targetY, 1 - Math.exp(-delta / 84));
+      camera.zoom = Phaser.Math.Linear(camera.zoom, zoom, 1 - Math.exp(-delta / 130));
     }
 
-    // The shake is in screen pixels, so it feels the same at any zoom.
-    const shake = this.getCameraShake(state, minViewport) / camera.zoom;
     this.cameras.main.setZoom(camera.zoom);
-    this.cameras.main.centerOn(
-      camera.x + (Math.random() * 2 - 1) * shake,
-      camera.y + (Math.random() * 2 - 1) * shake,
+    this.cameras.main.centerOn(camera.x, camera.y);
+  },
+
+  // Apply once, after cinematic framing, in screen pixels at the final zoom.
+  // Continuous waves avoid a new random camera jump on every frame.
+  applyCameraRumble(state, time, delta) {
+    const target = this.getCameraShake(state, Math.min(this.scale.width, this.scale.height));
+    this.cameraRumbleLevel += (target - this.cameraRumbleLevel) * (1 - Math.exp(-delta / 120));
+    const amplitude = this.cameraRumbleLevel / this.cameras.main.zoom;
+    const seconds = time / 1000;
+    this.cameras.main.scrollX += amplitude * (
+      Math.sin(seconds * 23) * 0.65 + Math.sin(seconds * 37) * 0.35
+    );
+    this.cameras.main.scrollY += amplitude * (
+      Math.sin(seconds * 29) * 0.65 + Math.sin(seconds * 41) * 0.35
     );
   },
 
-  // Engine rumble near the ground (strongest against the hold-down clamps)
-  // plus buffeting while the rocket is fast and the air still thick.
   getCameraShake(state, minViewport) {
-    if (this.finished || state.orbitAchieved) {
-      return 0;
-    }
+    if (this.finished || state.orbitAchieved) return 0;
+    const sequence = this.launchSequence;
+    const ignition = sequence?.active && sequence.ignitionStarted
+      ? Math.sin(Phaser.Math.Clamp((1000 - sequence.remainingMs) / 1000, 0, 1) * Math.PI) * 0.55
+      : 0;
     const nearGround = Phaser.Math.Clamp(1 - state.altitude / 30, 0, 1);
-    const rumble = this.flameLevel * nearGround * (state.launched ? 2.5 : 3.5);
-    const buffeting = state.atmosphereDensity * Phaser.Math.Clamp(state.speed / 2, 0, 1) * 3;
-    const gusts = Math.abs(state.windGust) * 2.5;
-    return (rumble + buffeting + gusts) * Phaser.Math.Clamp(minViewport / 800, 0.5, 1.2);
+    const rumble = this.flameLevel * nearGround * 0.35;
+    const buffeting = state.atmosphereDensity * Phaser.Math.Clamp(state.speed / 2, 0, 1) * 0.2;
+    const gusts = Math.abs(state.windGust) * 0.15;
+    return Math.min(
+      CAMERA_RUMBLE_MAX_PIXELS,
+      (ignition + rumble + buffeting + gusts) * Phaser.Math.Clamp(minViewport / 800, 0.5, 1),
+    );
   },
 
   updateWorldVisuals(state) {
