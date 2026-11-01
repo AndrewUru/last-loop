@@ -1,6 +1,6 @@
 # 🚀 Last Loop
 
-![Portada del Proyecto](https://elsaltoweb.es/wp-content/uploads/2026/04/portada.webp)
+![Last Loop: un cohete despegando al amanecer](docs/images/last-loop-cover.webp)
 
 **Last Loop** es un arcade de cohetes de vuelos cortos: eliges uno de diez cohetes legendarios, mantienes pulsado el impulso y lo guías hasta la órbita en poco más de un minuto. Sin menús de ingeniería ni decenas de teclas: impulso, izquierda y derecha.
 
