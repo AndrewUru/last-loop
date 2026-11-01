@@ -36,3 +36,7 @@ export const PRESENTATION_BOOST = 66;
 export const PRESENTATION_BOOST_SCALE = 2;
 export const PRESENTATION_FADE_START = 80;
 export const PRESENTATION_FADE_END = 220;
+
+// Gentle launch framing and subpixel vibration, independent of camera zoom.
+export const CAMERA_LAUNCH_RELEASE_MS = 1800;
+export const CAMERA_RUMBLE_MAX_PIXELS = 0.7;
