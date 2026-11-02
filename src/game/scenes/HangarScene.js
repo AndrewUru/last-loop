@@ -86,6 +86,8 @@ export default class HangarScene extends Phaser.Scene {
   }
 
   create() {
+    this.sideRockets = [];
+    this.resizePending = false;
     this.cameras.main.setBackgroundColor(UI_COLORS.background);
     this.layout = this.computeLayout(this.scale.width, this.scale.height);
     this.createBackground();
@@ -207,7 +209,7 @@ export default class HangarScene extends Phaser.Scene {
   createHeader() {
     const { width } = this.scale;
     const { headerHeight: height, margin, compact, small } = this.layout;
-    const { completed, orbits } = MissionSystem.getProgress();
+    const { completed } = MissionSystem.getProgress();
     const middle = height / 2;
 
     const bar = this.add.graphics();
@@ -257,21 +259,16 @@ export default class HangarScene extends Phaser.Scene {
       bar.fillRect(title.x - title.width / 2 - 8, height - 3, title.width + 16, 3);
     }
 
-    // Counters on the right, each in its own chip.
-    const chips = compact ? [`★ ${completed.length}/${ROCKETS.length}`] : [`ÓRBITAS  ${orbits}`, `★  ${completed.length}/${ROCKETS.length}`];
-    let right = width - margin;
-    [...chips].reverse().forEach((label) => {
-      const text = addText(this, 0, middle, label, {
-        size: small ? 12 : 14,
-        bold: true,
-        color: label.startsWith("★") ? AMBER_TEXT : UI_COLORS.text,
-      }).setOrigin(1, 0.5);
-      const chipWidth = text.width + 24;
-      const chipHeight = small ? 26 : 30;
-      drawPanel(bar, right - chipWidth, middle - chipHeight / 2, chipWidth, chipHeight, { radius: chipHeight / 2 });
-      text.setX(right - 12);
-      right -= chipWidth + 8;
+    // Training is independent of campaign unlocks and never changes its progress.
+    const training = addText(this, width - margin, middle, compact ? "ATERRIZAR" : "PRACTICAR ATERRIZAJE", {
+      size: small ? 11 : 13, bold: true, color: UI_COLORS.accentText,
+      backgroundColor: "#163d35", padding: { x: 10, y: 12 },
+    }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
+    training.on("pointerdown", () => {
+      this.audio?.playClick?.();
+      this.scene.start("LandingScene");
     });
+
   }
 
   createStage() {
