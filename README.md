@@ -36,6 +36,22 @@ La línea de puntos marca adónde irías si soltaras el motor ahora: **verde** s
 
 ---
 
+## 🛬 Entrenamiento de aterrizaje
+
+Desde el botón **ATERRIZAR / PRACTICAR ATERRIZAJE** del hangar puedes practicar la recuperación de la primera etapa del Falcon 9, incluso antes de desbloquearlo en la campaña. Es un modo arcade independiente: no completa misiones ni altera los desbloqueos.
+
+- Comienzas a 600 m, descendiendo, con combustible para 22 segundos de motor.
+- Usa los mismos controles de impulso y giro que en el vuelo, o los botones táctiles.
+- Aterriza con ambas patas dentro de la plataforma, velocidad vertical ≤ 4 m/s, lateral ≤ 3 m/s e inclinación ≤ 10°.
+- Recibes hasta 1.000 puntos: precisión (400), suavidad (400) y combustible (200). La mejor puntuación se guarda en este navegador cuando el almacenamiento está disponible.
+- El entrenamiento se pausa al perder el foco. ENTER comienza, continúa o reinicia; ESC vuelve al hangar.
+
+La física está en `src/game/systems/LandingModel.js` y la escena en `src/game/scenes/LandingScene.js`. Se integra con pasos fijos de 1/120 s y conserva el intento al redimensionar la ventana. El propulsor se dibuja como una primera etapa con patas, sin reutilizar la ilustración del cohete completo.
+
+Pruebas de física: `npm test`.
+
+---
+
 ## 🌍 Cohetes y misiones
 
 Cada cohete tiene una misión que solo cuenta si vuelas con ese cohete. Al cumplirla ganas una estrella y se desbloquea el siguiente. Todas terminan en órbita, pero cada una se juega distinto:
