@@ -102,9 +102,22 @@ export const flightSceneLaunchSiteMethods = {
     g.fillRect(-span, S - 0.004 * u, span * 2, 0.02 * u);
     g.fillStyle(p.land, 1);
     g.fillRect(-span, S + 0.016 * u, span * 2, 0.3 * u);
-    g.fillStyle(p.landDeep, 0.8);
-    for (let row = 0; row < 6; row += 1) {
-      g.fillRect(-span, S + (0.06 + row * row * 0.035) * u, span * 2, 0.006 * u * (1 + row * 0.4));
+    // Fields: soft bands that widen towards the viewer.
+    for (let row = 0; row < 7; row += 1) {
+      g.fillStyle(row % 2 ? p.landDeep : p.landEdge, 0.18);
+      const top = S + (0.03 + row * row * 0.03) * u;
+      g.fillRect(-span, top, span * 2, (0.02 + row * 0.03) * u);
+    }
+    // Scrub near the horizon, thinning out towards the viewer.
+    let seed = 3;
+    const rand = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+    g.fillStyle(p.trees, 0.55);
+    for (let i = 0; i < 420; i += 1) {
+      const depth = rand() ** 2;
+      const x = (rand() * 2 - 1) * span;
+      if (Math.abs(x) < u * 1.6) continue;
+      const size = u * (0.012 + depth * 0.03);
+      g.fillEllipse(x, S + 0.02 * u + depth * 0.25 * u, size * 2.2, size);
     }
     // Service road leaving the pad.
     g.fillStyle(p.road, 1);
@@ -149,9 +162,9 @@ export const flightSceneLaunchSiteMethods = {
     // Flame trench: a dark opening under the engines, the deflector beyond it.
     const trenchHalf = Math.max(halfRocket * 1.25, u * 0.06);
     n.fillStyle(0x0b0f12, 1);
-    n.fillRect(-trenchHalf, apronTop + 0.012 * u, trenchHalf * 2, 0.06 * u);
-    n.fillStyle(p.concreteDark, 1);
-    n.fillTriangle(-trenchHalf, S + 0.072 * u, trenchHalf, S + 0.072 * u, trenchHalf, S + 0.03 * u);
+    n.fillRect(-trenchHalf, apronTop + 0.012 * u, trenchHalf * 2, 0.045 * u);
+    n.fillStyle(0x0b0f12, 0.45);
+    n.fillRect(-trenchHalf * 1.35, apronTop + 0.012 * u, trenchHalf * 2.7, 0.012 * u);
     this.padTop = apronTop;
 
     // Lightning masts with the catenary wire between them.
@@ -177,18 +190,18 @@ export const flightSceneLaunchSiteMethods = {
     this.siteLights = this.add.graphics().setDepth(19).setBlendMode(Phaser.BlendModes.ADD);
     if (night) {
       const l = this.siteLights;
-      [[-apronHalf - 0.7 * u, 0.55 * u], [apronHalf + 0.6 * u, 0.5 * u]].forEach(([x, h]) => {
+      [[-apronHalf - 0.35 * u, 0.42 * u], [apronHalf + 0.3 * u, 0.38 * u]].forEach(([x, h]) => {
         n.fillStyle(p.steel, 1);
         n.fillRect(x - 0.006 * u, S - h, 0.012 * u, h);
         n.fillStyle(0xfff1c4, 1);
         n.fillRect(x - 0.03 * u, S - h - 0.025 * u, 0.06 * u, 0.025 * u);
         const sx = x;
         const sy = S - h - 0.012 * u;
-        const tx = 0;
-        for (let k = 0; k < 4; k += 1) {
-          l.fillStyle(0xffe8b0, 0.035);
-          const spread = u * (0.12 + k * 0.08);
-          l.fillTriangle(sx, sy, tx - spread, S - u * (0.15 + k * 0.08), tx + spread, S - u * (0.75 - k * 0.05));
+        // The beam fans out from the lamp onto the rocket's lower body.
+        const tx = -Math.sign(x) * halfRocket;
+        for (let k = 0; k < 3; k += 1) {
+          l.fillStyle(0xffe8b0, 0.028);
+          l.fillTriangle(sx, sy, tx, S - u * (0.12 + k * 0.05), tx, S - u * (0.7 - k * 0.12));
         }
         l.fillStyle(0xfff1c4, 0.5);
         l.fillCircle(sx, sy, 0.03 * u);
