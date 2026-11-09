@@ -223,21 +223,13 @@ class FlightScene extends Phaser.Scene {
     } else {
       this.audio.stopEngine();
     }
-    if (state.altitude > 5 && state.altitude < 90 && state.verticalVelocity > 0.5) {
-      if (!this.lastWhooshAlt || Math.abs(state.altitude - this.lastWhooshAlt) > 25) {
-        this.audio.playAtmosphereWhoosh(state.verticalVelocity);
-        this.lastWhooshAlt = state.altitude;
-      }
-    }
-    // Reentry roar: whooshes come faster and louder the hotter the plasma.
-    const heat = this.finished ? 0 : state.reentryHeat || 0;
-    if (heat > 0.15) {
-      this.reentryWhooshTimer = (this.reentryWhooshTimer || 0) - this.game.loop.delta / 1000;
-      if (this.reentryWhooshTimer <= 0) {
-        this.audio.playAtmosphereWhoosh(0.6 + heat * 0.8);
-        this.reentryWhooshTimer = 0.5 - heat * 0.3;
-      }
-    }
+    // Continuous wind past the hull, and the roar and crackle of reentry.
+    const flying = state.launched && !this.finished && !state.orbitAchieved;
+    this.audio.updateAtmosphere({
+      speed: flying ? state.speed : 0,
+      density: state.atmosphereDensity,
+      heat: flying ? state.reentryHeat || 0 : 0,
+    });
     if (state.speed > 1.0 && !this.sonicBoomPlayed && state.altitude < 40) {
       this.audio.playSonicBoom();
       this.showVaporCone();
