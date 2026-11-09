@@ -5,11 +5,20 @@ import { ART } from "../../data/art.js";
 // cloud's flat bottom above the ground, along its distance from the pad
 // (mirrored layers sit on either side, clear of the climb). They set the
 // scene and give the climb something to pass.
+// depth: draw order (the rocket is 20, the far ridges -10); haze: how much the
+// air between the camera and the cloud washes it into the horizon colour;
+// drift: share of the wind speed, so far clouds move slower than near ones.
 const CLOUD_LAYERS = [
-  { art: "cloudCumulus", count: 5, base: [0.05, 0.35], along: [1.2, 4.5], width: [0.6, 1.2], alpha: 0.8, tint: 0xdce8f5 },
-  { art: "cloudCumulus", stormArt: "cloudStorm", count: 6, stormCount: 8, base: [0.9, 1.6], along: [1.1, 6], width: [1, 1.8], stormWidth: [1.6, 2.6], alpha: 0.95 },
-  { art: "cloudStratus", count: 4, base: [2, 2.6], along: [1, 7], width: [2.5, 4], alpha: 0.75 },
+  { art: "cloudCumulus", count: 6, base: [0.18, 0.5], along: [2.2, 9], width: [0.3, 0.55], alpha: 0.6, depth: -10.5, haze: 0.5, drift: 0.3 },
+  { art: "cloudCumulus", count: 5, base: [0.05, 0.35], along: [1.2, 4.5], width: [0.6, 1.2], alpha: 0.8, tint: 0xdce8f5, depth: -8, haze: 0.15, drift: 0.6 },
+  { art: "cloudCumulus", stormArt: "cloudStorm", count: 6, stormCount: 8, base: [0.9, 1.6], along: [1.1, 6], width: [1, 1.8], stormWidth: [1.6, 2.6], alpha: 0.95, depth: -8, drift: 0.8 },
+  { art: "cloudStratus", count: 4, base: [2, 2.6], along: [1, 7], width: [2.5, 4], alpha: 0.75, depth: -8, drift: 1 },
+  // A couple of big clouds in front of the rocket, clear of its climb.
+  { art: "cloudCumulus", stormArt: "cloudStorm", count: 2, base: [0.6, 1.4], along: [1.7, 3.4], width: [1.5, 2.1], alpha: 0.9, depth: 25, drift: 1.3 },
 ];
+// Wind speed for the drift, in rocket heights per second.
+const CLOUD_DRIFT = 0.012;
+const STORM_DRIFT = 0.05;
 // Rocket altitudes (km) between which the clouds fade out below the rocket.
 const CLOUD_FADE_START = 15;
 const CLOUD_FADE_END = 45;
@@ -26,7 +35,14 @@ const FLY_THROUGH_ALPHA = [0.6, 0.8];
 const STORM_FLY_THROUGH_ALPHA = [0.45, 0.62];
 // Overcast and night skies dim white clouds into grey and blue-grey.
 const STORM_TINT = 0xa3aebc;
-const NIGHT_TINT = 0x56617a;
+const NIGHT_TINT = 0x4a5670;
+
+function mixTint(from, to, t) {
+  const a = Phaser.Display.Color.IntegerToColor(from);
+  const b = Phaser.Display.Color.IntegerToColor(to);
+  const c = Phaser.Display.Color.Interpolate.ColorWithColor(a, b, 100, Math.round(t * 100));
+  return Phaser.Display.Color.GetColor(c.r, c.g, c.b);
+}
 
 function between([min, max]) {
   return Phaser.Math.FloatBetween(min, max);
@@ -38,6 +54,8 @@ export const flightSceneCloudMethods = {
     const mobile =
       this.scale.width < 760 || (this.scale.width < 920 && this.scale.height > this.scale.width * 1.15);
     const unit = this.rocketHeight;
+    const haze = this.getSitePalette?.().haze ?? 0xd4f0ff;
+    const windDrift = (wind ? STORM_DRIFT : CLOUD_DRIFT) * unit;
     this.clouds = [];
     this.cloudFade = -1;
 
@@ -53,19 +71,31 @@ export const flightSceneCloudMethods = {
         tint = NIGHT_TINT;
       }
 
+      if (layer.haze) {
+        tint = mixTint(tint, haze, layer.haze);
+      }
+
+      // Spread the clouds over slots on alternating sides so they never pile
+      // up into one blob, with some jitter so the spacing does not look ruled.
+      const perSide = Math.ceil(count / 2);
+      const side0 = Math.random() < 0.5 ? -1 : 1;
       for (let index = 0; index < count; index += 1) {
+        const side = index % 2 === 0 ? side0 : -side0;
+        const slot = Math.floor(index / 2);
+        const share = (slot + 0.15 + Math.random() * 0.7) / perSide;
         const image = this.add
           .image(0, 0, art.key)
           .setOrigin(0.5, 0.9)
           .setFlipX(Math.random() < 0.5)
           .setTint(tint)
-          .setDepth(-8);
+          .setDepth(layer.depth);
         image.setScale((between(width) * unit) / image.width);
         this.clouds.push({
           image,
-          along: between(layer.along) * unit * (Math.random() < 0.5 ? -1 : 1),
+          along: Phaser.Math.Linear(layer.along[0], layer.along[1], share) * unit * side,
           base: between(layer.base) * unit,
           alpha: layer.alpha * (night ? 0.75 : 1),
+          drift: windDrift * layer.drift * Phaser.Math.FloatBetween(0.8, 1.2),
         });
       }
     });
@@ -122,6 +152,14 @@ export const flightSceneCloudMethods = {
       1,
     );
     const fade = 1 - t * t * (3 - 2 * t);
+    // The wind carries the clouds slowly sideways while they are in view.
+    if (fade > 0.01) {
+      const dt = this.game.loop.delta / 1000;
+      this.clouds.forEach((cloud) => {
+        cloud.along += cloud.drift * dt;
+      });
+      this.layoutClouds();
+    }
     if (Math.abs(fade - this.cloudFade) >= 0.004) {
       this.cloudFade = fade;
       this.clouds.forEach((cloud) => {

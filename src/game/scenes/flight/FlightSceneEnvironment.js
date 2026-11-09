@@ -83,14 +83,17 @@ export const flightSceneEnvironmentMethods = {
       ].forEach(([from, to]) => graphics.fillPoints([...arc(outer, from, to), ...arc(inner, to, from)], true));
     };
 
+    // The glow of the atmosphere only reads on a round planet; over the flat
+    // ground at the pad it would draw cyan stripes across the sky.
+    const glow = Phaser.Math.Clamp((reveal - 0.15) / 0.5, 0, 1);
     this.planetAtmosphere.clear();
-    this.planetAtmosphere.fillStyle(0x52d9ff, 0.12);
+    this.planetAtmosphere.fillStyle(0x52d9ff, 0.12 * glow);
     disc(this.planetAtmosphere, 26);
-    this.planetAtmosphere.fillStyle(0x7ee6ff, 0.22);
+    this.planetAtmosphere.fillStyle(0x7ee6ff, 0.22 * glow);
     band(this.planetAtmosphere, 1, 15);
 
     this.planetBody.clear();
-    this.planetBody.fillStyle(0x1f5f8e, 1);
+    this.planetBody.fillStyle(this.getPlanetSurfaceColor(reveal), 1);
     disc(this.planetBody, 0);
     // Shading that makes it read as a globe; it only matters once it is round.
     if (reveal > 0) {
@@ -100,7 +103,7 @@ export const flightSceneEnvironmentMethods = {
       this.planetBody.fillStyle(0x153d5b, 0.28 * reveal);
       this.planetBody.fillCircle(planetRadius * 0.12, planetRadius * 0.22, planetRadius * 0.82);
     }
-    this.planetBody.fillStyle(0xb9f2ff, 0.12);
+    this.planetBody.fillStyle(0xb9f2ff, 0.12 * glow);
     band(this.planetBody, -6, 0);
   },
 
@@ -122,11 +125,9 @@ export const flightSceneEnvironmentMethods = {
       .setOrigin(1, 1)
       .setDepth(11);
     this.launchTower.setScale((this.rocketHeight * 1.05) / this.launchTower.height);
-    const towerLeft = this.launchTower.x - this.launchTower.displayWidth;
-
+    this.towerLeft = this.launchTower.x - this.launchTower.displayWidth;
     this.pad.clear();
-    this.pad.fillStyle(0x3a4654, 1);
-    this.pad.fillRect(towerLeft - 4, surface - 1.5, this.rocketWidth / 2 + 8 - towerLeft + 4, 3);
+    this.createLaunchSite();
   },
 
   createUiCamera() {
@@ -163,6 +164,7 @@ export const flightSceneEnvironmentMethods = {
       this.trajectoryGraphics,
       this.pad,
       this.launchTower,
+      ...this.getLaunchSiteObjects(),
       this.guidanceArrow,
       ...this.getCloudObjects(),
       this.rocket,

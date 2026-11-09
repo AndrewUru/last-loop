@@ -6,6 +6,7 @@ import { CAMERA_PAD_FILL, CAMERA_LAUNCH_RELEASE_MS, ROCKET_CELL_SIZE } from "./f
 import { flightSceneCloudMethods } from "./flight/FlightSceneClouds.js";
 import { flightSceneEnvironmentMethods } from "./flight/FlightSceneEnvironment.js";
 import { flightSceneExhaustMethods } from "./flight/FlightSceneExhaust.js";
+import { flightSceneLaunchSiteMethods } from "./flight/FlightSceneLaunchSite.js";
 import { flightSceneMissionMethods } from "./flight/FlightSceneMission.js";
 import { flightSceneOverlayMethods } from "./flight/FlightSceneOverlay.js";
 import { flightSceneRuntimeMethods } from "./flight/FlightSceneRuntime.js";
@@ -243,6 +244,7 @@ Object.assign(
   flightSceneCloudMethods,
   flightSceneEnvironmentMethods,
   flightSceneExhaustMethods,
+  flightSceneLaunchSiteMethods,
   flightSceneMissionMethods,
   flightSceneOverlayMethods,
   flightSceneRuntimeMethods,

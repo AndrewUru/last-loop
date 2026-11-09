@@ -314,6 +314,7 @@ export const flightSceneRuntimeMethods = {
     this.orbitGuides.setAlpha((0.2 + guideProgress * 0.8) * this.groundCurve);
     this.pad.setAlpha(padFade);
     this.launchTower.setAlpha(padFade);
+    this.updateLaunchSite(state, padFade);
     this.updateClouds(state);
   },
 
