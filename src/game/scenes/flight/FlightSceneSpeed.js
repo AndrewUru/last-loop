@@ -3,6 +3,9 @@ import { createShadedTexture } from "./FlightSceneExhaust.js";
 
 const VAPOR_CONE_TIME = 0.8;
 const VAPOR_TEXTURE = "fx-vapor-cone";
+const PLASMA_TEXTURE = "fx-reentry-plasma";
+const PLASMA_COOL = 0xff5a1f;
+const PLASMA_HOT = 0xffe2a8;
 
 function isMobile(scale) {
   return scale.width < 760 || (scale.width < 920 && scale.height > scale.width * 1.15);
@@ -42,14 +45,40 @@ export const flightSceneSpeedMethods = {
       .setDepth(21)
       .setVisible(false);
     this.vaporTime = 0;
+
+    // Reentry plasma: a bow shock hugging the leading side of the rocket,
+    // brightest at the stagnation point and streaming back past the tail.
+    createShadedTexture(this, PLASMA_TEXTURE, 64, 96, (u, v) => {
+      const across = Math.abs(u * 2 - 1) / (0.22 + 0.78 * Math.sqrt(v));
+      if (across >= 1) {
+        return [255, 0];
+      }
+      const core = (1 - across) ** 1.6 * (1 - v) ** 1.8;
+      const shell = across ** 3 * (1 - v) ** 0.9 * 0.7;
+      return [255, Math.min(1, (core + shell) * Math.min(1, v / 0.05))];
+    });
+    this.reentryPlasma = this.add
+      .image(0, 0, PLASMA_TEXTURE)
+      .setOrigin(0.5, 0)
+      .setDepth(21)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setVisible(false);
+    this.reentryTail = this.add
+      .image(0, 0, PLASMA_TEXTURE)
+      .setOrigin(0.5, 0)
+      .setDepth(19)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setVisible(false);
+    // Screen-space orange wash so the whole view feels the heat.
+    this.reentryWash = this.add.graphics().setScrollFactor(0).setDepth(-29);
   },
 
   getSpeedBackdropObjects() {
-    return [this.speedLines];
+    return [this.speedLines, this.reentryWash];
   },
 
   getSpeedWorldObjects() {
-    return [this.vaporCone];
+    return [this.vaporCone, this.reentryPlasma, this.reentryTail];
   },
 
   showVaporCone() {
@@ -67,6 +96,60 @@ export const flightSceneSpeedMethods = {
     this.updateStreaks(state, direction, dt);
     this.updateStarDrift(state, direction, dt);
     this.updateVaporCone(dt);
+    this.updateReentryPlasma(state, angle);
+  },
+
+  updateReentryPlasma(state, velocityAngle) {
+    const heat = this.finished ? 0 : state.reentryHeat || 0;
+    const visible = heat > 0.02;
+    this.reentryPlasma.setVisible(visible);
+    this.reentryTail.setVisible(visible);
+    this.reentryWash.clear();
+    if (!visible) {
+      return;
+    }
+
+    const flicker = 0.85 + Math.random() * 0.15;
+    const tint = Phaser.Display.Color.Interpolate.ColorWithColor(
+      Phaser.Display.Color.ValueToColor(PLASMA_COOL),
+      Phaser.Display.Color.ValueToColor(PLASMA_HOT),
+      100,
+      Math.round(heat * heat * 100),
+    );
+    const color = Phaser.Display.Color.GetColor(tint.r, tint.g, tint.b);
+
+    // Rocket centre (its origin is the tail) and how far it reaches along the
+    // direction of travel, so the shock sits just ahead of whichever end leads.
+    const nose = this.getVisualOrientation();
+    const centerX = this.rocket.x + Math.cos(nose) * this.rocketHeight * 0.5;
+    const centerY = this.rocket.y + Math.sin(nose) * this.rocketHeight * 0.5;
+    const along = Math.abs(Math.cos(nose - velocityAngle)) * this.rocketHeight * 0.5;
+    const across = Math.abs(Math.sin(nose - velocityAngle)) * this.rocketHeight * 0.5;
+    const reach = along + this.rocketWidth * 0.5 + across * 0.2;
+    const lead = reach + this.rocketWidth * 0.35;
+    const dirX = Math.cos(velocityAngle);
+    const dirY = Math.sin(velocityAngle);
+    // The texture's tip is at its top edge and it grows downwards; turn it so
+    // the tip sits ahead of the rocket and the glow streams back over it.
+    const rotation = velocityAngle + Math.PI / 2;
+    const width = Math.max(this.rocketWidth * 2.4, across * 2.2 + this.rocketWidth * 1.6);
+
+    this.reentryPlasma
+      .setPosition(centerX + dirX * lead, centerY + dirY * lead)
+      .setRotation(rotation + (Math.random() - 0.5) * 0.04)
+      .setDisplaySize(width * (0.8 + heat * 0.4), (reach * 2 + this.rocketHeight * 0.6) * (0.7 + heat * 0.6))
+      .setTint(color)
+      .setAlpha(Math.min(1, heat * 1.3) * flicker);
+    this.reentryTail
+      .setPosition(centerX + dirX * reach * 0.4, centerY + dirY * reach * 0.4)
+      .setRotation(rotation)
+      .setDisplaySize(width * 1.5, (reach * 2 + this.rocketHeight * 1.8) * (0.8 + heat))
+      .setTint(PLASMA_COOL)
+      .setAlpha(heat * 0.45 * flicker);
+
+    const { width: screenWidth, height: screenHeight } = this.scale;
+    this.reentryWash.fillStyle(PLASMA_COOL, heat * 0.16 * flicker);
+    this.reentryWash.fillRect(0, 0, screenWidth, screenHeight);
   },
 
   updateStreaks(state, direction, dt) {
@@ -84,6 +167,8 @@ export const flightSceneSpeedMethods = {
       return;
     }
 
+    // Hot air glows: streaks turn orange during reentry.
+    const streakColor = (state.reentryHeat || 0) > 0.05 ? 0xffb066 : 0xffffff;
     const centerX = width / 2;
     const centerY = height / 2;
     const diagonal = Math.hypot(width, height);
@@ -108,7 +193,7 @@ export const flightSceneSpeedMethods = {
         place(streak, false);
       }
       const streakLength = length * streak.depth;
-      graphics.lineStyle(1 + streak.depth * 1.5, 0xffffff, alpha * streak.depth * 0.7);
+      graphics.lineStyle(1 + streak.depth * 1.5, streakColor, alpha * streak.depth * 0.7);
       graphics.lineBetween(
         streak.x,
         streak.y,

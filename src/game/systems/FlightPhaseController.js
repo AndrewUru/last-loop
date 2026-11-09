@@ -3,6 +3,7 @@ export const FLIGHT_PHASES = {
   ASCENT: "ascent",
   ORBIT_PUSH: "orbit_push",
   ORBIT: "orbit",
+  REENTRY: "reentry",
   CRASHED: "crashed",
   ESCAPED: "escaped",
   NO_FUEL: "no_fuel",
@@ -13,6 +14,7 @@ const PHASE_LABELS = {
   [FLIGHT_PHASES.ASCENT]: "Ascenso",
   [FLIGHT_PHASES.ORBIT_PUSH]: "Inserción orbital",
   [FLIGHT_PHASES.ORBIT]: "En órbita",
+  [FLIGHT_PHASES.REENTRY]: "Reentrada",
   [FLIGHT_PHASES.CRASHED]: "Estrellado",
   [FLIGHT_PHASES.ESCAPED]: "Perdido en el espacio",
   [FLIGHT_PHASES.NO_FUEL]: "Sin combustible",
@@ -44,7 +46,9 @@ export default class FlightPhaseController {
         return this.fail(
           state,
           FLIGHT_PHASES.CRASHED,
-          "El cohete cayó antes de entrar en órbita. Sigue la flecha: sube recto y luego gira hacia la derecha.",
+          state.peakAltitude >= world.reentryMinPeak
+            ? "La reentrada fue demasiado rápida. Enciende el motor apuntando hacia arriba para frenar antes del suelo."
+            : "El cohete cayó antes de entrar en órbita. Sigue la flecha: sube recto y luego gira hacia la derecha.",
         );
       }
 
@@ -58,6 +62,8 @@ export default class FlightPhaseController {
         launched: false,
         insertionStarted: false,
         orbitHoldTime: 0,
+        peakAltitude: 0,
+        reentryHeat: 0,
       });
       return this.setPhase(state, FLIGHT_PHASES.PAD);
     }
@@ -115,6 +121,14 @@ export default class FlightPhaseController {
 
     if (!state.launched) {
       return this.setPhase(state, FLIGHT_PHASES.PAD);
+    }
+
+    if (
+      altitude < world.atmosphereHeight &&
+      verticalSpeed < 0 &&
+      state.peakAltitude >= world.reentryMinPeak
+    ) {
+      return this.setPhase(state, FLIGHT_PHASES.REENTRY);
     }
 
     return this.setPhase(

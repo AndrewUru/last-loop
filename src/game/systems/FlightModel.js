@@ -57,6 +57,10 @@ export const FLIGHT_WORLD = {
   safeLandingHorizontalSpeed: 0.26,
   safeLandingAngle: 16,
   outOfFuelGraceTime: 1.5,
+  // A fall counts as a reentry once the rocket has climbed at least this high.
+  reentryMinPeak: 40,
+  // Speed (km/s) at which falling through thick air reaches full heating.
+  reentryHeatSpeed: 2.2,
 };
 
 export const FLIGHT_TARGETS = {
@@ -132,6 +136,8 @@ export default class FlightModel {
       orbitAchieved: false,
       outOfFuelTime: 0,
       currentG: 1,
+      peakAltitude: 0,
+      reentryHeat: 0,
     };
 
     this.syncDerivedState(state);
@@ -347,8 +353,26 @@ export default class FlightModel {
       0,
       9.9,
     );
+    state.peakAltitude = Math.max(state.peakAltitude, state.altitude);
+    this.updateReentryHeat(state, dt);
 
     return this.syncDerivedState(state);
+  }
+
+  // 0..1 glow of the air compressed in front of a rocket falling fast through
+  // the atmosphere. It builds up and cools down smoothly rather than flicker.
+  updateReentryHeat(state, dt) {
+    const world = FLIGHT_WORLD;
+    const speed = Math.hypot(state.horizontalVelocity, state.verticalVelocity);
+    const falling = state.verticalVelocity < -0.1 && state.peakAltitude >= world.reentryMinPeak;
+    // Heating peaks in the upper-middle atmosphere: thin air at the top,
+    // and by the bottom drag has already slowed the rocket.
+    const air = Math.sin(Math.PI * clamp(state.atmosphereDensity, 0, 1) ** 0.7);
+    const target = falling
+      ? clamp((speed - 0.5) / (world.reentryHeatSpeed - 0.5), 0, 1) * clamp(air * 1.4, 0, 1)
+      : 0;
+    const rate = target > state.reentryHeat ? 1.6 : 0.9;
+    state.reentryHeat += (target - state.reentryHeat) * Math.min(1, dt * rate);
   }
 
   getDrag(horizontalVelocity, verticalVelocity, atmosphereDensity) {

@@ -40,6 +40,33 @@ export function getFlightInstruction(state, thrustLabel) {
       tone: "info",
     };
   }
+  if (state.phaseId === "reentry") {
+    const hasFuel = state.fuelRemaining > 0.01 && !state.engineLocked;
+    if (state.altitude < 25 && hasFuel) {
+      const tooFast = state.speed > FLIGHT_WORLD.safeLandingSpeed;
+      return {
+        title: tooFast ? "¡Frena para aterrizar!" : "Aterrizaje suave…",
+        body: tooFast
+          ? `Morro arriba y ${thrustLabel}: baja de ${FLIGHT_WORLD.safeLandingSpeed.toFixed(2)} km/s.`
+          : "Mantén el cohete vertical hasta tocar el suelo.",
+        tone: tooFast ? "danger" : "success",
+      };
+    }
+    if (state.reentryHeat > 0.35) {
+      return {
+        title: `¡Reentrada! Calor ${Math.round(state.reentryHeat * 100)}%`,
+        body: "El aire frena el cohete y lo calienta. Aguanta.",
+        tone: "danger",
+      };
+    }
+    return {
+      title: "Reentrada",
+      body: hasFuel
+        ? `Vuelves a la atmósfera. Prepárate para frenar con ${thrustLabel}.`
+        : "Vuelves a la atmósfera sin combustible.",
+      tone: "warning",
+    };
+  }
   if (state.orbitWindow) {
     const lock = Math.round(
       clamp(state.orbitHoldTime / FLIGHT_WORLD.orbitLockDuration, 0, 1) * 100,

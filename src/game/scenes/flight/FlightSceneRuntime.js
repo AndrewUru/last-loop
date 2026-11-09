@@ -92,6 +92,9 @@ export const flightSceneRuntimeMethods = {
   handlePhaseTransition(state) {
     if (state.phaseId === FLIGHT_PHASES.ASCENT) {
       this.cameras.main.shake(260, 0.004);
+    } else if (state.phaseId === FLIGHT_PHASES.REENTRY) {
+      this.cameras.main.shake(320, 0.003);
+      this.audio?.playAtmosphereWhoosh?.(2);
     } else if (state.phaseId === FLIGHT_PHASES.ORBIT) {
       this.cameras.main.shake(112, 0.0015);
       this.audio?.playSuccess?.();
@@ -261,7 +264,8 @@ export const flightSceneRuntimeMethods = {
     const rumble = this.flameLevel * nearGround * (state.launched ? 2.5 : 3.5);
     const buffeting = state.atmosphereDensity * Phaser.Math.Clamp(state.speed / 2, 0, 1) * 3;
     const gusts = Math.abs(state.windGust) * 2.5;
-    return (rumble + buffeting + gusts) * Phaser.Math.Clamp(minViewport / 800, 0.5, 1.2);
+    const reentry = (state.reentryHeat || 0) * 5;
+    return (rumble + buffeting + gusts + reentry) * Phaser.Math.Clamp(minViewport / 800, 0.5, 1.2);
   },
 
   updateWorldVisuals(state) {

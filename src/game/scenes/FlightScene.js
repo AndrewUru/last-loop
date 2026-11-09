@@ -214,6 +214,15 @@ class FlightScene extends Phaser.Scene {
         this.lastWhooshAlt = state.altitude;
       }
     }
+    // Reentry roar: whooshes come faster and louder the hotter the plasma.
+    const heat = this.finished ? 0 : state.reentryHeat || 0;
+    if (heat > 0.15) {
+      this.reentryWhooshTimer = (this.reentryWhooshTimer || 0) - this.game.loop.delta / 1000;
+      if (this.reentryWhooshTimer <= 0) {
+        this.audio.playAtmosphereWhoosh(0.6 + heat * 0.8);
+        this.reentryWhooshTimer = 0.5 - heat * 0.3;
+      }
+    }
     if (state.speed > 1.0 && !this.sonicBoomPlayed && state.altitude < 40) {
       this.audio.playSonicBoom();
       this.showVaporCone();
