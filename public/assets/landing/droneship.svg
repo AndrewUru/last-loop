@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 190" width="900" height="190">
+  <!-- Autonomous recovery barge, side view. Deck is 640 units (64 m) wide, centred; deck top at y=40. Waterline at y=120. -->
+  <defs>
+    <linearGradient id="hull" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b4652"/>
+      <stop offset="1" stop-color="#151b22"/>
+    </linearGradient>
+  </defs>
+  <!-- blast walls -->
+  <rect x="80" y="10" width="40" height="32" fill="#4a5561"/>
+  <rect x="780" y="10" width="40" height="32" fill="#4a5561"/>
+  <rect x="84" y="14" width="32" height="6" fill="#ffb26b"/>
+  <rect x="784" y="14" width="32" height="6" fill="#ffb26b"/>
+  <!-- containers and antenna -->
+  <rect x="20" y="18" width="56" height="24" fill="#2c6b8f"/>
+  <rect x="824" y="18" width="56" height="24" fill="#8f3b2c"/>
+  <path d="M48 18V0M852 18V0" stroke="#9aa7b2" stroke-width="3"/>
+  <circle cx="48" cy="0" r="4" fill="#ff6b5a"/><circle cx="852" cy="0" r="4" fill="#73f7c0"/>
+  <!-- hull -->
+  <path d="M10 40h880l-30 110H40z" fill="url(#hull)"/>
+  <rect x="10" y="40" width="880" height="8" fill="#5b6672"/>
+  <!-- deck -->
+  <rect x="130" y="34" width="640" height="8" fill="#7e8a95"/>
+  <rect x="420" y="34" width="60" height="8" fill="#ffd166"/>
+  <rect x="130" y="34" width="20" height="8" fill="#ffd166"/><rect x="750" y="34" width="20" height="8" fill="#ffd166"/>
+  <!-- thruster pods -->
+  <g fill="#232a31"><rect x="60" y="148" width="60" height="22" rx="6"/><rect x="780" y="148" width="60" height="22" rx="6"/></g>
+  <g fill="#ffd166" opacity="0.9"><circle cx="200" cy="80" r="5"/><circle cx="450" cy="80" r="5"/><circle cx="700" cy="80" r="5"/></g>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 260" width="1600" height="260" preserveAspectRatio="none">
+  <!-- Distant shoreline silhouette, drawn white so the scene can tint it per time of day. -->
+  <path fill="#ffffff" opacity="0.55" d="M0 200 C120 150 220 170 330 130 C430 95 520 150 640 140 C760 128 860 90 980 120 C1090 148 1180 110 1300 100 C1420 92 1510 140 1600 120 V260 H0Z"/>
+  <path fill="#ffffff" d="M0 230 C160 210 260 220 400 205 L470 205 470 170 478 170 478 140 486 140 486 170 494 170 494 205 C620 200 700 215 820 205 L880 205 880 182 905 182 905 160 930 160 930 182 960 182 960 205 C1080 198 1220 214 1600 200 V260 H0Z"/>
+  <!-- launch tower on the horizon -->
+  <path fill="#ffffff" d="M1180 205 V96 h14 V205Z M1170 120 h34 v6 h-34Z M1194 104 h20 v4 h-20Z"/>
+</svg>

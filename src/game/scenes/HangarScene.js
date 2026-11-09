@@ -259,8 +259,8 @@ export default class HangarScene extends Phaser.Scene {
       bar.fillRect(title.x - title.width / 2 - 8, height - 3, title.width + 16, 3);
     }
 
-    // Training is independent of campaign unlocks and never changes its progress.
-    const training = addText(this, width - margin, middle, compact ? "ATERRIZAR" : "PRACTICAR ATERRIZAJE", {
+    // The landing mission has its own progress and never changes the campaign.
+    const training = addText(this, width - margin, middle, compact ? "ATERRIZAR" : "MISIÓN ATERRIZAJE", {
       size: small ? 11 : 13, bold: true, color: UI_COLORS.accentText,
       backgroundColor: "#163d35", padding: { x: 10, y: 12 },
     }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });

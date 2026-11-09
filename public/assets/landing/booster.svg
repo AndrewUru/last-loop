@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 440" width="80" height="440">
+  <!-- Reusable first stage, side view. 10 units = 1 m; engine exit at the bottom centre. -->
+  <defs>
+    <linearGradient id="shade" x1="0" x2="1">
+      <stop offset="0" stop-color="#9fb0bd"/>
+      <stop offset="0.35" stop-color="#f4f8fb"/>
+      <stop offset="0.7" stop-color="#dfe7ee"/>
+      <stop offset="1" stop-color="#8797a4"/>
+    </linearGradient>
+    <linearGradient id="soot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2f35" stop-opacity="0"/>
+      <stop offset="0.35" stop-color="#2a2f35" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#1b1f24" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" x2="1">
+      <stop offset="0" stop-color="#3b434c"/>
+      <stop offset="0.5" stop-color="#7d8995"/>
+      <stop offset="1" stop-color="#2c333a"/>
+    </linearGradient>
+  </defs>
+  <!-- grid fins -->
+  <g fill="none" stroke="#5c6670" stroke-width="2">
+    <rect x="2" y="34" width="16" height="22" rx="2"/>
+    <rect x="62" y="34" width="16" height="22" rx="2"/>
+    <path d="M2 41h16M2 48h16M8 34v22M13 34v22M62 41h16M62 48h16M67 34v22M72 34v22" stroke-width="1"/>
+  </g>
+  <!-- interstage -->
+  <rect x="20" y="0" width="40" height="66" rx="3" fill="#20262d"/>
+  <rect x="20" y="58" width="40" height="8" fill="#39424b"/>
+  <!-- tank -->
+  <rect x="20" y="66" width="40" height="330" fill="url(#shade)"/>
+  <rect x="20" y="150" width="40" height="246" fill="url(#soot)"/>
+  <rect x="20" y="200" width="40" height="3" fill="#7f8c97" opacity="0.6"/>
+  <!-- generic mission marking -->
+  <rect x="36" y="96" width="8" height="40" fill="#1d4f8f" opacity="0.85"/>
+  <!-- leg housings -->
+  <rect x="16" y="330" width="6" height="66" rx="2" fill="#2a3138"/>
+  <rect x="58" y="330" width="6" height="66" rx="2" fill="#2a3138"/>
+  <!-- engine section -->
+  <rect x="18" y="396" width="44" height="16" rx="2" fill="#262c33"/>
+  <path d="M24 412h32l6 28H18z" fill="url(#metal)"/>
+  <path d="M30 412h20l3 28H27z" fill="#14181c" opacity="0.6"/>
+</svg>
