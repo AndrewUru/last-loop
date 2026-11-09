@@ -1,6 +1,6 @@
 # 🚀 Last Loop
 
-![Portada del Proyecto](https://elsaltoweb.es/wp-content/uploads/2026/04/portada.webp)
+![Last Loop: un cohete despegando al amanecer](docs/images/last-loop-cover.webp)
 
 **Last Loop** es un arcade de cohetes de vuelos cortos: eliges uno de diez cohetes legendarios, mantienes pulsado el impulso y lo guías hasta la órbita en poco más de un minuto. Sin menús de ingeniería ni decenas de teclas: impulso, izquierda y derecha.
 
@@ -33,6 +33,22 @@ La línea de puntos marca adónde irías si soltaras el motor ahora: **verde** s
 - **Velocidad:** líneas de aire que se inclinan con el viento, estrellas que pasan a distintas profundidades y un cono de vapor con estampido al superar 1 km/s.
 - **Nubes:** cúmulos en el horizonte y una capa que atraviesas a 4 km. Con tormenta, cumulonimbos y relámpagos; de noche, nubes en azul grisáceo.
 - **Del horizonte plano al planeta:** en la plataforma el suelo es plano y, al subir, se curva hasta convertirse en la Tierra vista desde el espacio.
+
+---
+
+## 🛬 Entrenamiento de aterrizaje
+
+Desde el botón **ATERRIZAR / PRACTICAR ATERRIZAJE** del hangar puedes practicar la recuperación de la primera etapa del Falcon 9, incluso antes de desbloquearlo en la campaña. Es un modo arcade independiente: no completa misiones ni altera los desbloqueos.
+
+- Comienzas a 600 m, descendiendo, con combustible para 22 segundos de motor.
+- Usa los mismos controles de impulso y giro que en el vuelo, o los botones táctiles.
+- Aterriza con ambas patas dentro de la plataforma, velocidad vertical ≤ 4 m/s, lateral ≤ 3 m/s e inclinación ≤ 10°.
+- Recibes hasta 1.000 puntos: precisión (400), suavidad (400) y combustible (200). La mejor puntuación se guarda en este navegador cuando el almacenamiento está disponible.
+- El entrenamiento se pausa al perder el foco. ENTER comienza, continúa o reinicia; ESC vuelve al hangar.
+
+La física está en `src/game/systems/LandingModel.js` y la escena en `src/game/scenes/LandingScene.js`. Se integra con pasos fijos de 1/120 s y conserva el intento al redimensionar la ventana. El propulsor se dibuja como una primera etapa con patas, sin reutilizar la ilustración del cohete completo.
+
+Pruebas de física: `npm test`.
 
 ---
 
