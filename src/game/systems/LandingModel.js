@@ -15,7 +15,7 @@ export const LANDING_LEVELS = Object.freeze([
     title: 'Zona de aterrizaje',
     place: 'Cabo Cañaveral · tierra firme',
     briefing: 'Cielo despejado y sin viento.\nAprende a encender el motor en el momento justo.',
-    surface: 'land', sky: 'day',
+    surface: 'land', sky: 'day', backdrop: 'landing-pad-backdrop',
     fuel: 22, start: { x: [-60, 60], vx: [-2, 2], vy: -18 },
     wind: 0, ship: null,
   },

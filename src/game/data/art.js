@@ -1,5 +1,6 @@
 // Artwork shared by several screens, as texture keys and files. Sources live
-// in art/ and are turned into these with tools/prepare_art.py.
+// in art/ and are turned into these with tools/prepare_art.py (cut-outs) and
+// tools/prepare_backdrops.py (painted backdrops and the second cumulus).
 export const ART = {
   // The whole planet including its painted halo; the halo adds this share to
   // the radius, so it is drawn a touch larger than the planet itself.
@@ -19,4 +20,14 @@ export const ART = {
   cloudCumulus: { key: "world-cloud-cumulus", path: "assets/world/cloud-cumulus.webp" },
   cloudStratus: { key: "world-cloud-stratus", path: "assets/world/cloud-stratus.webp" },
   cloudStorm: { key: "world-cloud-storm", path: "assets/world/cloud-storm.webp" },
+  cloudCumulus2: { key: "world-cloud-cumulus-2", path: "assets/world/cloud-cumulus-2.webp" },
+  // Horizon band of the coastal spaceport: hills, towers, sea and scrub, with
+  // the sky and foreground faded out. horizon: the sea line as a share of the
+  // height; towerShare: a tower's height as a share of the image width.
+  coastPanorama: {
+    key: "world-coast-panorama",
+    path: "assets/world/coast-panorama.webp",
+    horizon: 0.474,
+    towerShare: 0.037,
+  },
 };

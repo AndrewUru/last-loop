@@ -16,7 +16,7 @@ const PAD_SPAN = 64;
 const BURN_MARGIN = 25;
 
 const SKIES = {
-  day: { top: 0x3f8fd6, bottom: 0xbfe3f5, coast: 0x6d8fa6, ground: 0x6f8466, groundDark: 0x46573f, stars: 0 },
+  day: { top: 0x1a6fe0, bottom: 0x7cc4f5, coast: 0x6d8fa6, ground: 0x93a24a, groundDark: 0x6f7c34, stars: 0 },
   dusk: { top: 0x1f2a57, bottom: 0xf29e6d, coast: 0x3a3550, ground: 0x4c4a4a, groundDark: 0x2e2c30, stars: 0.35 },
   night: { top: 0x030712, bottom: 0x16294a, coast: 0x0d1626, ground: 0x0b2a40, groundDark: 0x061624, stars: 1 },
 };
@@ -38,6 +38,7 @@ export default class LandingScene extends Phaser.Scene {
     svg('landing-pad', 'landing-pad.svg', 1520, 140);
     svg('landing-ship', 'droneship.svg', 1800, 380);
     svg('landing-coast', 'coast.svg', 1600, 260);
+    if (!this.textures.exists('landing-pad-backdrop')) this.load.image('landing-pad-backdrop', `${ASSET}pad-backdrop.webp`);
   }
 
   create() {
@@ -52,6 +53,9 @@ export default class LandingScene extends Phaser.Scene {
 
     this.sky = this.add.graphics().setDepth(0);
     this.coast = this.add.image(0, 0, 'landing-coast').setOrigin(0.5, 1).setDepth(1);
+    // Painted sky and shoreline for the first level; its bottom edge is the far grass.
+    this.backdrop = this.add.image(0, 0, 'landing-pad-backdrop').setOrigin(0.5, 1).setDepth(1).setVisible(false);
+    this.backdrop.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
     this.ground = this.add.graphics().setDepth(2);
     this.padImage = this.add.image(0, 0, 'landing-pad').setDepth(3);
     this.shipImage = this.add.image(0, 0, 'landing-ship').setDepth(3);
@@ -478,8 +482,17 @@ export default class LandingScene extends Phaser.Scene {
     // Distant coast with a little parallax; at sea it sits low on the horizon.
     const sea = this.level.surface === 'sea';
     const coastHeight = Math.min(h * (sea ? 0.07 : 0.16), 140);
-    this.coast.setTint(sky.coast).setDisplaySize(w * 1.6, coastHeight)
+    const painted = this.level.backdrop && this.textures.exists(this.level.backdrop);
+    this.coast.setVisible(!painted).setTint(sky.coast).setDisplaySize(w * 1.6, coastHeight)
       .setPosition(w / 2 - this.view.x * 0.04 * sc, this.groundY + 2).setAlpha(sea ? 0.6 : 1);
+    if (painted) {
+      // Cover the sky; the painting keeps its proportions and drifts a little.
+      const art = this.backdrop.setVisible(true);
+      const scale = Math.max((w * 1.1) / art.width, (this.groundY + 6) / art.height);
+      art.setScale(scale).setPosition(w / 2 - this.view.x * 0.03 * sc, this.groundY + 6);
+    } else {
+      this.backdrop.setVisible(false);
+    }
 
     const ground = this.ground.clear();
     ground.fillStyle(sky.ground); ground.fillRect(0, this.groundY, w, h - this.groundY);

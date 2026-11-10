@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { ART } from "../../data/art.js";
 import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 
 // The launch site around the pad: land instead of open water, distant ridges
@@ -10,8 +11,8 @@ import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 // Palettes per mission sky.
 const SITE_PALETTES = {
   day: {
-    land: 0x6f8a52, landEdge: 0x9bb46c, landDeep: 0x4f6a3c,
-    ridgeFar: 0x9cc3d6, ridgeNear: 0x6f98ad, trees: 0x3f5f37,
+    land: 0x8c7d3c, landEdge: 0xa8964c, landDeep: 0x6b5d2a,
+    ridgeFar: 0x9cc3d6, ridgeNear: 0x6f98ad, trees: 0x4f5a2a,
     haze: 0xd4f0ff, concrete: 0xb6bfc6, concreteDark: 0x7d8890, steel: 0x59636d,
     road: 0x8f9396,
   },
@@ -66,6 +67,8 @@ export const flightSceneLaunchSiteMethods = {
     const p = this.getSitePalette();
     const night = Boolean(this.rocketDef.challenge.night);
     const span = 40 * u;
+    // The painted panorama replaces the drawn ridges, treeline and towers.
+    const panorama = this.textures.exists(ART.coastPanorama.key);
 
     // --- far: ridges and haze, behind the low clouds ---
     this.siteFar = this.add.graphics().setDepth(-10);
@@ -79,8 +82,10 @@ export const flightSceneLaunchSiteMethods = {
       g.fillStyle(color, 1);
       g.fillPoints(points, true);
     };
-    ridge(this.siteFar, p.ridgeFar, 0.22 * u, 1.3, u * 0.25);
-    ridge(this.siteFar, p.ridgeNear, 0.12 * u, 4.1, u * 0.18);
+    if (!panorama) {
+      ridge(this.siteFar, p.ridgeFar, 0.22 * u, 1.3, u * 0.25);
+      ridge(this.siteFar, p.ridgeNear, 0.12 * u, 4.1, u * 0.18);
+    }
 
     // Haze: the air between the camera and the horizon lightens it.
     this.siteHaze = this.add.graphics().setDepth(-9.5);
@@ -92,7 +97,7 @@ export const flightSceneLaunchSiteMethods = {
     const g = this.siteMid;
     // Treeline in small bumps, with a clearing around the pad.
     g.fillStyle(p.trees, 1);
-    for (let x = -span; x < span; x += u * 0.06) {
+    for (let x = -span; x < span && !panorama; x += u * 0.06) {
       if (Math.abs(x) < u * 2.4) continue;
       const h = u * (0.035 + 0.025 * (0.5 + 0.5 * ridgeNoise(x / u * 3, 7.7)));
       g.fillEllipse(x, S - h * 0.4, u * 0.09, h * 1.6);
@@ -128,12 +133,34 @@ export const flightSceneLaunchSiteMethods = {
       g.fillRect(x - w / 2, S - h, w, h);
       g.fillRect(x - w / 2, S - h - h * 0.12, w * 1.8, h * 0.05);
     };
-    lattice(-u * 7.5, u * 0.45, u * 0.06);
-    lattice(u * 10, u * 0.32, u * 0.045);
-    g.fillStyle(p.steel, 0.85);
+    if (!panorama) {
+      lattice(-u * 7.5, u * 0.45, u * 0.06);
+      lattice(u * 10, u * 0.32, u * 0.045);
+    }
+    g.fillStyle(p.steel, panorama ? 0 : 0.85);
     g.fillRect(u * 4.6, S - u * 0.28, u * 0.015, u * 0.28);
     g.fillRect(u * 4.75, S - u * 0.28, u * 0.015, u * 0.28);
     g.fillEllipse(u * 4.68, S - u * 0.3, u * 0.22, u * 0.1);
+
+    // Painted horizon: tiles mirrored side by side so the joins match, sized
+    // so its distant towers stand a third of the rocket's height, with the
+    // sea line on the ground line. Tinted for night and storm skies.
+    this.sitePanorama = [];
+    if (panorama) {
+      const art = ART.coastPanorama;
+      const tint = night ? 0x3b4c6a : this.rocketDef.challenge.wind ? 0x9aa6b2 : 0xf2f0ea;
+      const tileWidth = (u * 0.34) / art.towerShare;
+      for (let i = -3; i <= 3; i += 1) {
+        const tile = this.add
+          .image(i * tileWidth, S, art.key)
+          .setOrigin(0.5, art.horizon)
+          .setFlipX(i % 2 !== 0)
+          .setTint(tint)
+          .setDepth(-8.95);
+        tile.setScale(tileWidth / tile.width);
+        this.sitePanorama.push(tile);
+      }
+    }
 
     // --- near: apron, flame trench, masts ---
     this.siteNear = this.add.graphics().setDepth(10.5);
@@ -218,11 +245,11 @@ export const flightSceneLaunchSiteMethods = {
   },
 
   getLaunchSiteObjects() {
-    return [this.siteFar, this.siteHaze, this.siteMid, this.siteNear, this.siteLights, this.siteGlow];
+    return [this.siteFar, this.siteHaze, this.siteMid, ...this.sitePanorama, this.siteNear, this.siteLights, this.siteGlow];
   },
 
   updateLaunchSite(state, padFade) {
-    [this.siteFar, this.siteHaze, this.siteMid, this.siteNear].forEach((o) => o.setAlpha(padFade));
+    [this.siteFar, this.siteHaze, this.siteMid, ...this.sitePanorama, this.siteNear].forEach((o) => o.setAlpha(padFade));
     this.siteLights.setAlpha(padFade * (0.85 + Math.random() * 0.05));
     const nearGround = Phaser.Math.Clamp(1 - state.altitude / 3, 0, 1);
     const glow = (this.flameLevel || 0) * nearGround * padFade;

@@ -83,8 +83,13 @@ export const flightSceneCloudMethods = {
         const side = index % 2 === 0 ? side0 : -side0;
         const slot = Math.floor(index / 2);
         const share = (slot + 0.15 + Math.random() * 0.7) / perSide;
+        // Alternate the two painted cumulus clouds so repeats are less obvious.
+        const variant =
+          art === ART.cloudCumulus && this.textures.exists(ART.cloudCumulus2.key) && Math.random() < 0.5
+            ? ART.cloudCumulus2
+            : art;
         const image = this.add
-          .image(0, 0, art.key)
+          .image(0, 0, variant.key)
           .setOrigin(0.5, 0.9)
           .setFlipX(Math.random() < 0.5)
           .setTint(tint)
