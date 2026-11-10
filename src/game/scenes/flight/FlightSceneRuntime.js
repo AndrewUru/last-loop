@@ -50,6 +50,7 @@ export const flightSceneRuntimeMethods = {
   registerInput() {
     this.input.keyboard.on("keydown-ENTER", this.onResultPrimary);
     this.input.keyboard.on("keydown-ESC", this.onEscapeToHangar);
+    this.createZoomControls();
   },
 
   handleShutdown() {
@@ -245,7 +246,10 @@ export const flightSceneRuntimeMethods = {
       this.orbitShot = Math.min(1, this.orbitShot + delta / 1000 / CAMERA_ORBIT_SHOT_TIME);
     }
     const shot = smoothstep(this.orbitShot);
-    const zoom = Math.exp(Phaser.Math.Linear(Math.log(chaseZoom), Math.log(orbitZoom), shot));
+    // The player's zoom (wheel, +/-, pinch) multiplies the automatic one.
+    this.updateZoomPinch();
+    const zoom =
+      Math.exp(Phaser.Math.Linear(Math.log(chaseZoom), Math.log(orbitZoom), shot)) * (this.userZoom || 1);
 
     const heading = Math.hypot(state.velocity.x, state.velocity.y);
     const lead =

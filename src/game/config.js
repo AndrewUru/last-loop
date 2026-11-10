@@ -30,7 +30,8 @@ export default {
     forceSetTimeOut: false,
   },
   input: {
-    activePointers: 3,
+    // Two thumbs on the controls plus two fingers pinching to zoom.
+    activePointers: 4,
   },
   render: {
     antialias: false,

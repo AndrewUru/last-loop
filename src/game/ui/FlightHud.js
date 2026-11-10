@@ -203,7 +203,7 @@ export default class FlightHud {
     };
     this.keyHint = this.createText(14, "#cfe0f0")
       .setOrigin(0.5, 1)
-      .setText("ESPACIO / W  impulso      A / D  girar      S  separar      ESC  hangar")
+      .setText("ESPACIO / W  impulso      A / D  girar      S  separar      RUEDA / + −  zoom      ESC  hangar")
       .setShadow(0, 1, "#000000", 3, true, true);
 
     this.objects.push(this.panel, this.title, this.body, this.keyHint);

@@ -12,6 +12,7 @@ import { flightSceneOverlayMethods } from "./flight/FlightSceneOverlay.js";
 import { flightSceneRuntimeMethods } from "./flight/FlightSceneRuntime.js";
 import { flightSceneSpeedMethods } from "./flight/FlightSceneSpeed.js";
 import { flightSceneStagingMethods } from "./flight/FlightSceneStaging.js";
+import { flightSceneZoomMethods } from "./flight/FlightSceneZoom.js";
 import { createFlightRuntimeState } from "./flight/FlightSceneState.js";
 
 class FlightScene extends Phaser.Scene {
@@ -248,6 +249,7 @@ Object.assign(
   flightSceneRuntimeMethods,
   flightSceneSpeedMethods,
   flightSceneStagingMethods,
+  flightSceneZoomMethods,
 );
 
 export default FlightScene;
