@@ -95,8 +95,30 @@ export const flightSceneRuntimeMethods = {
   },
 
   updateHud(state) {
-    this.hud.update(state, { stats: this.stats, instruction: this.getMissionInstruction(state) });
+    this.hud.update(state, {
+      stats: this.stats,
+      stageNames: (this.rocketDef.stages || []).map((stage) => stage.name),
+      instruction: this.getMissionInstruction(state),
+    });
     this.touchControlsUi.update(state);
+  },
+
+  // Each phase of the mission that is done gets the orbit celebration and a
+  // banner naming the next goal.
+  celebrateMissionPhase(state) {
+    const register = (obj) => this.addWorldObject(obj);
+    const zoom = this.cameras.main.zoom;
+    shockwave(this, this.rocket.x, this.rocket.y, {
+      color: 0x73f7c0, radius: this.rocketHeight * 2.5, width: 3 / zoom, depth: 26, register, scrollFactor: 1,
+    });
+    sparkles(this, this.rocket.x, this.rocket.y, {
+      count: 30, colors: [0x73f7c0, 0xffffff, 0x68d9ff], speed: 140 / zoom, scale: 0.6 / zoom, depth: 26, register, scrollFactor: 1,
+    });
+    this.audio?.playSuccess?.();
+    const goal = state.missionPhases[state.missionPhase];
+    const total = state.missionPhases.length;
+    const next = goal.type === "raise" ? `sube a ${goal.altitude} km` : "acelera rumbo a la Luna";
+    this.flashBanner("¡En órbita!", `Fase ${state.missionPhase + 1}/${total}: ${next}`, "#9ef6ca");
   },
 
   handlePhaseTransition(state) {
@@ -207,11 +229,17 @@ export const flightSceneRuntimeMethods = {
     const flightZoom = (minViewport * CAMERA_FLIGHT_FILL) / Math.max(this.rocketHeight, 40);
     const climb = smoothstep(renderAltitude / 40);
     const speedShare = Phaser.Math.Clamp(state.speed / FLIGHT_WORLD.orbitTargetHorizontalSpeed, 0, 1.3);
+    // After the first orbit the chase camera pulls back so the target ring
+    // and the curve of the planet stay in view.
+    if (state.missionPhase > 0) {
+      this.phaseShot = Math.min(1, (this.phaseShot || 0) + delta / 2500);
+    }
+    const phasePullback = Phaser.Math.Linear(1, 0.28, smoothstep(this.phaseShot || 0));
     const chaseZoom =
-      Phaser.Math.Linear(padZoom, flightZoom, climb) / (1 + CAMERA_SPEED_PULLBACK * speedShare);
+      (Phaser.Math.Linear(padZoom, flightZoom, climb) / (1 + CAMERA_SPEED_PULLBACK * speedShare)) * phasePullback;
     const orbitZoom =
       (minViewport * 0.44) /
-      (FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude + 30);
+      (FLIGHT_WORLD.planetRadius + (state.finalOrbitAltitude ?? FLIGHT_WORLD.targetOrbitAltitude) + 30);
 
     if (state.orbitAchieved) {
       this.orbitShot = Math.min(1, this.orbitShot + delta / 1000 / CAMERA_ORBIT_SHOT_TIME);

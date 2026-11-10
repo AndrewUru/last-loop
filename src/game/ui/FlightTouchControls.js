@@ -1,8 +1,9 @@
 import Phaser from "phaser";
 import { UI_FONT } from "./theme.js";
 
-// Three on-screen buttons for phones and tablets: steer left/right with the
-// left thumb, hold IMPULSO with the right thumb.
+// On-screen buttons for phones and tablets: steer left/right with the left
+// thumb, hold IMPULSO with the right thumb and tap SEPARAR above it to drop a
+// stage (shown only while there is one to drop).
 export default class FlightTouchControls {
   constructor(scene, options = {}) {
     this.scene = scene;
@@ -16,10 +17,14 @@ export default class FlightTouchControls {
     this.leftButton = this.createButton("◀", 0x8fd7ff);
     this.rightButton = this.createButton("▶", 0x8fd7ff);
     this.thrustButton = this.createButton("IMPULSO", 0xffb26b);
+    this.separateButton = this.createButton("SEPARAR", 0xff8d7a);
 
     this.bindHold(this.leftButton, (active) => this.options.onSteerLeft?.(active));
     this.bindHold(this.rightButton, (active) => this.options.onSteerRight?.(active));
     this.bindHold(this.thrustButton, (active) => this.options.onThrust?.(active));
+    this.bindHold(this.separateButton, (active) => {
+      if (active) this.options.onSeparate?.();
+    });
 
     // A finger can slide off a button before lifting, so releases are matched
     // by pointer id anywhere on screen.
@@ -91,8 +96,10 @@ export default class FlightTouchControls {
     this.layoutButton(this.leftButton, margin + radius, bottom, radius, 0.7);
     this.layoutButton(this.rightButton, margin + radius * 3.4, bottom, radius, 0.7);
     this.layoutButton(this.thrustButton, width - margin - radius * 1.3, bottom - radius * 0.3, radius * 1.3, 0.26);
+    this.layoutButton(this.separateButton, width - margin - radius * 1.3, bottom - radius * 3.2, radius * 0.85, 0.3);
 
     this.objects.forEach((object) => object.setVisible(this.visible));
+    this.applySeparateVisibility();
   }
 
   layoutButton(button, x, y, radius, fontScale) {
@@ -102,7 +109,26 @@ export default class FlightTouchControls {
     button.text.setPosition(x, y).setFontSize(`${Math.round(radius * fontScale)}px`);
   }
 
+  applySeparateVisibility() {
+    const show = this.visible && Boolean(this.canSeparate);
+    this.separateButton.background.setVisible(show);
+    this.separateButton.text.setVisible(show);
+    if (this.separateButton.background.input) {
+      this.separateButton.background.input.enabled = show;
+    }
+  }
+
   update(state) {
+    const canSeparate = state.launched && !state.result && state.stage < (state.stageCount || 1) - 1;
+    if (canSeparate !== this.canSeparate) {
+      this.canSeparate = canSeparate;
+      this.applySeparateVisibility();
+    }
+    if (canSeparate) {
+      // Pulses while the burning stage is empty.
+      const pulse = state.separationCue ? 0.6 + 0.4 * Math.sin(this.scene.time.now / 120) : 0.55;
+      this.separateButton.background.setStrokeStyle(3, 0xff8d7a, pulse);
+    }
     const thrusting = state.engineOn && state.fuelRemaining > 0.01;
     this.thrustButton.text.setAlpha(state.fuelRemaining > 0.01 && !state.result ? 1 : 0.35);
     this.thrustButton.background.setStrokeStyle(3, thrusting ? 0xffe0a8 : 0xffb26b, thrusting ? 1 : 0.9);

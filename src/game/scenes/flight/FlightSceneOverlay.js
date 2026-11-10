@@ -117,7 +117,9 @@ export const flightSceneOverlayMethods = {
     this.lastResultData = result;
     this.resultAccent = result.success ? 0x73f7c0 : 0xff8d8d;
 
-    this.resultTitle.setText(result.success ? "¡En órbita!" : "Misión fallida");
+    const goal = this.rocketDef.challenge.goal;
+    const successTitle = goal?.type === "escape" ? "¡Rumbo a la Luna!" : goal?.type === "raise" ? "¡Órbita alta!" : "¡En órbita!";
+    this.resultTitle.setText(result.success ? successTitle : "Misión fallida");
     this.resultTitle.setColor(result.success ? "#9ef6ca" : "#ffb0b0");
     this.resultBody.setText(result.reason);
     this.resultStats.setText(

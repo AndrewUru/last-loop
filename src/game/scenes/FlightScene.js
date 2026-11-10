@@ -71,6 +71,7 @@ class FlightScene extends Phaser.Scene {
       onSteerLeft: (active) => { this.touchControls.steerLeft = active; },
       onSteerRight: (active) => { this.touchControls.steerRight = active; },
       onThrust: (active) => { this.touchControls.thrust = active; },
+      onSeparate: () => { this.touchControls.separate = true; },
     });
     this.touchControlsUi.create();
   }
@@ -200,6 +201,10 @@ class FlightScene extends Phaser.Scene {
     if (this.lastPhaseId !== state.phaseId) {
       this.handlePhaseTransition(state);
       this.lastPhaseId = state.phaseId;
+    }
+    if ((this.lastMissionPhase ?? 0) !== state.missionPhase) {
+      this.lastMissionPhase = state.missionPhase;
+      this.celebrateMissionPhase(state);
     }
     this.renderFlight(state, prediction, time, delta);
     this.applyLaunchCinematicCamera(state, 0, delta);

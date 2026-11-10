@@ -115,6 +115,12 @@ export const flightSceneEnvironmentMethods = {
     this.orbitGuides.strokeCircle(0, 0, renderRadius(FLIGHT_WORLD.atmosphereHeight));
     this.orbitGuides.lineStyle(3, 0x73f7c0, 0.75);
     this.orbitGuides.strokeCircle(0, 0, renderRadius(FLIGHT_WORLD.orbitMinAltitude));
+    // The high orbit a mission asks for after reaching the first one.
+    const goal = this.rocketDef?.challenge.goal;
+    if (goal?.type === "raise") {
+      this.orbitGuides.lineStyle(3, 0xffd166, 0.8);
+      this.orbitGuides.strokeCircle(0, 0, renderRadius(goal.altitude));
+    }
   },
 
   // The tower stands left of the rocket with its access arms reaching it.

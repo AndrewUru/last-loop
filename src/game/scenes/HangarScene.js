@@ -54,7 +54,8 @@ function getRatings(rocket) {
   const { twr, controlAuthority } = rocket.stats;
   return [
     { label: "POTENCIA", value: (twr - 1) / 1.8 },
-    { label: "COMBUSTIBLE", value: getPrediction(rocket).fuelPercent / 80 },
+    // Tank size: the missions now spend most of it, so what is left over says little.
+    { label: "COMBUSTIBLE", value: rocket.stats.fuel / 360 },
     { label: "AGILIDAD", value: 0.3 + controlAuthority * 2 },
   ];
 }

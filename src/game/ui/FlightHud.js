@@ -22,10 +22,15 @@ const BAR_COLORS = {
 
 // One instruction, one hint and three bars: everything the pilot needs to
 // decide what to do next, nothing else.
-export function getFlightInstruction(state, thrustLabel) {
+// extra.stageNames: names of the rocket's stages; extra.separateLabel: the
+// key or button that drops a stage.
+export function getFlightInstruction(state, thrustLabel, extra = {}) {
   if (state.orbitAchieved) {
+    if (state.escaping) {
+      return { title: "¡Rumbo a la Luna!", body: "La última etapa te ha sacado de la órbita.", tone: "success" };
+    }
     return {
-      title: "¡En órbita!",
+      title: state.finalOrbitAltitude ? "¡Órbita alta!" : "¡En órbita!",
       body: "El cohete ya no cae: ahora gira alrededor del planeta.",
       tone: "success",
     };
@@ -65,6 +70,49 @@ export function getFlightInstruction(state, thrustLabel) {
         ? `Vuelves a la atmósfera. Prepárate para frenar con ${thrustLabel}.`
         : "Vuelves a la atmósfera sin combustible.",
       tone: "warning",
+    };
+  }
+  // An empty stage with another one above it: drop it, before anything else.
+  if (state.separationCue) {
+    const name = extra.stageNames?.[state.stage] || "La etapa";
+    const next = extra.stageNames?.[state.stage + 1];
+    return {
+      title: `¡Separa la etapa!  (${extra.separateLabel || "S"})`,
+      body: next ? `${name} está vacía: suéltala para encender ${next}.` : `${name} está vacía: suéltala.`,
+      tone: "warning",
+    };
+  }
+  // After orbit: the goal of the current phase.
+  if (state.missionPhase > 0 && state.missionPhases) {
+    const goal = state.missionPhases[state.missionPhase];
+    const lock = Math.round(clamp(state.orbitHoldTime / FLIGHT_WORLD.orbitLockDuration, 0, 1) * 100);
+    if (state.orbitWindow) {
+      return goal.type === "escape"
+        ? { title: `Saliendo de la órbita… ${lock}%`, body: "Mantén el empuje un momento más.", tone: "success" }
+        : { title: `Fijando la órbita alta… ${lock}%`, body: "Mantén la altura: ni subas ni bajes.", tone: "success" };
+    }
+    if ((state.totalFuel ?? state.fuelRemaining) <= 0.01) {
+      return { title: "Sin combustible", body: "No queda combustible para terminar la misión.", tone: "danger" };
+    }
+    if (goal.type === "escape") {
+      return {
+        title: "Acelera rumbo a la Luna",
+        body: `Sigue la flecha hasta ${goal.speed.toFixed(1)} km/s.`,
+        tone: "info",
+      };
+    }
+    const distance = Math.round(goal.altitude - state.altitude);
+    if (state.cutEngineCue) {
+      return {
+        title: `Planeando hacia ${goal.altitude} km`,
+        body: Math.abs(distance) > 2 ? `Faltan ${Math.abs(distance)} km: suelta el motor y espera.` : "Ya casi: espera sin encender.",
+        tone: "info",
+      };
+    }
+    return {
+      title: state.engineOn ? `Hacia la órbita alta: ${goal.altitude} km` : `Mantén ${thrustLabel} siguiendo la flecha`,
+      body: distance > 0 ? `Sube ${distance} km y frena al llegar.` : `Baja ${-distance} km y estabilízate.`,
+      tone: "info",
     };
   }
   if (state.orbitWindow) {
@@ -155,7 +203,7 @@ export default class FlightHud {
     };
     this.keyHint = this.createText(14, "#cfe0f0")
       .setOrigin(0.5, 1)
-      .setText("ESPACIO / W  impulso      A / D  girar      ESC  hangar")
+      .setText("ESPACIO / W  impulso      A / D  girar      S  separar      ESC  hangar")
       .setShadow(0, 1, "#000000", 3, true, true);
 
     this.objects.push(this.panel, this.title, this.body, this.keyHint);
@@ -273,17 +321,29 @@ export default class FlightHud {
   }
 
   // instruction: a mission's own instruction, shown instead of the usual one.
-  update(state, { stats, instruction: missionInstruction }) {
+  update(state, { stats, stageNames, instruction: missionInstruction }) {
     const touch = Boolean(this.scene.touchControlsUi?.visible);
-    const instruction = missionInstruction || getFlightInstruction(state, touch ? "IMPULSO" : "ESPACIO");
+    // Dropping a stage outranks a mission's own hint.
+    const instruction =
+      (!state.separationCue && missionInstruction) ||
+      getFlightInstruction(state, touch ? "IMPULSO" : "ESPACIO", { stageNames, separateLabel: touch ? "SEPARAR" : "S" });
     this.setTextIfChanged(this.title, "title", instruction.title);
     this.setTextIfChanged(this.body, "body", instruction.body);
     this.title.setColor(TONE_COLORS[instruction.tone]);
 
-    const orbitAltitude = FLIGHT_WORLD.orbitMinAltitude;
-    const orbitSpeed = FLIGHT_WORLD.orbitTargetHorizontalSpeed;
+    // The bars aim at the current phase: the high orbit's altitude, or the
+    // escape speed; the fuel bar is the burning stage's tank.
+    const goal = state.missionPhases?.[state.missionPhase];
+    const orbitAltitude = goal?.type === "raise" ? goal.altitude : FLIGHT_WORLD.orbitMinAltitude;
+    const orbitSpeed = goal?.type === "escape" ? goal.speed : FLIGHT_WORLD.orbitTargetHorizontalSpeed;
     const lateralSpeed = Math.abs(state.horizontalVelocity);
-    const fuelShare = stats.fuel > 0 ? clamp(state.fuelRemaining / stats.fuel, 0, 1) : 0;
+    const capacity = state.stageCapacity ?? stats.fuel;
+    const fuelShare = capacity > 0 ? clamp(state.fuelRemaining / capacity, 0, 1) : 0;
+    const stageCount = state.stageCount || 1;
+    const fuelLabel = stageCount > 1 ? `ETAPA ${state.stage + 1}/${stageCount}` : "COMBUSTIBLE";
+    if (this.bars.fuel.label.text !== fuelLabel) {
+      this.bars.fuel.label.setText(fuelLabel);
+    }
 
     this.updateBar(
       this.bars.altitude,
@@ -305,7 +365,7 @@ export default class FlightHud {
       this.bars.fuel,
       fuelShare,
       `${Math.round(fuelShare * 100)}%`,
-      fuelShare < 0.2 ? BAR_COLORS.low : BAR_COLORS.fuel,
+      fuelShare < 0.2 || state.separationCue ? BAR_COLORS.low : BAR_COLORS.fuel,
     );
   }
 }
