@@ -41,7 +41,11 @@ export const FLIGHT_WORLD = {
   guidanceGravityFloor: 0.05,
   turnProfileAltitude: 150,
   turnProfileEndPitch: 10,
-  missionTimeout: 300,
+  missionTimeout: 600,
+  // Raising the orbit: how close to the target altitude (km) and how still
+  // (km/s of climb) the rocket must be to lock it.
+  raiseTolerance: 12,
+  raiseMaxClimb: 0.12,
   // Seconds the engines run against the hold-down clamps before liftoff.
   // Letting go of the thrust on the pad starts the count again.
   holdDownTime: 0.7,
@@ -477,7 +481,19 @@ export default class FlightModel {
   // After the orbit locks the vehicle glides onto the target orbit so the
   // camera can pull back for the victory shot.
   updateStableOrbit(state, dt) {
-    const targetAltitude = FLIGHT_WORLD.targetOrbitAltitude;
+    if (state.escaping) {
+      // Bound for the Moon: keep going, out and away from the planet.
+      state.engineOn = false;
+      state.throttle = 0;
+      state.verticalVelocity += (1.2 - state.verticalVelocity) * Math.min(1, dt);
+      state.altitude += state.verticalVelocity * dt;
+      state.downrange += state.horizontalVelocity * dt;
+      state.angularVelocity = 0;
+      state.currentG = 0;
+      state.atmosphereDensity = 0;
+      return this.syncDerivedState(state);
+    }
+    const targetAltitude = state.finalOrbitAltitude ?? FLIGHT_WORLD.targetOrbitAltitude;
     const targetVelocity = FLIGHT_TARGETS.orbitalVelocity * Math.sign(state.horizontalVelocity || 1);
 
     state.engineOn = false;
@@ -496,7 +512,7 @@ export default class FlightModel {
   }
 
   predictStableOrbit(state) {
-    const radius = FLIGHT_WORLD.planetRadius + FLIGHT_WORLD.targetOrbitAltitude;
+    const radius = FLIGHT_WORLD.planetRadius + (state.finalOrbitAltitude ?? FLIGHT_WORLD.targetOrbitAltitude);
     const points = [];
     const count = 192;
 
