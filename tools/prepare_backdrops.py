@@ -6,8 +6,9 @@
   The horizon band only (hills, towers, sea, scrub), with the sky above and
   the foreground below faded to transparent so it blends into the game's own
   sky and ground. Prints where the horizon sits, as a share of the height.
-- Landing pad scene -> public/assets/landing/pad-backdrop.webp
-  Sky and horizon above the painted pad; the game draws its own pad.
+- Landing backdrops -> public/assets/landing/<level>-backdrop.webp
+  Sky and horizon only, cut just below the far shore or sea line; the game
+  draws its own ground, sea and pad below them.
 - Painted cumulus -> public/assets/world/cloud-cumulus-2.webp
   Drops the blue specks a background remover left around the edges.
 
@@ -64,15 +65,26 @@ def coast_panorama():
     return result
 
 
-def landing_backdrop():
-    source = Image.open(ART / "landing" / "Plataforma costera bajo cielo azul.png").convert("RGB")
-    width, height = source.size
+# Source painting, output name, and where to cut it (share of the height).
+LANDING_BACKDROPS = [
     # Down to just below the far grass, above the painted pad.
-    bottom = round(height * 0.835)
-    crop = source.crop((0, 0, width, bottom))
-    save(crop.convert("RGBA"), OUT / "landing" / "pad-backdrop.webp", width=1600)
-    grass = source.crop((0, bottom - 12, width, bottom)).resize((1, 1), Image.LANCZOS).getpixel((0, 0))
-    print(f"  grass colour #{grass[0]:02x}{grass[1]:02x}{grass[2]:02x}")
+    ("Plataforma costera bajo cielo azul.png", "pad-backdrop.webp", 0.835),
+    # Lighthouse cliffs at dusk: a band of rough sea under the horizon.
+    ("Faro en los acantilados al anochecer.png", "crosswind-backdrop.webp", 0.74),
+    # Night sea: stars, ship lights and a strip of swell under the horizon.
+    ("Mar nocturno bajo la Vía Láctea.png", "droneship-backdrop.webp", 0.72),
+]
+
+
+def landing_backdrops():
+    for name, output, cut in LANDING_BACKDROPS:
+        source = Image.open(ART / "landing" / name).convert("RGB")
+        width, height = source.size
+        bottom = round(height * cut)
+        crop = source.crop((0, 0, width, bottom))
+        save(crop.convert("RGBA"), OUT / "landing" / output, width=1600)
+        edge = source.crop((0, bottom - 12, width, bottom)).resize((1, 1), Image.LANCZOS).getpixel((0, 0))
+        print(f"  bottom edge colour #{edge[0]:02x}{edge[1]:02x}{edge[2]:02x}")
 
 
 def painted_cloud():
@@ -94,5 +106,5 @@ def painted_cloud():
 
 if __name__ == "__main__":
     coast_panorama()
-    landing_backdrop()
+    landing_backdrops()
     painted_cloud()

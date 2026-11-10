@@ -17,8 +17,8 @@ const BURN_MARGIN = 25;
 
 const SKIES = {
   day: { top: 0x1a6fe0, bottom: 0x7cc4f5, coast: 0x6d8fa6, ground: 0x93a24a, groundDark: 0x6f7c34, stars: 0 },
-  dusk: { top: 0x1f2a57, bottom: 0xf29e6d, coast: 0x3a3550, ground: 0x4c4a4a, groundDark: 0x2e2c30, stars: 0.35 },
-  night: { top: 0x030712, bottom: 0x16294a, coast: 0x0d1626, ground: 0x0b2a40, groundDark: 0x061624, stars: 1 },
+  dusk: { top: 0x1f2a57, bottom: 0xf29e6d, coast: 0x3a3550, ground: 0x4a3540, groundDark: 0x2e2129, stars: 0.35 },
+  night: { top: 0x030712, bottom: 0x16294a, coast: 0x0d1626, ground: 0x0d1b2c, groundDark: 0x081220, stars: 1 },
 };
 
 const GOOD = 0x73f7c0;
@@ -38,7 +38,11 @@ export default class LandingScene extends Phaser.Scene {
     svg('landing-pad', 'landing-pad.svg', 1520, 140);
     svg('landing-ship', 'droneship.svg', 1800, 380);
     svg('landing-coast', 'coast.svg', 1600, 260);
-    if (!this.textures.exists('landing-pad-backdrop')) this.load.image('landing-pad-backdrop', `${ASSET}pad-backdrop.webp`);
+    // Painted skies, one per level (landing-<id>-backdrop).
+    ['pad', 'crosswind', 'droneship'].forEach(id => {
+      const key = `landing-${id}-backdrop`;
+      if (!this.textures.exists(key)) this.load.image(key, `${ASSET}${id}-backdrop.webp`);
+    });
   }
 
   create() {
@@ -55,7 +59,10 @@ export default class LandingScene extends Phaser.Scene {
     this.coast = this.add.image(0, 0, 'landing-coast').setOrigin(0.5, 1).setDepth(1);
     // Painted sky and shoreline for the first level; its bottom edge is the far grass.
     this.backdrop = this.add.image(0, 0, 'landing-pad-backdrop').setOrigin(0.5, 1).setDepth(1).setVisible(false);
-    this.backdrop.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
+    ['pad', 'crosswind', 'droneship'].forEach(id => {
+      const key = `landing-${id}-backdrop`;
+      if (this.textures.exists(key)) this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR);
+    });
     this.ground = this.add.graphics().setDepth(2);
     this.padImage = this.add.image(0, 0, 'landing-pad').setDepth(3);
     this.shipImage = this.add.image(0, 0, 'landing-ship').setDepth(3);
@@ -487,6 +494,7 @@ export default class LandingScene extends Phaser.Scene {
       .setPosition(w / 2 - this.view.x * 0.04 * sc, this.groundY + 2).setAlpha(sea ? 0.6 : 1);
     if (painted) {
       // Cover the sky; the painting keeps its proportions and drifts a little.
+      if (this.backdrop.texture.key !== this.level.backdrop) this.backdrop.setTexture(this.level.backdrop);
       const art = this.backdrop.setVisible(true);
       const scale = Math.max((w * 1.1) / art.width, (this.groundY + 6) / art.height);
       art.setScale(scale).setPosition(w / 2 - this.view.x * 0.03 * sc, this.groundY + 6);
@@ -515,7 +523,7 @@ export default class LandingScene extends Phaser.Scene {
     const waves = this.sea.clear();
     if (sea) {
       const waterline = this.groundY + PAD_SPAN * sc * (80 / 640);
-      waves.fillStyle(0x0a3550, 0.85);
+      waves.fillStyle(0x0d1d30, 0.95);
       waves.fillRect(0, waterline, w, h - waterline);
       waves.lineStyle(2, 0x6fc3e8, 0.35);
       for (let row = 0; row < 4; row++) {
