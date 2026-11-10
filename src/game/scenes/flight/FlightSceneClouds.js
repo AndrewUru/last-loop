@@ -1,5 +1,7 @@
 import Phaser from "phaser";
 import { ART } from "../../data/art.js";
+import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
+import { FLAT_GROUND_SCALE } from "./FlightSceneConstants.js";
 
 // Painted clouds around the pad, in rocket heights: base is the height of the
 // cloud's flat bottom above the ground, along its distance from the pad
@@ -134,19 +136,20 @@ export const flightSceneCloudMethods = {
       : null;
   },
 
-  // Keeps every cloud over the same spot of ground while the flat horizon on
-  // the pad bends into the round planet.
+  // Clouds belong to the flat horizon around the pad. They stay laid out on
+  // it, upright, instead of bending with the ground into the round planet
+  // (that swung and tilted them on the way up); they fade out as it bends.
   layoutClouds() {
-    if (!this.clouds || !this.groundShape) {
+    if (!this.clouds) {
       return;
     }
-    const { centerY, radius } = this.groundShape;
+    const planetRadius = FLIGHT_WORLD.planetRadius;
+    const radius = planetRadius * FLAT_GROUND_SCALE;
+    const centerY = radius - planetRadius;
     this.clouds.forEach((cloud) => {
       const angle = cloud.along / radius;
       const distance = radius + cloud.base;
-      cloud.image
-        .setPosition(Math.sin(angle) * distance, centerY - Math.cos(angle) * distance)
-        .setRotation(angle);
+      cloud.image.setPosition(Math.sin(angle) * distance, centerY - Math.cos(angle) * distance).setRotation(0);
     });
   },
 
@@ -156,7 +159,9 @@ export const flightSceneCloudMethods = {
       0,
       1,
     );
-    const fade = 1 - t * t * (3 - 2 * t);
+    // Gone before the ground visibly curves (a quarter of the way round).
+    const bend = Phaser.Math.Clamp((this.groundCurve || 0) / 0.25, 0, 1);
+    const fade = Math.min(1 - t * t * (3 - 2 * t), 1 - bend * bend * (3 - 2 * bend));
     // The wind carries the clouds slowly sideways while they are in view.
     if (fade > 0.01) {
       const dt = this.game.loop.delta / 1000;
