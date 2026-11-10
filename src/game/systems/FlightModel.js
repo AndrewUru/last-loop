@@ -30,7 +30,7 @@ export const FLIGHT_WORLD = {
   earthEscapeAltitude: 430,
   // Lateral speed at which the rocket stops falling. Gravity fades out as the
   // rocket approaches it, so "go sideways fast enough" is the whole orbit rule.
-  orbitTargetHorizontalSpeed: 5,
+  orbitTargetHorizontalSpeed: 6,
   orbitSpeedRatio: 0.96,
   // Flight path must be within this many degrees of level to lock the orbit.
   orbitMaxPathAngle: 15,
@@ -276,8 +276,9 @@ export default class FlightModel {
     let ex = Math.max(0, orbitSpeed * 1.01 - Math.abs(state.horizontalVelocity));
     let ey = 0;
     if (phase.type === "raise") {
+      // Climb as fast as can still be stopped at the target, then hold it.
       const distance = phase.altitude - state.altitude;
-      const desired = clamp(distance / 30, -1.2, 1.6);
+      const desired = Math.sign(distance) * Math.min(1.6, Math.sqrt(2 * 0.05 * Math.abs(distance)));
       ey = desired - state.verticalVelocity;
     } else if (phase.type === "escape") {
       ex = Math.max(0, phase.speed * 1.02 - Math.abs(state.horizontalVelocity));

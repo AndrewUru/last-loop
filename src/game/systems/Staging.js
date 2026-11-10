@@ -6,7 +6,9 @@
 //   dry    share of its empty mass (the rest is the payload, never dropped)
 //   twr    thrust-to-weight at its ignition, against everything still
 //          attached; the first stage uses the rocket's liftoff twr instead
-//   burn   burn rate relative to the rocket's (default 1)
+//   time   seconds the stage burns at full throttle. This is what limits a
+//          stage in this world (thrust is generous), so it decides how far
+//          each stage gets you; without it the rocket's burn rate is used
 // Without a list the rocket is a single stage, as before staging existed.
 
 const GRAVITY = 0.196;
@@ -32,7 +34,7 @@ export function buildStages(stats, defs = null) {
     kind: def.kind || "core",
     fuel: stats.fuel * def.fuel,
     dry: totalDry * (def.dry || 0),
-    burnRate: baseBurn * (def.burn ?? 1),
+    burnRate: def.time ? (stats.fuel * def.fuel) / def.time : baseBurn,
     twr: def.twr,
     thrust: 0,
   }));
