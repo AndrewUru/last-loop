@@ -24,7 +24,7 @@ export const LANDING_LEVELS = Object.freeze([
     title: 'Viento cruzado',
     place: 'Vandenberg · costa del Pacífico',
     briefing: 'Ráfagas laterales empujan el propulsor.\nInclínalo contra el viento para mantenerte centrado.',
-    surface: 'land', sky: 'dusk', backdrop: 'landing-crosswind-backdrop',
+    surface: 'land', sky: 'dusk', backdrop: 'landing-crosswind-backdrop', backdropFocus: 0.68,
     fuel: 20, start: { x: [-120, 120], vx: [-5, 5], vy: -20 },
     wind: 0.55, ship: null,
   },

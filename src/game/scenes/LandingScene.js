@@ -178,7 +178,7 @@ export default class LandingScene extends Phaser.Scene {
     const { improved, previous, progress } = recordLanding(this.level.id, r, this.track);
     this.progress = progress;
     const tip = getLandingTip(s, this.burnStartAltitude);
-    const index = LANDING_LEVELS.indexOf(this.level);
+    const index = LANDING_LEVELS.findIndex(level => level.id === this.level.id);
     const next = LANDING_LEVELS[index + 1];
     const nextOpen = next && isLevelUnlocked(progress, next.id);
     const medal = LANDING_MEDALS.find(m => m.id === r.medal);
@@ -497,7 +497,10 @@ export default class LandingScene extends Phaser.Scene {
       if (this.backdrop.texture.key !== this.level.backdrop) this.backdrop.setTexture(this.level.backdrop);
       const art = this.backdrop.setVisible(true);
       const scale = Math.max((w * 1.1) / art.width, (this.groundY + 6) / art.height);
-      art.setScale(scale).setPosition(w / 2 - this.view.x * 0.03 * sc, this.groundY + 6);
+      // backdropFocus: the share of the painting's width kept centred (the lighthouse sits right).
+      const focus = this.level.backdropFocus ?? 0.5;
+      const shift = Phaser.Math.Clamp((0.5 - focus) * art.width * scale, w / 2 - (art.width * scale) / 2, (art.width * scale) / 2 - w / 2);
+      art.setScale(scale).setPosition(w / 2 + shift - this.view.x * 0.03 * sc, this.groundY + 6);
     } else {
       this.backdrop.setVisible(false);
     }
@@ -751,7 +754,7 @@ export default class LandingScene extends Phaser.Scene {
     panel.fillStyle(0x0b121a, 0.78); panel.fillRoundedRect(px, py, pw, ph, 12);
     panel.lineStyle(1, 0xa8c4de, 0.22); panel.strokeRoundedRect(px, py, pw, ph, 12);
 
-    this.hudTitle.setText(`${LANDING_LEVELS.indexOf(this.level) + 1} · ${this.level.title.toUpperCase()}`).setPosition(px + 14, py + 10);
+    this.hudTitle.setText(`${LANDING_LEVELS.findIndex(level => level.id === this.level.id) + 1} · ${this.level.title.toUpperCase()}`).setPosition(px + 14, py + 10);
     this.hudAltitude.setText(`${Math.round(s.altitude)} m`).setPosition(px + 14, py + 28);
 
     const rel = s.vx - s.padVx;
