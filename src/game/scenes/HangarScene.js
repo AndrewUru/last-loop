@@ -7,8 +7,7 @@ import {
   getPatchTextureKey,
   getRocketTextureKey,
   loadSelectedRocketId,
-  saveSelectedRocketId,
-} from "../data/rockets.js";
+  saveSelectedRocketId, getFlightOptions } from "../data/rockets.js";
 import FlightPredictor from "../systems/FlightPredictor.js";
 import MissionSystem from "../systems/MissionSystem.js";
 import { UI_COLORS, addText, formatSeconds } from "../ui/theme.js";
@@ -45,7 +44,7 @@ const predictions = new Map();
 // each rocket is only flown once per session.
 function getPrediction(rocket) {
   if (!predictions.has(rocket.id)) {
-    predictions.set(rocket.id, FlightPredictor.predict(rocket.stats));
+    predictions.set(rocket.id, FlightPredictor.predict(rocket.stats, getFlightOptions(rocket)));
   }
   return predictions.get(rocket.id);
 }

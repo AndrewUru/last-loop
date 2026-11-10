@@ -26,7 +26,8 @@ export const flightSceneStagingMethods = {
     // so together they draw the rocket exactly as one image would.
     const piece = ([left, top, right, bottom]) => {
       const image = this.add.image(0, 0, key).setOrigin(0.5, 1).setScale(scale);
-      image.setCrop(left * frame.width, top * frame.height, (right - left) * frame.width, (bottom - top) * frame.height);
+      image.cropRect = [left * frame.width, top * frame.height, (right - left) * frame.width, (bottom - top) * frame.height];
+      image.setCrop(...image.cropRect);
       image.cropShare = [left, top, right, bottom];
       return image;
     };
@@ -105,7 +106,7 @@ export const flightSceneStagingMethods = {
           .setRotation(rotation)
           .setDepth(19.5),
       );
-      copy.setCrop(image._crop.x, image._crop.y, image._crop.width, image._crop.height);
+      copy.setCrop(...image.cropRect);
       // Side boosters peel outwards and tumble; in-line stages fall straight
       // back. Positions are kept relative to the rocket so the drop reads the
       // same at any speed.
@@ -119,7 +120,6 @@ export const flightSceneStagingMethods = {
         },
         pull: { x: -heading.x * u * 0.35, y: -heading.y * u * 0.35 },
         spin: away * 0.6 + Phaser.Math.FloatBetween(-0.15, 0.15),
-        pivot: { x: centre * this.rocketWidth, y: 0 },
         life: DEBRIS_LIFE,
       });
     });

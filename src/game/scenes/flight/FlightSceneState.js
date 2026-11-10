@@ -10,6 +10,7 @@ function createFlightKeys(input) {
     a: Phaser.Input.Keyboard.KeyCodes.A,
     d: Phaser.Input.Keyboard.KeyCodes.D,
     space: Phaser.Input.Keyboard.KeyCodes.SPACE,
+    s: Phaser.Input.Keyboard.KeyCodes.S,
   });
 }
 
@@ -22,8 +23,8 @@ export function createFlightRuntimeState(input, stats, options) {
     lastPhaseId: null,
     maxAltitude: 0,
     flightTrail: [],
-    controls: { engineOn: false, throttle: 0, steer: 0 },
-    touchControls: { steerLeft: false, steerRight: false, thrust: false },
+    controls: { engineOn: false, throttle: 0, steer: 0, separate: false },
+    touchControls: { steerLeft: false, steerRight: false, thrust: false, separate: false },
     cameraState: { initialized: false, x: 0, y: 0, zoom: 1 },
     cameraRumbleLevel: 0,
     orbitShot: 0,

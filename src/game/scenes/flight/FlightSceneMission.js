@@ -1,6 +1,6 @@
 import Phaser from "phaser";
-import { MAX_Q_TOLERANCE, formatSpeed, getPatchTextureKey } from "../../data/rockets.js";
-import FlightPredictor from "../../systems/FlightPredictor.js";
+import { MAX_Q_TOLERANCE, formatSpeed, getPatchTextureKey, getFlightOptions } from "../../data/rockets.js";
+import FlightPredictor, { getFuelPercent } from "../../systems/FlightPredictor.js";
 import { UI_FONT, formatSeconds } from "../../ui/theme.js";
 import { FX_TEXTURES } from "./FlightSceneExhaust.js";
 import { toRenderSpace } from "./FlightSceneUtils.js";
@@ -44,7 +44,7 @@ export const flightSceneMissionMethods = {
     this.missionObjects = [];
 
     if (challenge.targets || challenge.hazards) {
-      this.climbPath = FlightPredictor.tracePath(this.stats);
+      this.climbPath = FlightPredictor.tracePath(this.stats, getFlightOptions(this.rocketDef));
     }
     if (challenge.targets) {
       const { kind, count } = challenge.targets;
@@ -226,15 +226,22 @@ export const flightSceneMissionMethods = {
     this.updateMissionTracker(state);
   },
 
-  // Single-burn missions: once the engine is let go of in flight it stays off.
-  // Letting go on the pad, before the clamps release, does not count.
+  // Single-burn missions: during the climb to orbit each stage lights once;
+  // letting go of the engine in flight locks it until the next stage. Letting
+  // go on the pad, before the clamps release, does not count, and after
+  // orbit the engine is free again.
   applyMissionControls(thrust) {
     if (!this.rocketDef.challenge.singleBurn) {
       return thrust;
     }
     const state = this.simulator.state;
-    if (state.launched && !thrust) {
+    if (state.missionPhase > 0 || (this.mission.engineLocked && state.stage !== this.mission.lockedStage)) {
+      this.mission.engineLocked = false;
+      state.engineLocked = false;
+    }
+    if (state.launched && !thrust && state.missionPhase === 0 && state.fuelRemaining > 0.01) {
       this.mission.engineLocked = true;
+      this.mission.lockedStage = state.stage;
       state.engineLocked = true;
     }
     return this.mission.engineLocked ? false : thrust;
@@ -372,15 +379,18 @@ export const flightSceneMissionMethods = {
           : ["Viento fuerte", "muted"];
       case "singleBurn":
         if (!state.launched) {
-          return ["Un solo encendido", "info"];
+          return ["Un encendido por etapa", "info"];
         }
-        return mission.engineLocked ? ["Encendido usado", "muted"] : ["Motor encendido · no lo sueltes", "warn"];
+        if (state.missionPhase > 0) {
+          return ["Ascenso cumplido", "muted"];
+        }
+        return mission.engineLocked ? ["Etapa apagada · separa", "muted"] : ["Motor encendido · no lo sueltes", "warn"];
       case "time": {
         const left = challenge.maxTime - state.time;
         return [`⏱ ${formatSeconds(state.time)} / ${challenge.maxTime} s`, left <= 0 ? "bad" : left < 10 ? "warn" : "info"];
       }
       case "fuel": {
-        const percent = this.stats.fuel > 0 ? Math.round((state.fuelRemaining / this.stats.fuel) * 100) : 0;
+        const percent = getFuelPercent(state, this.stats);
         return [`Combustible ${percent}% · mín. ${challenge.minFuel}%`, percent < challenge.minFuel ? "bad" : "info"];
       }
       default:

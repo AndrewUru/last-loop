@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { getRocket, getRocketTextureKey, loadSelectedRocketId } from "../data/rockets.js";
+import { getFlightOptions, getRocket, loadSelectedRocketId } from "../data/rockets.js";
 import FlightHud from "../ui/FlightHud.js";
 import FlightTouchControls from "../ui/FlightTouchControls.js";
 import { CAMERA_PAD_FILL, CAMERA_LAUNCH_RELEASE_MS, ROCKET_CELL_SIZE } from "./flight/FlightSceneConstants.js";
@@ -11,6 +11,7 @@ import { flightSceneMissionMethods } from "./flight/FlightSceneMission.js";
 import { flightSceneOverlayMethods } from "./flight/FlightSceneOverlay.js";
 import { flightSceneRuntimeMethods } from "./flight/FlightSceneRuntime.js";
 import { flightSceneSpeedMethods } from "./flight/FlightSceneSpeed.js";
+import { flightSceneStagingMethods } from "./flight/FlightSceneStaging.js";
 import { createFlightRuntimeState } from "./flight/FlightSceneState.js";
 
 class FlightScene extends Phaser.Scene {
@@ -51,6 +52,7 @@ class FlightScene extends Phaser.Scene {
       createFlightRuntimeState(this.input, this.stats, {
         wind: challenge.wind,
         windPhase: Math.random() * Math.PI * 2,
+        ...getFlightOptions(this.rocketDef),
       }),
     );
     this.onResultPrimary = (event) => {
@@ -61,15 +63,6 @@ class FlightScene extends Phaser.Scene {
     this.onEscapeToHangar = () => this.returnToHangar();
   }
 
-  createRocket() {
-    const image = this.add.image(0, 0, getRocketTextureKey(this.rocketDef)).setOrigin(0.5, 1);
-    this.rocketHeight = this.rocketDef.height * ROCKET_CELL_SIZE;
-    image.setScale(this.rocketHeight / image.height);
-    this.rocketWidth = image.displayWidth;
-    this.rocket = this.add.container(0, 0, [image]).setDepth(20);
-    this.createExhaust();
-    this.drawLaunchPad();
-  }
 
   createHud() {
     this.hud = new FlightHud(this);
@@ -249,6 +242,7 @@ Object.assign(
   flightSceneOverlayMethods,
   flightSceneRuntimeMethods,
   flightSceneSpeedMethods,
+  flightSceneStagingMethods,
 );
 
 export default FlightScene;

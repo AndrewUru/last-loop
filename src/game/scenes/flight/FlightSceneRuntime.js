@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { getFuelPercent } from "../../systems/FlightPredictor.js";
 import { shockwave, sparkles } from "../../fx/Fx.js";
 import MissionSystem from "../../systems/MissionSystem.js";
 import { FLIGHT_PHASES, FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
@@ -28,9 +29,11 @@ function smoothstep(value) {
 
 export const flightSceneRuntimeMethods = {
   // offset: across the rocket, from -0.5 (left edge) to 0.5 (right edge).
-  getExhaustAnchor(offset = 0) {
+  // lift: height of the nozzles above the bottom of the full rocket (upper
+  // stages burn higher up once the lower ones are gone).
+  getExhaustAnchor(offset = 0, lift = 0) {
     const localX = offset * this.rocketWidth;
-    const localY = -this.rocketHeight * 0.015;
+    const localY = -lift - this.rocketHeight * 0.015;
     const cos = Math.cos(this.rocket.rotation);
     const sin = Math.sin(this.rocket.rotation);
 
@@ -61,6 +64,7 @@ export const flightSceneRuntimeMethods = {
       this.controls.engineOn = false;
       this.controls.throttle = 0;
       this.controls.steer = 0;
+      this.controls.separate = false;
       return;
     }
 
@@ -73,10 +77,13 @@ export const flightSceneRuntimeMethods = {
     this.controls.engineOn = thrust;
     this.controls.throttle = thrust ? 1 : 0;
     this.controls.steer = (right ? 1 : 0) - (left ? 1 : 0);
+    this.controls.separate = Phaser.Input.Keyboard.JustDown(this.keys.s) || this.touchControls.separate;
+    this.touchControls.separate = false;
   },
 
   renderFlight(state, prediction, time, delta) {
     this.updateRocketPose(state);
+    this.updateStaging(state, delta);
     this.updateCamera(state, delta);
     this.updateTrail(state);
     this.updateTrajectory(state, prediction);
@@ -118,8 +125,7 @@ export const flightSceneRuntimeMethods = {
 
     this.finished = true;
     const success = state.result === "success";
-    const fuelPercent =
-      this.stats.fuel > 0 ? Math.round((state.fuelRemaining / this.stats.fuel) * 100) : 0;
+    const fuelPercent = getFuelPercent(state, this.stats);
     // The state keeps ticking while the orbit settles, so freeze the time the
     // mission is judged on and show that same number.
     const time = state.time;

@@ -173,10 +173,12 @@ export const flightSceneExhaustMethods = {
       this.flameLayer.add(sprite.setVisible(false));
       return sprite;
     };
-    this.engines = this.rocketDef.engines.map((engine, index) => {
+    this.allEngines = this.getEngineDefinitions().map((engine, index) => {
       const propellant = PROPELLANTS[engine.fuel];
       return {
         offset: engine.x,
+        lift: engine.lift,
+        stage: engine.stage,
         propellant,
         phase: index * 1.7,
         glow: flameSprite(GLOW_TEXTURE, 0.5),
@@ -188,8 +190,7 @@ export const flightSceneExhaustMethods = {
           : [],
       };
     });
-    this.smokeWeights = this.engines.map((engine) => engine.propellant.smokeAmount);
-    this.smokeWeight = this.smokeWeights.reduce((sum, weight) => sum + weight, 0) / this.engines.length;
+    this.setActiveEngines(0);
 
     const smokeCount = Math.round(SMOKE_POOL_SIZE * this.particleDensity);
     this.smokeParticles = [];
@@ -314,7 +315,7 @@ export const flightSceneExhaustMethods = {
       }
 
       const fuel = engine.propellant;
-      const anchor = this.getExhaustAnchor(engine.offset);
+      const anchor = this.getExhaustAnchor(engine.offset, engine.lift);
       const flicker =
         1 +
         Math.sin(seconds * 31 + engine.phase) * 0.04 +
@@ -412,7 +413,7 @@ export const flightSceneExhaustMethods = {
   emitSmokePuff(ground, sideways = false, trail = 1) {
     const engine = this.pickEngine();
     const fuel = engine.propellant;
-    const anchor = this.getExhaustAnchor(engine.offset);
+    const anchor = this.getExhaustAnchor(engine.offset, engine.lift);
     const { along, across } = this.getExhaustAxes();
     const scale = this.exhaustScale;
     const big = ground > 0;
@@ -447,7 +448,7 @@ export const flightSceneExhaustMethods = {
   emitFire(level) {
     const engine = this.engines[Phaser.Math.Between(0, this.engines.length - 1)];
     const fuel = engine.propellant;
-    const anchor = this.getExhaustAnchor(engine.offset);
+    const anchor = this.getExhaustAnchor(engine.offset, engine.lift);
     const { along, across } = this.getExhaustAxes();
     const scale = this.exhaustScale;
     const speed = Phaser.Math.FloatBetween(150, 260) * scale;
@@ -534,7 +535,7 @@ export const flightSceneExhaustMethods = {
   extinguishExhaust() {
     this.flameLevel = 0;
     this.ignitionFlash = 0;
-    this.engines.forEach((engine) =>
+    this.allEngines.forEach((engine) =>
       [engine.glow, engine.outer, engine.inner, engine.core, ...engine.diamonds].forEach((part) => part.setVisible(false)),
     );
   },
@@ -582,7 +583,7 @@ export const flightSceneExhaustMethods = {
   },
 
   updateSmoke(dt) {
-    const nozzle = this.getExhaustAnchor(0);
+    const nozzle = this.getExhaustAnchor(0, this.engines[0]?.lift || 0);
     const heatRadius = this.rocketHeight * 0.8;
     for (let index = this.smokeParticles.length - 1; index >= 0; index -= 1) {
       const particle = this.smokeParticles[index];
