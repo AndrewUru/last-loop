@@ -1,4 +1,5 @@
 import { FLIGHT_PHASES, getPhaseLabel } from "./FlightPhaseController.js";
+import { buildStages } from "./Staging.js";
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -71,22 +72,18 @@ export const FLIGHT_TARGETS = {
 export default class FlightModel {
   // options.wind: strength of the gusts that push the nose around in the
   // atmosphere (radians per second at sea level); windPhase varies them.
+  // options.stages: the rocket's stage list (see Staging.js).
+  // options.phases: the mission, in order; the first is always reaching orbit.
+  //   { type: "orbit" } | { type: "raise", altitude } | { type: "escape", speed }
   constructor(stats, options = {}) {
     this.stats = stats;
     this.wind = options.wind || 0;
     this.windPhase = options.windPhase || 0;
-    this.fuelMassFactor =
-      stats.fuel > 0
-        ? clamp(
-            (stats.mass * 0.54) / Math.max(stats.fuel, 1),
-            0.06,
-            FLIGHT_WORLD.fuelMassFactor,
-          )
-        : 0;
-    this.dryMass = Math.max(1, stats.mass - stats.fuel * this.fuelMassFactor);
-    // stats.twr is the liftoff thrust-to-weight ratio shown in the hangar.
-    this.thrustForce = (stats.twr || 0) * FLIGHT_WORLD.gravity * stats.mass;
-    this.burnRate = Math.max(0.2, stats.fuelUse * FLIGHT_WORLD.fuelBurnScale);
+    const { stages, payloadDry, fuelMassFactor } = buildStages(stats, options.stages);
+    this.stages = stages;
+    this.payloadDry = payloadDry;
+    this.fuelMassFactor = fuelMassFactor;
+    this.phases = options.phases && options.phases.length ? options.phases : [{ type: "orbit" }];
     this.turnRate = degToRad(
       FLIGHT_WORLD.baseTurnRate * (1 + (stats.controlAuthority || 0) * 2),
     );
@@ -96,6 +93,8 @@ export default class FlightModel {
       (1 - clamp(stats.dragReduction || 0, 0, 0.5));
     this.maxPitchUp = degToRad(-170);
     this.maxPitchDown = degToRad(30);
+    // In orbit the nose may point down too, to stop a climb.
+    this.maxPitchDownInOrbit = degToRad(120);
   }
 
   createInitialState() {
@@ -108,7 +107,19 @@ export default class FlightModel {
       velocity: { x: 0, y: 0 },
       radius: FLIGHT_WORLD.planetRadius,
       speed: 0,
-      fuelRemaining: this.stats.fuel,
+      // Fuel in the burning stage; the others keep theirs in stageFuel.
+      fuelRemaining: this.stages[0].fuel,
+      stage: 0,
+      stageCount: this.stages.length,
+      stageFuel: this.stages.map((stage) => stage.fuel),
+      stageCapacity: this.stages[0].fuel,
+      totalFuel: this.stats.fuel,
+      separationCue: false,
+      separations: 0,
+      lastSeparation: null,
+      missionPhase: 0,
+      missionPhases: this.phases,
+      phaseCoast: false,
       time: 0,
       localOrientation: -Math.PI / 2,
       orientation: -Math.PI / 2,
@@ -144,13 +155,54 @@ export default class FlightModel {
     return state;
   }
 
+  // Payload plus every stage still attached, with the fuel left in each.
   getCurrentMass(state) {
-    return this.dryMass + state.fuelRemaining * this.fuelMassFactor;
+    let mass = this.payloadDry;
+    for (let index = state.stage; index < this.stages.length; index += 1) {
+      const fuel = index === state.stage ? state.fuelRemaining : state.stageFuel[index];
+      mass += this.stages[index].dry + fuel * this.fuelMassFactor;
+    }
+    return mass;
+  }
+
+  getStageThrust(state) {
+    return this.stages[state.stage].thrust;
   }
 
   getCurrentTwr(state) {
     const mass = Math.max(this.getCurrentMass(state), 1);
-    return this.thrustForce / mass / FLIGHT_WORLD.gravity;
+    return this.getStageThrust(state) / mass / FLIGHT_WORLD.gravity;
+  }
+
+  canSeparate(state) {
+    return state.stage < this.stages.length - 1;
+  }
+
+  // Drops the burning stage (with whatever fuel it still holds) and makes the
+  // next one the burning stage. Returns the index of the dropped stage.
+  separateStage(state) {
+    if (!state.launched || state.result || !this.canSeparate(state)) {
+      return -1;
+    }
+    const dropped = state.stage;
+    state.stageFuel[dropped] = 0;
+    state.stage += 1;
+    state.fuelRemaining = state.stageFuel[state.stage];
+    state.stageCapacity = this.stages[state.stage].fuel;
+    state.separations += 1;
+    state.lastSeparation = { stage: dropped, time: state.time };
+    this.syncStageState(state);
+    return dropped;
+  }
+
+  syncStageState(state) {
+    state.stageFuel[state.stage] = state.fuelRemaining;
+    let total = 0;
+    for (let index = state.stage; index < this.stages.length; index += 1) {
+      total += state.stageFuel[index];
+    }
+    state.totalFuel = total;
+    state.separationCue = this.canSeparate(state) && state.fuelRemaining <= 0.01;
   }
 
   getEffectiveGravity(horizontalVelocity) {
@@ -186,6 +238,9 @@ export default class FlightModel {
     if (!state.launched || state.altitude < world.guidanceStartAltitude) {
       return degToRad(-90);
     }
+    if (state.missionPhase > 0) {
+      return this.getPhaseGuidance(state);
+    }
 
     const altitudeError = world.guidanceAltitude - state.altitude;
     const gravity = Math.max(this.getEffectiveGravity(state.horizontalVelocity), 0);
@@ -194,7 +249,8 @@ export default class FlightModel {
         ? Math.sqrt((gravity + world.guidanceGravityFloor) * altitudeError)
         : Math.max(-0.3, altitudeError / 20);
     const mass = Math.max(this.getCurrentMass(state), 1);
-    const thrustAcceleration = Math.max(this.thrustForce / mass, 0.01);
+    const stage = state.fuelRemaining <= 0.01 && this.canSeparate(state) ? state.stage + 1 : state.stage;
+    const thrustAcceleration = Math.max(this.stages[stage].thrust / mass, 0.01);
     const verticalNeed =
       gravity + (desiredClimb - state.verticalVelocity) * world.guidanceGain;
     const turnProgress = clamp(state.altitude / world.turnProfileAltitude, 0, 1);
@@ -204,6 +260,31 @@ export default class FlightModel {
       pitchCap,
     );
     return -pitch;
+  }
+
+  // After orbit: steer the thrust towards the velocity change the phase needs.
+  // raise: climb (or sink) to the target altitude and stop there, keeping
+  // orbital speed. escape: speed up prograde. When nothing is needed the
+  // pilot is told to coast (phaseCoast).
+  getPhaseGuidance(state) {
+    const phase = this.phases[state.missionPhase];
+    const orbitSpeed = FLIGHT_WORLD.orbitTargetHorizontalSpeed;
+    let ex = Math.max(0, orbitSpeed * 1.01 - Math.abs(state.horizontalVelocity));
+    let ey = 0;
+    if (phase.type === "raise") {
+      const distance = phase.altitude - state.altitude;
+      const desired = clamp(distance / 30, -1.2, 1.6);
+      ey = desired - state.verticalVelocity;
+    } else if (phase.type === "escape") {
+      ex = Math.max(0, phase.speed * 1.02 - Math.abs(state.horizontalVelocity));
+    }
+    state.phaseCoast = Math.hypot(ex, ey) < 0.05;
+    if (state.phaseCoast) {
+      return 0;
+    }
+    // Rockets always fly towards +x (the guidance turns them right), so 0 is
+    // prograde, -90 deg straight up and +90 deg straight down.
+    return Math.atan2(-ey, ex);
   }
 
   updateGuidance(state, dt) {
@@ -218,15 +299,16 @@ export default class FlightModel {
     state.angularVelocity +=
       (targetRate - state.angularVelocity) *
       Math.min(1, dt * FLIGHT_WORLD.turnResponse);
+    const maxPitchDown = state.missionPhase > 0 ? this.maxPitchDownInOrbit : this.maxPitchDown;
     state.localOrientation = clamp(
       state.localOrientation + state.angularVelocity * dt,
       this.maxPitchUp,
-      this.maxPitchDown,
+      maxPitchDown,
     );
 
     if (
       (state.localOrientation === this.maxPitchUp && state.angularVelocity < 0) ||
-      (state.localOrientation === this.maxPitchDown && state.angularVelocity > 0)
+      (state.localOrientation === maxPitchDown && state.angularVelocity > 0)
     ) {
       state.angularVelocity = 0;
     }
@@ -275,6 +357,7 @@ export default class FlightModel {
   }
 
   syncDerivedState(state) {
+    this.syncStageState(state);
     const pose = this.buildWorldPose(
       state.altitude,
       state.downrange,
@@ -304,6 +387,9 @@ export default class FlightModel {
     }
 
     state.time += dt;
+    if (controls.separate) {
+      this.separateStage(state);
+    }
     state.engineOn = Boolean(controls.engineOn) && state.fuelRemaining > 0.01;
     state.throttle = state.engineOn ? clamp(controls.throttle ?? 1, 0, 1) : 0;
     state.steerInput = state.launched ? clamp(controls.steer ?? 0, -1, 1) : 0;
@@ -331,11 +417,11 @@ export default class FlightModel {
 
     const throttle = state.throttle;
     if (throttle > 0) {
-      state.fuelRemaining = Math.max(0, state.fuelRemaining - this.burnRate * throttle * dt);
+      state.fuelRemaining = Math.max(0, state.fuelRemaining - this.stages[state.stage].burnRate * throttle * dt);
     }
 
     const mass = Math.max(this.getCurrentMass(state), 1);
-    const thrustAcceleration = throttle > 0 ? (this.thrustForce * throttle) / mass : 0;
+    const thrustAcceleration = throttle > 0 ? (this.getStageThrust(state) * throttle) / mass : 0;
     const thrust = {
       x: Math.cos(state.localOrientation) * thrustAcceleration,
       y: -Math.sin(state.localOrientation) * thrustAcceleration,
