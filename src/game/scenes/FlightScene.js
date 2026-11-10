@@ -13,6 +13,8 @@ import { flightSceneRuntimeMethods } from "./flight/FlightSceneRuntime.js";
 import { flightSceneSpeedMethods } from "./flight/FlightSceneSpeed.js";
 import { flightSceneStagingMethods } from "./flight/FlightSceneStaging.js";
 import { flightSceneZoomMethods } from "./flight/FlightSceneZoom.js";
+import { flightSceneCommsMethods } from "./flight/FlightSceneComms.js";
+import { flightSceneIssMethods } from "./flight/FlightSceneIss.js";
 import { createFlightRuntimeState } from "./flight/FlightSceneState.js";
 
 class FlightScene extends Phaser.Scene {
@@ -37,10 +39,12 @@ class FlightScene extends Phaser.Scene {
     this.createHud();
     this.createMission();
     this.createMissionOverlay();
+    this.createComms();
     this.createLaunchCountdown();
     this.createBackdropCamera();
     this.createUiCamera();
     this.registerInput();
+    this.createIss();
     this.scale.on("resize", this.handleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
     this.handleResize({ width: this.scale.width, height: this.scale.height });
@@ -250,6 +254,8 @@ Object.assign(
   flightSceneSpeedMethods,
   flightSceneStagingMethods,
   flightSceneZoomMethods,
+  flightSceneCommsMethods,
+  flightSceneIssMethods,
 );
 
 export default FlightScene;

@@ -30,6 +30,10 @@ export const flightSceneOverlayMethods = {
         lineSpacing: 6,
       })
       .setOrigin(0.5, 0);
+    // Control's debrief of the flight (filled in after the panel opens).
+    this.resultDebrief = this.add
+      .text(0, 0, "", { fontFamily: UI_FONT, fontSize: "15px", color: "#9eb4ca", align: "center", lineSpacing: 4, fontStyle: "italic" })
+      .setOrigin(0.5, 0);
     this.resultSecondaryButton = this.createOverlayButton("Hangar  (ESC)", 0x82b6ff, () =>
       this.returnToHangar(),
     );
@@ -47,6 +51,7 @@ export const flightSceneOverlayMethods = {
       this.resultBody,
       this.resultStats,
       this.resultMissions,
+      this.resultDebrief,
       this.resultSecondaryButton.background,
       this.resultSecondaryButton.text,
       this.resultPrimaryButton.background,
@@ -75,7 +80,7 @@ export const flightSceneOverlayMethods = {
     // The lower half of the badge sits inside the panel and pushes the text down.
     const shift = badge / 2 - 6;
     const panelWidth = Math.min(620, width - 24);
-    const panelHeight = Math.min((compact ? 440 : 400) + shift, height - 24 - badge / 2);
+    const panelHeight = Math.min((compact ? 560 : 500) + shift, height - 24 - badge / 2);
     const left = (width - panelWidth) / 2;
     const top = (height - panelHeight + badge / 2) / 2;
     const centerX = width / 2;
@@ -99,6 +104,10 @@ export const flightSceneOverlayMethods = {
       .setFontSize(compact ? 15 : 17)
       .setWordWrapWidth(textWidth)
       .setPosition(centerX, top + shift + (compact ? 196 : 200));
+    this.resultDebrief
+      .setFontSize(compact ? 13 : 15)
+      .setWordWrapWidth(textWidth)
+      .setPosition(centerX, top + shift + (compact ? 262 : 262));
 
     const buttonY = top + panelHeight - BUTTON_HEIGHT / 2 - 22;
     const buttonWidth = Math.min(BUTTON_WIDTH, (panelWidth - 60) / 2);

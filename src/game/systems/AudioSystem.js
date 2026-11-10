@@ -310,6 +310,15 @@ export default class AudioSystem {
     source.stop(t + 1);
   }
 
+  // Radio squelch before Mission Control speaks: a click, a short hiss and a
+  // two-tone beep.
+  playRadio() {
+    if (!this.ready) return;
+    this.burst({ filterType: "bandpass", frequency: 2600, q: 1.2, level: 0.08, attack: 0.002, decay: 0.12, bus: "ui" });
+    this.tone({ type: "sine", from: 1400, level: 0.05, attack: 0.004, decay: 0.06, bus: "ui", when: 0.02 });
+    this.tone({ type: "sine", from: 1900, level: 0.05, attack: 0.004, decay: 0.07, bus: "ui", when: 0.1 });
+  },
+
   // Pyro bang and the clatter of the stage falling away.
   playStageSeparation() {
     if (!this.ready) return;

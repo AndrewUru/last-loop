@@ -85,6 +85,8 @@ export const flightSceneRuntimeMethods = {
   renderFlight(state, prediction, time, delta) {
     this.updateRocketPose(state);
     this.updateStaging(state, delta);
+    this.updateComms(state);
+    this.updateIss(delta);
     this.updateCamera(state, delta);
     this.updateTrail(state);
     this.updateTrajectory(state, prediction);
@@ -166,14 +168,16 @@ export const flightSceneRuntimeMethods = {
     }
 
     this.time.delayedCall(success ? 1600 : 1200, () => {
-      this.showMissionOverlay({
+      const result = {
         success,
         reason: state.reason,
         time,
         fuelPercent,
         maxAltitude: this.maxAltitude || state.altitude,
         challenge,
-      });
+      };
+      this.showMissionOverlay(result);
+      this.finishComms(state, result);
     });
   },
 
