@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { FX_COLORS, ambientDust, confetti, shockwave, sparkles, transitionTo } from "../fx/Fx.js";
 import { ART } from "../data/art.js";
 import {
   ROCKETS,
@@ -91,6 +92,7 @@ export default class HangarScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(UI_COLORS.background);
     this.layout = this.computeLayout(this.scale.width, this.scale.height);
     this.createBackground();
+    ambientDust(this, { count: this.layout.compact ? 22 : 40, alpha: 0.32 });
     this.createHeader();
     this.createStage();
     this.createNameCard();
@@ -266,7 +268,7 @@ export default class HangarScene extends Phaser.Scene {
     }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
     training.on("pointerdown", () => {
       this.audio?.playClick?.();
-      this.scene.start("LandingScene");
+      transitionTo(this, "LandingScene");
     });
 
   }
@@ -802,6 +804,11 @@ export default class HangarScene extends Phaser.Scene {
       image.clearTint();
       this.tweens.add({ targets: image, scale: baseScale * 1.06, duration: 160, yoyo: true, ease: "Quad.easeOut" });
       this.tweens.add({ targets: this.revealBanner, alpha: 1, duration: 240 });
+      // Celebrate the new rocket: a ring of light, glitter and confetti.
+      const centerY = image.y - image.displayHeight * 0.5;
+      shockwave(this, image.x, centerY, { color: 0xffd166, radius: image.displayHeight * 0.7, width: 5, depth: 50 });
+      sparkles(this, image.x, centerY, { count: 40, colors: FX_COLORS.gold, speed: 320, scale: 0.6, depth: 50 });
+      confetti(this, image.x, image.y - image.displayHeight * 0.2, { count: 90, depth: 50 });
     });
   }
 
@@ -816,6 +823,6 @@ export default class HangarScene extends Phaser.Scene {
     }
 
     this.audio?.playClick?.();
-    this.scene.start("FlightScene", { rocketId: ROCKETS[this.selectedIndex].id });
+    transitionTo(this, "FlightScene", { rocketId: ROCKETS[this.selectedIndex].id });
   }
 }

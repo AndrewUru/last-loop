@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { shockwave, sparkles } from "../../fx/Fx.js";
 import MissionSystem from "../../systems/MissionSystem.js";
 import { FLIGHT_PHASES, FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 import {
@@ -95,6 +96,16 @@ export const flightSceneRuntimeMethods = {
     if (state.phaseId === FLIGHT_PHASES.REENTRY) {
       this.audio?.playAtmosphereWhoosh?.(2);
     } else if (state.phaseId === FLIGHT_PHASES.ORBIT) {
+      // Orbit locked: a ring of light expands from the rocket.
+      const register = (obj) => this.addWorldObject(obj);
+      const zoom = this.cameras.main.zoom;
+      shockwave(this, this.rocket.x, this.rocket.y, {
+        color: 0x73f7c0, radius: this.rocketHeight * 2.5, width: 3 / zoom, depth: 26, register, scrollFactor: 1,
+      });
+      sparkles(this, this.rocket.x, this.rocket.y, {
+        count: 30, colors: [0x73f7c0, 0xffffff, 0x68d9ff], speed: 140 / zoom,
+        scale: 0.6 / zoom, depth: 26, register, scrollFactor: 1,
+      });
       this.cameras.main.shake(112, 0.0015);
       this.audio?.playSuccess?.();
     }

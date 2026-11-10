@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FX_COLORS, confetti, shockwave, sparkles, transitionTo } from '../fx/Fx.js';
 import {
   LANDING, LANDING_LEVELS, LANDING_MEDALS, createLandingState, getLandingLevel, getLandingTip,
   getStoppingHeight, isLevelUnlocked, predictTouchdownX, readLandingProgress, recordLanding, stepLanding,
@@ -146,7 +147,7 @@ export default class LandingScene extends Phaser.Scene {
   }
 
   leave() {
-    if (this.mode === 'menu') this.scene.start('HangarScene');
+    if (this.mode === 'menu') transitionTo(this, 'HangarScene');
     else this.showMenu();
   }
 
@@ -191,6 +192,16 @@ export default class LandingScene extends Phaser.Scene {
       if (r.success && nextOpen) buttons.push({ label: 'SIGUIENTE', action: () => this.startLevel(next), primary: true });
       buttons.push({ label: 'MISIONES', action: () => this.showMenu() });
       this.showPanel(lines, buttons);
+      if (r.success) {
+        const { width: w, height: h } = this.scale;
+        const gold = medal?.id === 'gold';
+        confetti(this, w / 2, h * 0.3, { count: gold ? 120 : 70, colors: gold ? FX_COLORS.gold : FX_COLORS.celebrate });
+        if (this.medalCenter) {
+          const { x, y } = this.medalCenter;
+          sparkles(this, x, y, { count: 26, color: medal?.color ?? 0xffffff, speed: 180, scale: 0.45 });
+          shockwave(this, x, y, { color: medal?.color ?? 0xffffff, radius: 60 });
+        }
+      }
     });
   }
 
@@ -224,11 +235,13 @@ export default class LandingScene extends Phaser.Scene {
     const wrap = pw - 48;
     const items = [];
     let y = 0;
+    let medalY = null;
     lines.forEach(line => {
       if (line.medal) {
         const g = this.add.graphics();
         this.drawMedal(g, 0, y + 30, 26, line.medal);
         const t = addText(this, 0, y + 30, line.medal.label, { size: 11, bold: true, color: '#0b121a' }).setOrigin(0.5);
+        medalY = y + 30;
         items.push({ obj: g, y: 0, graphics: true }, { obj: t, y: y + 30, center: true });
         y += 70;
       } else if (line.bars) {
@@ -295,6 +308,7 @@ export default class LandingScene extends Phaser.Scene {
       else obj.setPosition(w / 2 + (obj.x || 0), contentTop + iy);
       this.overlay.add(obj);
     });
+    this.medalCenter = medalY == null ? null : { x: w / 2, y: contentTop + medalY };
     made.forEach(({ button, bx }) => {
       button.setPosition(w / 2 + bx, top + ph - 34);
       this.overlay.add([button.bg, button.label]);
@@ -321,7 +335,7 @@ export default class LandingScene extends Phaser.Scene {
       ...LANDING_LEVELS.map((level, i) => ({
         card: { level, index: i + 1, locked: !isLevelUnlocked(this.progress, level.id), best: this.progress.best[level.id] || 0 },
       })),
-    ], [{ label: 'HANGAR', action: () => this.scene.start('HangarScene'), primary: false }]);
+    ], [{ label: 'HANGAR', action: () => transitionTo(this, 'HangarScene'), primary: false }]);
     // Enter starts the newest open mission.
     const open = [...LANDING_LEVELS].reverse().find(l => isLevelUnlocked(this.progress, l.id));
     this.primaryAction = () => this.startLevel(open);

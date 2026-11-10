@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { ambientDust, transitionTo } from "../fx/Fx.js";
 import { ART } from "../data/art.js";
 import {
   ROCKETS,
@@ -49,6 +50,8 @@ export default class BootScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(UI_COLORS.background);
     this.drawBackdrop(width, height);
+    // Dust floating in the hangar light behind the menu.
+    ambientDust(this, { count: compact ? 26 : 45, alpha: 0.4 });
 
     const left = compact ? 24 : Math.max(40, width * 0.1);
     const textWidth = compact ? width - 48 : Math.min(560, width * 0.5);
@@ -121,7 +124,7 @@ export default class BootScene extends Phaser.Scene {
       started = true;
       this.audio.resume?.();
       this.audio.playClick?.();
-      this.scene.start("HangarScene");
+      transitionTo(this, "HangarScene");
     };
 
     button.on("pointerover", () => button.setFillStyle(0x27a873, 1));

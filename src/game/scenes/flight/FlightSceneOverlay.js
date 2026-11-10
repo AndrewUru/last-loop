@@ -1,4 +1,5 @@
 import { describeChallenge, getPatchTextureKey } from "../../data/rockets.js";
+import { FX_COLORS, confetti, shockwave, sparkles, transitionTo } from "../../fx/Fx.js";
 import MissionSystem from "../../systems/MissionSystem.js";
 import { UI_FONT, formatSeconds } from "../../ui/theme.js";
 
@@ -157,6 +158,27 @@ export const flightSceneOverlayMethods = {
     this.resultOverlay.setVisible(true);
     this.resultOverlayVisible = true;
     this.showResultPatch(result.challenge);
+    if (result.success) this.celebrateResult(result.challenge);
+  },
+
+  // Confetti over the result card; gold and glitter on the patch when the
+  // mission is completed for the first time.
+  celebrateResult({ completed }) {
+    const register = (obj) => {
+      this.cameras.main.ignore(obj);
+      this.backdropCamera?.ignore(obj);
+    };
+    const { width, height } = this.scale;
+    confetti(this, width / 2, height * 0.42, { count: completed ? 110 : 60, depth: 200, register });
+    if (completed) {
+      const patch = this.resultPatch;
+      this.time.delayedCall(450, () => {
+        const x = patch.x + (patch.parentContainer?.x || 0);
+        const y = patch.y + (patch.parentContainer?.y || 0);
+        sparkles(this, x, y, { count: 36, colors: FX_COLORS.gold, speed: 260, scale: 0.55, depth: 200, register });
+        shockwave(this, x, y, { color: 0xffd166, radius: 90, depth: 200, register });
+      });
+    }
   },
 
   // Earned now: the patch pops in. Earned before: shown as is. Not earned: faded.
@@ -192,6 +214,6 @@ export const flightSceneOverlayMethods = {
   // A freshly unlocked rocket is shown straight away in the hangar.
   returnToHangar() {
     const unlocked = this.lastResultData?.challenge.unlocked;
-    this.scene.start("HangarScene", unlocked ? { rocketId: unlocked.id, revealId: unlocked.id } : { rocketId: this.rocketDef.id });
+    transitionTo(this, "HangarScene", unlocked ? { rocketId: unlocked.id, revealId: unlocked.id } : { rocketId: this.rocketDef.id });
   },
 };
