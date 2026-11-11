@@ -351,6 +351,40 @@ export default class AudioSystem {
     };
   }
 
+  // Plays an encoded voice clip (mp3) through a radio chain: telephone band,
+  // a little clipping and a presence bump. Resolves when the clip ends.
+  async playRadioVoice(encoded) {
+    if (!this.ready) throw new Error("audio not ready");
+    const ctx = this.ctx;
+    const buffer = await ctx.decodeAudioData(encoded);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const drive = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < curve.length; i++) {
+      const x = (i / (curve.length - 1)) * 2 - 1;
+      curve[i] = Math.tanh(x * 3) / Math.tanh(3);
+    }
+    drive.curve = curve;
+    drive.oversample = "2x";
+    const presence = this.filter("peaking", 1800, 1.2);
+    presence.gain.value = 5;
+    const level = this.gain(1.4);
+    this.chain(
+      source,
+      this.filter("highpass", 350, 0.9),
+      this.filter("lowpass", 3200, 0.9),
+      drive,
+      presence,
+      level,
+      this.buses.ui
+    );
+    return new Promise((resolve) => {
+      source.onended = resolve;
+      source.start();
+    });
+  }
+
   // Pyro bang and the clatter of the stage falling away.
   playStageSeparation() {
     if (!this.ready) return;

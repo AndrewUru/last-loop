@@ -89,7 +89,48 @@ export default class MissionControl {
     this.pumping = false;
   }
 
-  say(text, ai) {
+  // ElevenLabs voice from /api/tts, or null when it is off or fails (then
+  // the browser voice takes over). After one 503 it is not asked again.
+  async fetchVoice(text) {
+    if (this.ttsDisabled || this.audio?.muted || !this.audio?.ready) return null;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.status === 503 || res.status === 404) this.ttsDisabled = true;
+      if (!res.ok) return null;
+      return await res.arrayBuffer();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async say(text, ai) {
+    const clip = await this.fetchVoice(text);
+    if (this.closed) return;
+    if (clip) {
+      this.audio.playRadio?.();
+      this.onTransmit?.(text, { ai });
+      const stopStatic = this.audio.startRadioStatic?.() || (() => {});
+      try {
+        await this.audio.playRadioVoice(clip);
+      } catch (e) {
+        // Undecodable clip: fall through silently, the subtitle was shown.
+      }
+      stopStatic();
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return;
+    }
+    return this.sayWithBrowser(text, ai);
+  }
+
+  sayWithBrowser(text, ai) {
     this.audio?.playRadio?.();
     this.onTransmit?.(text, { ai });
     const words = text.split(/\s+/).length;
