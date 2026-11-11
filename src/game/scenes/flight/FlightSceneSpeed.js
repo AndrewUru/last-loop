@@ -6,6 +6,12 @@ const VAPOR_TEXTURE = "fx-vapor-cone";
 const PLASMA_TEXTURE = "fx-reentry-plasma";
 const PLASMA_COOL = 0xff5a1f;
 const PLASMA_HOT = 0xffe2a8;
+// Keep liftoff clear. Streaks build only once the vehicle is well above the
+// launch site and moving fast, rather than appearing at the first acceleration.
+const STREAK_ALTITUDE_START = 12;
+const STREAK_ALTITUDE_FULL = 35;
+const STREAK_SPEED_START = 1.2;
+const STREAK_SPEED_FULL = 3.5;
 
 function isMobile(scale) {
   return scale.width < 760 || (scale.width < 920 && scale.height > scale.width * 1.15);
@@ -157,9 +163,14 @@ export const flightSceneSpeedMethods = {
     const graphics = this.speedLines;
     graphics.clear();
 
+    // Both altitude and speed fade in smoothly: clearing the tower alone
+    // should not make the whole sky look like high-speed flight.
+    const clearance = Phaser.Math.SmoothStep(state.altitude, STREAK_ALTITUDE_START, STREAK_ALTITUDE_FULL);
+    const pace = Phaser.Math.SmoothStep(state.speed, STREAK_SPEED_START, STREAK_SPEED_FULL);
     // Thick air makes bold streaks; in space a faint dust keeps the motion going.
-    const pace = Phaser.Math.Clamp((state.speed - 0.15) / 1.2, 0, 1);
-    const alpha = this.finished || state.orbitAchieved ? 0 : pace * (0.3 + 0.7 * state.atmosphereDensity);
+    const alpha = !state.launched || this.finished || state.orbitAchieved
+      ? 0
+      : clearance * pace * (0.3 + 0.7 * state.atmosphereDensity);
     if (alpha <= 0.01) {
       this.streaks.forEach((streak) => {
         streak.placed = false;

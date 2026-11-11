@@ -12,15 +12,13 @@ import {
   CAMERA_SPEED_PULLBACK,
   DAY_SKY_FADE_END_ALTITUDE,
   DAY_SKY_FADE_START_ALTITUDE,
-  GROUND_CURVE_END,
-  GROUND_CURVE_START,
   PAD_FADE_END,
   PAD_FADE_START,
   ROCKET_CELL_SIZE,
   TRAIL_LIMIT,
   TRAJECTORY_REVEAL_ALTITUDE,
 } from "./FlightSceneConstants.js";
-import { fillDot, getRenderPosition, toRenderSpace } from "./FlightSceneUtils.js";
+import { fillDot, getGroundReveal, getRenderPosition, toRenderSpace } from "./FlightSceneUtils.js";
 
 function smoothstep(value) {
   const t = Phaser.Math.Clamp(value, 0, 1);
@@ -352,8 +350,7 @@ export const flightSceneRuntimeMethods = {
     const padFade = 1 - smoothstep((state.altitude - PAD_FADE_START) / (PAD_FADE_END - PAD_FADE_START));
     // Flat horizon on the pad, round planet once the camera has pulled back.
     // It stays round from then on, even if the rocket falls back down.
-    const renderAltitude = Math.hypot(this.rocket.x, this.rocket.y) - FLIGHT_WORLD.planetRadius;
-    const curve = smoothstep((renderAltitude - GROUND_CURVE_START) / (GROUND_CURVE_END - GROUND_CURVE_START));
+    const curve = getGroundReveal(state.altitude);
     this.setGroundCurve(Math.max(this.groundCurve, curve));
     const earth = smoothstep((this.groundCurve - 0.8) / 0.2);
     this.earthImage.setAlpha(earth);

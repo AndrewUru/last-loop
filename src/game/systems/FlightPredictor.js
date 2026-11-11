@@ -65,16 +65,16 @@ export default class FlightPredictor {
     };
   }
 
-  // Where the perfect climb goes while the engines burn: physics positions of
-  // the rocket's base with its altitude and heading. Missions place rings,
-  // parts and debris along it.
+  // Trace the whole ascent, including the coast from engine cutoff to orbit.
+  // Stopping at cutoff squeezes fast rockets' targets into the launch area.
   static tracePath(stats, options = {}) {
     const samples = [];
     flyPerfectly(stats, options, (state, step) => {
-      if (state.launched && step % TRACE_EVERY === 0) {
+      const reachedOrbit = state.missionPhase > 0 || state.orbitAchieved;
+      if (state.launched && (step % TRACE_EVERY === 0 || reachedOrbit)) {
         samples.push({ altitude: state.altitude, position: { ...state.position }, orientation: state.orientation });
       }
-      return state.missionPhase === 0 && state.cutEngineCue;
+      return reachedOrbit;
     });
     return samples;
   }

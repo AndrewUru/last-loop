@@ -1,6 +1,7 @@
-import Phaser from "phaser";
 import { FLIGHT_WORLD } from "../../systems/FlightSimulator.js";
 import {
+  GROUND_CURVE_START,
+  GROUND_CURVE_END,
   PRESENTATION_BOOST,
   PRESENTATION_BOOST_SCALE,
   PRESENTATION_FADE_END,
@@ -32,16 +33,23 @@ export function fillDot(graphics, x, y, radius) {
 // Monotonic: the rocket always moves up on screen while it climbs.
 export function getPresentationAltitude(altitude) {
   const clamped = Math.max(0, altitude);
-  const fade = Phaser.Math.Clamp(
+  const fade = Math.min(1, Math.max(0,
     (clamped - PRESENTATION_FADE_START) / (PRESENTATION_FADE_END - PRESENTATION_FADE_START),
-    0,
-    1,
-  );
+  ));
   const keep = 1 - fade * fade * (3 - 2 * fade);
   return (
     clamped +
     PRESENTATION_BOOST * (1 - Math.exp(-clamped / PRESENTATION_BOOST_SCALE)) * keep
   );
+}
+
+// The launch boost only affects framing. It must not bend the horizon while
+// the tower and coastal scenery are still visible below the rocket.
+export function getGroundReveal(altitude) {
+  const progress = Math.min(1, Math.max(0,
+    (altitude - GROUND_CURVE_START) / (GROUND_CURVE_END - GROUND_CURVE_START),
+  ));
+  return progress * progress * (3 - 2 * progress);
 }
 
 // Moves a physics-space point radially into the space the rocket is drawn in.

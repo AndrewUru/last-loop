@@ -2,7 +2,7 @@
 
 ![Last Loop: un cohete despegando al amanecer](docs/images/last-loop-cover.webp)
 
-**Last Loop** es un arcade de cohetes de vuelos cortos: eliges uno de diez cohetes legendarios, mantienes pulsado el impulso y lo guías hasta la órbita en poco más de un minuto. Sin menús de ingeniería ni decenas de teclas: impulso, izquierda y derecha.
+**Last Loop** es un arcade de cohetes: eliges uno de diez cohetes legendarios, mantienes pulsado el impulso y lo guías hasta la órbita. Algunas misiones continúan hacia una órbita alta o rumbo a la Luna. Los controles principales son impulso, izquierda, derecha y separación de etapas.
 
 ---
 
@@ -11,12 +11,13 @@
 1. **Elige** un cohete en el hangar. Cada uno vuela distinto: potencia, combustible y agilidad.
 2. **Despega:** mantén pulsado el impulso. Los motores rugen un instante sujetos a la plataforma y el cohete se suelta.
 3. **Sigue la flecha verde** que sale del cohete. Si te desvías se vuelve amarilla y el HUD te dice hacia dónde girar.
-4. **Suelta el motor** cuando el HUD diga _¡Suelta el motor!_: ya tienes velocidad orbital. El cohete planea hasta el **anillo verde**.
-5. **¡En órbita!** La cámara se aleja para enseñarte el planeta entero.
+4. **Separa cada etapa** con `S` o el botón táctil cuando se agote su combustible. La siguiente etapa tiene su propio depósito.
+5. **Suelta el motor** cuando el HUD lo indique. Para la primera órbita, el cohete planea hasta el **anillo verde**.
+6. **Completa las fases:** algunas misiones terminan en la primera órbita; otras piden subir más o acelerar rumbo a la Luna. Sigue el nuevo objetivo del HUD.
 
 ### La regla de la órbita
 
-Hay que pasar el anillo verde (**170 km**) yendo de lado a **5 km/s** y casi en horizontal, y mantenerlo un segundo y medio. El HUD lo resume en tres barras (altitud, velocidad y combustible) y una sola instrucción con lo que toca hacer en cada momento.
+La ventana orbital empieza a **170 km**, con una velocidad lateral de referencia de **6 km/s** y una trayectoria casi horizontal. Hay que mantener la ventana orbital durante un segundo y medio. El HUD muestra altitud, velocidad, combustible y la instrucción del momento.
 
 La línea de puntos marca adónde irías si soltaras el motor ahora: **verde** si te quedas arriba y **roja** si acabarías cayendo.
 
@@ -38,9 +39,9 @@ La línea de puntos marca adónde irías si soltaras el motor ahora: **verde** s
 
 ## 🛬 Entrenamiento de aterrizaje
 
-Desde el botón **ATERRIZAR / PRACTICAR ATERRIZAJE** del hangar puedes practicar la recuperación de la primera etapa del Falcon 9, incluso antes de desbloquearlo en la campaña. Es un modo arcade independiente: no completa misiones ni altera los desbloqueos.
+Desde el botón **ATERRIZAR / PRACTICAR ATERRIZAJE** del hangar puedes practicar la recuperación de la primera etapa del Falcon 9, incluso antes de desbloquearlo en la campaña orbital. Tiene su propia progresión: tierra firme, viento cruzado y barcaza móvil. No altera los desbloqueos de cohetes.
 
-- Comienzas a 600 m, descendiendo, con combustible para 22 segundos de motor.
+- Comienzas a 600 m, descendiendo, con combustible para 22, 20 o 18 segundos de motor según el nivel.
 - Usa los mismos controles de impulso y giro que en el vuelo, o los botones táctiles.
 - Aterriza con ambas patas dentro de la plataforma, velocidad vertical ≤ 4 m/s, lateral ≤ 3 m/s e inclinación ≤ 10°.
 - Recibes hasta 1.000 puntos: precisión (400), suavidad (400) y combustible (200). La mejor puntuación se guarda en este navegador cuando el almacenamiento está disponible.
@@ -54,20 +55,20 @@ Pruebas de física: `npm test`.
 
 ## 🌍 Cohetes y misiones
 
-Cada cohete tiene una misión que solo cuenta si vuelas con ese cohete. Al cumplirla ganas una estrella y se desbloquea el siguiente. Todas terminan en órbita, pero cada una se juega distinto:
+Cada cohete tiene una misión que solo cuenta si vuelas con ese cohete. Al cumplir todas sus fases y retos ganas una estrella y se desbloquea el siguiente. Todas empiezan por alcanzar la órbita:
 
 | #   | Cohete                 | Año  | Misión                  | Qué hay que hacer                                                      |
 | :-- | :--------------------- | :--- | :---------------------- | :--------------------------------------------------------------------- |
 | 1   | Soyuz                  | 1966 | Primera órbita          | Llegar a la órbita                                                     |
-| 2   | Saturno V              | 1967 | Rumbo a la Luna         | Llegar con ≥ 40% de combustible                                        |
-| 3   | Transbordador espacial | 1981 | Misión Hubble           | Recoger las 4 piezas del telescopio durante el ascenso                 |
-| 4   | Energía                | 1987 | Tormenta en Baikonur    | Llegar con ráfagas de viento que desvían el cohete                     |
-| 5   | Ariane 5               | 1996 | Carga delicada          | No pasar de 2,0 km/s entre 10 y 35 km (Max-Q): hay que soltar el motor |
-| 6   | Falcon 9               | 2010 | Noche en Cabo Cañaveral | Lanzamiento de noche con ≥ 50% de combustible                          |
+| 2   | Saturno V              | 1967 | Rumbo a la Luna         | Tras alcanzar la órbita, acelerar hasta 10 km/s rumbo a la Luna |
+| 3   | Transbordador espacial | 1981 | Misión Hubble           | Recoger las 4 piezas y subir a 300 km |
+| 4   | Energía                | 1987 | Tormenta en Baikonur    | Volar con ráfagas de viento y subir a 280 km |
+| 5   | Ariane 5               | 1996 | Carga delicada          | No pasar de 2,0 km/s entre 10 y 35 km (Max-Q) y subir a 340 km |
+| 6   | Falcon 9               | 2010 | Noche en Cabo Cañaveral | Volar de noche hasta 260 km y terminar con ≥ 12% de combustible |
 | 7   | Electron               | 2017 | Slalom                  | Pasar por los 5 anillos                                                |
-| 8   | Falcon Heavy           | 2018 | Encendido único         | El motor solo se enciende una vez: no lo sueltes hasta la orden        |
-| 9   | SLS                    | 2022 | Campo de escombros      | Esquivar los escombros: cada choque cuesta combustible y anula la misión |
-| 10  | Starship               | 2023 | Leyenda                 | Pasar por los 6 anillos en menos de 72 s                               |
+| 8   | Falcon Heavy           | 2018 | Encendido único         | Un encendido por etapa durante el ascenso; después, subir a 360 km |
+| 9   | SLS                    | 2022 | Campo de escombros      | Evitar los escombros y acelerar hasta 10,5 km/s rumbo a la Luna |
+| 10  | Starship               | 2023 | Leyenda                 | Pasar por los 6 anillos y subir a 300 km en menos de 170 s |
 
 Los anillos, las piezas y los escombros se colocan a lo largo del ascenso perfecto de cada cohete, alternando lados para que haya que corregir el rumbo. Durante el vuelo, bajo el HUD, se ve cómo va la misión. Si llegas a la órbita sin cumplirla, la pantalla final te dice qué faltó.
 
@@ -79,6 +80,7 @@ Los anillos, las piezas y los escombros se colocan a lo largo del ascenso perfec
 | :-------------- | :-------------------- | :----------------- |
 | Impulso         | `ESPACIO`, `W` o `↑`  | Mantener `IMPULSO` |
 | Girar           | `A` / `D` o `←` / `→` | Botones `◀` `▶`    |
+| Separar etapa   | `S`                   | Botón de separación |
 | Volver a hangar | `ESC`                 | Botón _Hangar_     |
 | Lanzar / seguir | `ENTER`               | Botón              |
 
@@ -93,6 +95,8 @@ En el móvil se puede girar e impulsar a la vez con dos dedos.
 - **Lenguaje:** JavaScript (ES Modules)
 
 ## 🚀 Instalación y uso local
+
+La IA de Control de Misión es opcional: requiere `ANTHROPIC_API_KEY` en `.env` y funciona solo en el servidor de desarrollo, desde este ordenador. El build estático y `npm run preview` utilizan las comunicaciones locales; no incluyen un servidor de IA.
 
 Requiere **Node.js** v18 o superior.
 
@@ -137,5 +141,6 @@ Las misiones se definen en el mismo archivo combinando reglas (`targets`, `hazar
 ### Ajustar el vuelo
 
 - **Física:** `systems/FlightModel.js` (`FLIGHT_WORLD`). La gravedad se desvanece a medida que el cohete gana velocidad lateral, así que "ir de lado lo bastante rápido" es literalmente lo que lo mantiene en órbita.
+- **Tiempo de simulación:** `systems/FlightSimulator.js` integra a 1/120 s y acumula el tiempo entre fotogramas. Las pausas largas del navegador se limitan a 250 ms por actualización para evitar saltos al volver.
 - **Aspecto:** `scenes/flight/FlightSceneConstants.js`. Ahí se ajusta cuánto se exagera la subida cerca del suelo, cuándo desaparece la plataforma, cuándo se curva el horizonte y cómo encuadra la cámara.
 - **Nubes:** las capas y la altitud a la que se atraviesan están al principio de `scenes/flight/FlightSceneClouds.js`.

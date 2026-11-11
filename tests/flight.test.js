@@ -23,7 +23,7 @@ function fly(rocket, { separate = true, maxSeconds = 600 } = {}) {
   return s;
 }
 
-test('every rocket completes its whole mission with a perfect pilot', () => {
+test('every rocket completes its orbital phases with a guidance pilot', () => {
   for (const rocket of ROCKETS) {
     const p = FlightPredictor.predict(rocket.stats, getFlightOptions(rocket));
     assert.equal(p.success, true, `${rocket.id}: ${p.reason}`);
@@ -85,4 +85,47 @@ test('single-stage rockets keep their old numbers', () => {
   assert.equal(stages[0].fuel, 120);
   assert.ok(Math.abs(stages[0].thrust - 1.6 * 0.196 * 50) < 1e-9);
   assert.ok(payloadDry > 0);
+});
+
+test('flight advances the same time and trajectory at 15, 20, 30, 60 and 144 FPS', () => {
+  const rocket = ROCKETS[0];
+  const states = [15, 20, 30, 60, 144].map(fps => {
+    const sim = new FlightSimulator(rocket.stats, getFlightOptions(rocket));
+    for (let frame = 0; frame < fps * 10; frame += 1) {
+      sim.update(1000 / fps, { engineOn: true, throttle: 1, steer: 0 });
+    }
+    assert.ok(Math.abs(sim.state.time - 10) < 1e-8, `${fps} FPS: ${sim.state.time} s`);
+    return sim.state;
+  });
+  for (const state of states.slice(1)) {
+    for (const field of ['altitude', 'verticalVelocity', 'fuelRemaining']) {
+      assert.ok(Math.abs(state[field] - states[0][field]) < 1e-8, field);
+    }
+  }
+});
+
+test('a separation press drops exactly one stage during a slow frame', () => {
+  const rocket = ROCKETS.find(r => r.id === 'saturn-v');
+  const sim = new FlightSimulator(rocket.stats, getFlightOptions(rocket));
+  Object.assign(sim.state, { launched: true, altitude: 20 });
+  sim.update(100, { separate: true });
+  assert.equal(sim.state.stage, 1);
+  assert.ok(Math.abs(sim.state.time - 0.1) < 1e-8);
+});
+
+test('a separation press between physics ticks is kept until the next tick', () => {
+  const rocket = ROCKETS.find(r => r.id === 'saturn-v');
+  const sim = new FlightSimulator(rocket.stats, getFlightOptions(rocket));
+  Object.assign(sim.state, { launched: true, altitude: 20 });
+  sim.update(1, { separate: true });
+  sim.update(9, { separate: false });
+  assert.equal(sim.state.stage, 1);
+});
+
+test('a long background stall is bounded and does not leave a catch-up backlog', () => {
+  const sim = new FlightSimulator(ROCKETS[0].stats, getFlightOptions(ROCKETS[0]));
+  sim.update(60_000);
+  assert.ok(Math.abs(sim.state.time - 0.25) < 1e-8);
+  sim.update(100);
+  assert.ok(Math.abs(sim.state.time - 0.35) < 1e-8);
 });

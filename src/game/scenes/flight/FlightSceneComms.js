@@ -1,4 +1,3 @@
-import Phaser from "phaser";
 import { AiClient } from "../../ai/AiClient.js";
 import MissionControl from "../../ai/MissionControl.js";
 import { getMissionPhases } from "../../data/rockets.js";
@@ -42,7 +41,8 @@ export const flightSceneCommsMethods = {
       lastStageFuel: null,
     };
     this.commsSeen = { launched: false, maxq: false, space: false, cue: false, separations: 0, phase: 0, lowFuel: false };
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.missionControl.close());
+    const control = this.missionControl;
+    this.events.once("shutdown", () => control.close());
     this.startBriefing();
   },
 
@@ -112,9 +112,11 @@ export const flightSceneCommsMethods = {
   },
 
   async startBriefing() {
+    const control = this.missionControl;
     const rocket = this.rocketDef;
     const phases = getMissionPhases(rocket);
     const [launches, iss] = await Promise.all([getUpcomingLaunches(), getIssPosition()]);
+    if (control.closed || this.missionControl !== control) return;
     const ownLaunch = launches?.find((launch) => launch.gameRocketId === rocket.id);
     const news = {
       proximos_lanzamientos: (launches || []).slice(0, 3).map(summarizeLaunch),
@@ -128,7 +130,7 @@ export const flightSceneCommsMethods = {
       news,
     });
     // Too late once the climb is under way: Control has other things to say.
-    if (this.simulator.state.altitude > 20 || this.finished) return;
+    if (control.closed || this.missionControl !== control || this.simulator.state.altitude > 20 || this.finished) return;
     if (reply.text) {
       this.missionControl.transmit(reply.text, { ai: true, priority: true });
     } else {
@@ -201,6 +203,7 @@ export const flightSceneCommsMethods = {
   // The flight is over: a closing call, then the debrief in the result panel.
   async finishComms(state, result) {
     if (!this.missionControl) return;
+    const control = this.missionControl;
     this.missionControl.report(result.success ? "success" : "failure", { ...this.getTelemetry(state), motivo: state.reason }, { cooldown: 0, priority: true });
     const telemetry = {
       ...this.getTelemetry(state),
@@ -217,7 +220,7 @@ export const flightSceneCommsMethods = {
     };
     this.setDebrief("Analizando telemetría…", false);
     const reply = await AiClient.ask("debrief", { telemetry });
-    if (!this.resultOverlayVisible) return;
+    if (control.closed || this.missionControl !== control || !this.resultOverlayVisible) return;
     const text = reply.text || this.buildLocalDebrief(telemetry);
     this.setDebrief(text, Boolean(reply.text));
   },

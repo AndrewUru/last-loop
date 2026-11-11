@@ -12,11 +12,11 @@ export const DAY_SKY_FADE_END_ALTITUDE = 160;
 // The planet is small next to the rocket, so on the pad its edge would curve
 // on screen. There the ground is drawn as a circle this many times larger,
 // touching the pad (a flat horizon), and it bends into the real planet while
-// the camera pulls back between these rendered altitudes, which start once
+// the camera pulls back between these physical altitudes, which start once
 // the pad has left the bottom of the screen.
 export const FLAT_GROUND_SCALE = 100;
-export const GROUND_CURVE_START = 35;
-export const GROUND_CURVE_END = 75;
+export const GROUND_CURVE_START = 20;
+export const GROUND_CURVE_END = 100;
 // Chase camera, as shares of the shorter screen side: keep a slightly wider
 // launch framing so ground separation is easier to perceive before chase mode.
 export const CAMERA_PAD_FILL = 0.26;

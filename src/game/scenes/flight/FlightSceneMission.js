@@ -3,7 +3,7 @@ import { MAX_Q_TOLERANCE, formatSpeed, getPatchTextureKey, getFlightOptions } fr
 import FlightPredictor, { getFuelPercent } from "../../systems/FlightPredictor.js";
 import { UI_FONT, formatSeconds } from "../../ui/theme.js";
 import { FX_TEXTURES } from "./FlightSceneExhaust.js";
-import { toRenderSpace } from "./FlightSceneUtils.js";
+import { getRingRadius, getRingVisibility, placeAlongClimb } from "./FlightMissionLayout.js";
 
 const RING_COLOR = 0x73f7c0;
 const GOLD = 0xffd166;
@@ -64,28 +64,13 @@ export const flightSceneMissionMethods = {
     return [this.missionPatch, ...this.missionChips.map((chip) => chip.text)];
   },
 
-  // Spots along the perfect climb between two shares of its height, nudged
+  // Spots along the perfect climb between two shares of its path length, nudged
   // to alternate sides so the pilot has to steer a little for each one.
   // lift moves the spot from the rocket's base towards its nose: rings follow
   // the line the middle of the rocket takes, which drifts off the base's line
   // while the rocket is tilted.
   placeAlongClimb(count, from, to, spread, lift = 0) {
-    const path = this.climbPath;
-    const top = path[path.length - 1].altitude;
-    const locate = (sample) => {
-      const base = toRenderSpace(sample.position);
-      return { x: base.x + Math.cos(sample.orientation) * lift, y: base.y + Math.sin(sample.orientation) * lift };
-    };
-    return Array.from({ length: count }, (_, index) => {
-      const share = count === 1 ? (from + to) / 2 : from + ((to - from) * index) / (count - 1);
-      const found = path.findIndex((sample) => sample.altitude >= top * share);
-      const at = Phaser.Math.Clamp(found < 0 ? path.length - 2 : found, 0, path.length - 2);
-      const point = locate(path[at]);
-      const next = locate(path[at + 1]);
-      const angle = Math.atan2(next.y - point.y, next.x - point.x);
-      const side = (index % 2 === 0 ? 1 : -1) * spread;
-      return { x: point.x - Math.sin(angle) * side, y: point.y + Math.cos(angle) * side, angle };
-    });
+    return placeAlongClimb(this.climbPath, count, from, to, spread, lift);
   },
 
   addMissionObject(object) {
@@ -96,14 +81,14 @@ export const flightSceneMissionMethods = {
   // Hoops seen at an angle: the back half is drawn behind the rocket and the
   // front half in front of it, so the rocket flies through.
   createRings(count) {
-    const radius = Math.max(this.rocketHeight * 0.45, 12);
-    const thickness = Math.max(2.5, radius * 0.12);
+    const radius = getRingRadius(this.rocketHeight);
+    const thickness = Math.max(0.65, radius * 0.075);
     return this.placeAlongClimb(count, 0.12, 0.88, radius * 0.55, this.rocketHeight / 2).map((spot) => {
       const halves = [
         [Math.PI / 2, Math.PI * 1.5, 19.5],
         [-Math.PI / 2, Math.PI / 2, 21.5],
       ].map(([from, to, depth]) => {
-        const graphics = this.add.graphics().setPosition(spot.x, spot.y).setRotation(spot.angle).setDepth(depth);
+        const graphics = this.add.graphics().setPosition(spot.x, spot.y).setRotation(spot.angle).setDepth(depth).setAlpha(0);
         const points = halfEllipse(radius * 0.32, radius, from, to);
         graphics.lineStyle(thickness * 2.4, RING_COLOR, 0.22);
         graphics.strokePoints(points, false);
@@ -111,7 +96,7 @@ export const flightSceneMissionMethods = {
         graphics.strokePoints(points, false);
         return this.addMissionObject(graphics);
       });
-      return { kind: "rings", x: spot.x, y: spot.y, radius, parts: halves, collected: false };
+      return { kind: "rings", x: spot.x, y: spot.y, altitude: spot.altitude, radius, parts: halves, collected: false };
     });
   },
 
@@ -199,6 +184,11 @@ export const flightSceneMissionMethods = {
       mission.targets.forEach((target) => {
         if (target.collected) {
           return;
+        }
+        if (target.kind === "rings") {
+          const alpha = getRingVisibility(state.altitude, target.altitude);
+          target.parts.forEach(part => part.setAlpha(alpha));
+          if (alpha === 0) return;
         }
         // Rings count when the middle of the rocket goes through; parts when
         // any of the body touches them.

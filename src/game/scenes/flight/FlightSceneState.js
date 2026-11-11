@@ -1,16 +1,15 @@
-import Phaser from "phaser";
 import FlightSimulator from "../../systems/FlightSimulator.js";
 
 function createFlightKeys(input) {
   return input.keyboard.addKeys({
-    up: Phaser.Input.Keyboard.KeyCodes.UP,
-    left: Phaser.Input.Keyboard.KeyCodes.LEFT,
-    right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
-    w: Phaser.Input.Keyboard.KeyCodes.W,
-    a: Phaser.Input.Keyboard.KeyCodes.A,
-    d: Phaser.Input.Keyboard.KeyCodes.D,
-    space: Phaser.Input.Keyboard.KeyCodes.SPACE,
-    s: Phaser.Input.Keyboard.KeyCodes.S,
+    up: "UP",
+    left: "LEFT",
+    right: "RIGHT",
+    w: "W",
+    a: "A",
+    d: "D",
+    space: "SPACE",
+    s: "S",
   });
 }
 
@@ -21,6 +20,7 @@ export function createFlightRuntimeState(input, stats, options) {
     finished: false,
     resultOverlayVisible: false,
     lastPhaseId: null,
+    lastMissionPhase: 0,
     maxAltitude: 0,
     flightTrail: [],
     controls: { engineOn: false, throttle: 0, steer: 0, separate: false },
@@ -28,6 +28,9 @@ export function createFlightRuntimeState(input, stats, options) {
     cameraState: { initialized: false, x: 0, y: 0, zoom: 1 },
     cameraRumbleLevel: 0,
     orbitShot: 0,
+    phaseShot: 0,
+    zoomLabel: null,
+    zoomLabelValue: 1,
     // Five-second cinematic pre-launch. Controls and simulation remain locked
     // until the countdown reaches zero, then the normal flight loop takes over.
     launchSequence: {
