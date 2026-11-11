@@ -317,7 +317,39 @@ export default class AudioSystem {
     this.burst({ filterType: "bandpass", frequency: 2600, q: 1.2, level: 0.08, attack: 0.002, decay: 0.12, bus: "ui" });
     this.tone({ type: "sine", from: 1400, level: 0.05, attack: 0.004, decay: 0.06, bus: "ui", when: 0.02 });
     this.tone({ type: "sine", from: 1900, level: 0.05, attack: 0.004, decay: 0.07, bus: "ui", when: 0.1 });
-  },
+  }
+
+  // Band-limited hiss that sits under a transmission while it is spoken.
+  // Returns a function that fades it out and plays the closing squelch.
+  startRadioStatic() {
+    if (!this.ready) return () => {};
+    const t = this.ctx.currentTime;
+    const source = this.noise("white", { loop: true });
+    const band = this.filter("bandpass", 2200, 0.8);
+    const env = this.gain(0);
+    env.gain.setValueAtTime(0.0001, t);
+    env.gain.exponentialRampToValueAtTime(0.025, t + 0.08);
+    // Slow wobble so the static breathes like a real link.
+    const lfo = this.ctx.createOscillator();
+    const depth = this.gain(0.01);
+    lfo.frequency.value = 3.3;
+    this.chain(lfo, depth, env.gain);
+    this.chain(source, band, env, this.buses.ui);
+    source.start(t, source._offset);
+    lfo.start(t);
+    let stopped = false;
+    return () => {
+      if (stopped) return;
+      stopped = true;
+      const end = this.ctx.currentTime;
+      env.gain.cancelScheduledValues(end);
+      env.gain.setValueAtTime(env.gain.value || 0.02, end);
+      env.gain.exponentialRampToValueAtTime(0.0001, end + 0.12);
+      source.stop(end + 0.15);
+      lfo.stop(end + 0.15);
+      this.burst({ filterType: "bandpass", frequency: 3000, q: 1, level: 0.07, attack: 0.002, decay: 0.09, bus: "ui" });
+    };
+  }
 
   // Pyro bang and the clatter of the stage falling away.
   playStageSeparation() {

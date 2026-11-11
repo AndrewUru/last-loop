@@ -104,14 +104,21 @@ export default class MissionControl {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.voice = this.voice;
       utterance.lang = this.voice.lang;
-      utterance.rate = 1.08;
-      utterance.pitch = 0.92;
-      const done = () => setTimeout(resolve, 250);
+      utterance.rate = 1.12;
+      utterance.pitch = 0.85;
+      let stopStatic = () => {};
+      utterance.onstart = () => {
+        stopStatic = this.audio?.startRadioStatic?.() || (() => {});
+      };
+      const done = () => {
+        stopStatic();
+        setTimeout(resolve, 250);
+      };
       utterance.onend = done;
       utterance.onerror = done;
       synth.speak(utterance);
       // Some browsers never fire onend; never wait forever.
-      setTimeout(resolve, readTime + 4000);
+      setTimeout(done, readTime + 4000);
     });
   }
 
