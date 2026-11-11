@@ -234,7 +234,14 @@ class FlightScene extends Phaser.Scene {
       density: state.atmosphereDensity,
       heat: flying ? state.reentryHeat || 0 : 0,
     });
-    if (state.speed > 1.0 && !this.sonicBoomPlayed && state.altitude < 40) {
+    // Arcade shock-wave cue: wait until the climb is established, after the
+    // speed streaks start fading in. Never trigger it on descent or after a loss.
+    if (
+      flying && !this.sonicBoomPlayed &&
+      state.verticalVelocity > 0 &&
+      state.altitude >= 20 && state.altitude < 40 &&
+      state.speed >= 2
+    ) {
       this.audio.playSonicBoom();
       this.showVaporCone();
       this.sonicBoomPlayed = true;

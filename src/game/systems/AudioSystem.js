@@ -328,7 +328,7 @@ export default class AudioSystem {
     const band = this.filter("bandpass", 2200, 0.8);
     const env = this.gain(0);
     env.gain.setValueAtTime(0.0001, t);
-    env.gain.exponentialRampToValueAtTime(0.025, t + 0.08);
+    env.gain.exponentialRampToValueAtTime(0.075, t + 0.08);
     // Slow wobble so the static breathes like a real link.
     const lfo = this.ctx.createOscillator();
     const depth = this.gain(0.01);

@@ -31,7 +31,7 @@ La línea de puntos marca adónde irías si soltaras el motor ahora: **verde** s
 
 - **Despegue con fuerza:** sujeción en la plataforma, vibración de la cámara y una nube de humo que se extiende por el suelo. El cohete deja atrás la torre en pocos segundos.
 - **Llamas según el combustible:** queroseno naranja con humo oscuro, hidrógeno casi invisible con vapor blanco, sólidos cegadores con humo espeso y metano limpio con borde azul.
-- **Velocidad:** líneas de aire que se inclinan con el viento, estrellas que pasan a distintas profundidades y un cono de vapor con estampido al superar 1 km/s.
+- **Velocidad:** líneas de aire que aparecen gradualmente desde 12 km y 1,2 km/s, estrellas que pasan a distintas profundidades y un cono de vapor con estampido durante el ascenso, a partir de 20 km y 2 km/s.
 - **Nubes:** cúmulos en el horizonte y una capa que atraviesas a 4 km. Con tormenta, cumulonimbos y relámpagos; de noche, nubes en azul grisáceo.
 - **Del horizonte plano al planeta:** en la plataforma el suelo es plano y, al subir, se curva hasta convertirse en la Tierra vista desde el espacio.
 
