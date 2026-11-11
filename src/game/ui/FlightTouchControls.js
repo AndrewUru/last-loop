@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { UI_FONT } from "./theme.js";
+import { hasConsoleArt, uiKey } from "./consoleArt.js";
 
 // On-screen buttons for phones and tablets: steer left/right with the left
 // thumb, hold IMPULSO with the right thumb and tap SEPARAR above it to drop a
@@ -14,10 +15,10 @@ export default class FlightTouchControls {
   }
 
   create() {
-    this.leftButton = this.createButton("◀", 0x8fd7ff);
-    this.rightButton = this.createButton("▶", 0x8fd7ff);
-    this.thrustButton = this.createButton("IMPULSO", 0xffb26b);
-    this.separateButton = this.createButton("SEPARAR", 0xff8d7a);
+    this.leftButton = this.createButton("◀", 0x8fd7ff, "round-blue");
+    this.rightButton = this.createButton("▶", 0x8fd7ff, "round-blue");
+    this.thrustButton = this.createButton("IMPULSO", 0xffb26b, "round-amber");
+    this.separateButton = this.createButton("SEPARAR", 0xff8d7a, "round-red");
 
     this.bindHold(this.leftButton, (active) => this.options.onSteerLeft?.(active));
     this.bindHold(this.rightButton, (active) => this.options.onSteerRight?.(active));
@@ -45,14 +46,21 @@ export default class FlightTouchControls {
     this.resize(this.scene.scale.width, this.scene.scale.height);
   }
 
-  createButton(label, accent) {
+  // skin: console button artwork (btn-<skin>-idle/pressed/disabled). With it
+  // the circle only catches touches; without it the circle is the button.
+  createButton(label, accent, skin) {
     const depth = 54;
+    const art = hasConsoleArt(this.scene, `btn-${skin}-idle`) ? skin : null;
     const background = this.scene.add
       .circle(0, 0, 32, 0x0b121a, 0.62)
       .setStrokeStyle(3, accent, 0.9)
       .setScrollFactor(0)
       .setDepth(depth)
       .setInteractive(new Phaser.Geom.Circle(32, 32, 32), Phaser.Geom.Circle.Contains);
+    const image = art
+      ? this.scene.add.image(0, 0, uiKey(`btn-${art}-idle`)).setScrollFactor(0).setDepth(depth)
+      : null;
+    if (image) background.setFillStyle(0x000000, 0.001).setStrokeStyle();
     const text = this.scene.add
       .text(0, 0, label, {
         fontFamily: UI_FONT,
@@ -60,13 +68,15 @@ export default class FlightTouchControls {
         color: "#f7fbff",
         fontStyle: "bold",
       })
+      .setShadow(0, 2, "#000000", 4, true, true)
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(depth + 1);
-    const button = { background, text, accent, active: false, pointerId: null };
+    const button = { background, image, art, text, accent, active: false, pointerId: null, state: "idle" };
 
     this.buttons.push(button);
     this.objects.push(background, text);
+    if (image) this.objects.push(image);
     return button;
   }
 
@@ -78,10 +88,20 @@ export default class FlightTouchControls {
       }
       button.active = active;
       callback(active);
-      button.background.setFillStyle(active ? button.accent : 0x0b121a, active ? 0.45 : 0.62);
+      if (button.image) {
+        this.setSkin(button, active ? "pressed" : "idle");
+      } else {
+        button.background.setFillStyle(active ? button.accent : 0x0b121a, active ? 0.45 : 0.62);
+      }
     };
 
     button.background.on("pointerdown", (pointer) => button.setActive(true, pointer.id));
+  }
+
+  setSkin(button, state) {
+    if (!button.image || button.state === state) return;
+    button.state = state;
+    button.image.setTexture(uiKey(`btn-${button.art}-${state}`));
   }
 
   resize(width, height) {
@@ -107,12 +127,17 @@ export default class FlightTouchControls {
     // Generous hit circle so a thumb slightly off-centre still counts.
     button.background.input.hitArea.setTo(radius, radius, radius * 1.2);
     button.text.setPosition(x, y).setFontSize(`${Math.round(radius * fontScale)}px`);
+    if (button.image) {
+      // The cap fills about 70% of the artwork, so the bezel sits around it.
+      button.image.setPosition(x, y).setDisplaySize(radius * 2.5, radius * 2.5);
+    }
   }
 
   applySeparateVisibility() {
     const show = this.visible && Boolean(this.canSeparate);
     this.separateButton.background.setVisible(show);
     this.separateButton.text.setVisible(show);
+    this.separateButton.image?.setVisible(show);
     if (this.separateButton.background.input) {
       this.separateButton.background.input.enabled = show;
     }
@@ -127,11 +152,21 @@ export default class FlightTouchControls {
     if (canSeparate) {
       // Pulses while the burning stage is empty.
       const pulse = state.separationCue ? 0.6 + 0.4 * Math.sin(this.scene.time.now / 120) : 0.55;
-      this.separateButton.background.setStrokeStyle(3, 0xff8d7a, pulse);
+      if (this.separateButton.image) {
+        this.separateButton.image.setAlpha(state.separationCue ? pulse : 1);
+      } else {
+        this.separateButton.background.setStrokeStyle(3, 0xff8d7a, pulse);
+      }
     }
     const thrusting = state.engineOn && state.fuelRemaining > 0.01;
-    this.thrustButton.text.setAlpha(state.fuelRemaining > 0.01 && !state.result ? 1 : 0.35);
-    this.thrustButton.background.setStrokeStyle(3, thrusting ? 0xffe0a8 : 0xffb26b, thrusting ? 1 : 0.9);
+    const canThrust = state.fuelRemaining > 0.01 && !state.result;
+    this.thrustButton.text.setAlpha(canThrust ? 1 : 0.35);
+    if (this.thrustButton.image) {
+      const skin = !canThrust ? "disabled" : thrusting || this.thrustButton.active ? "pressed" : "idle";
+      this.setSkin(this.thrustButton, skin);
+    } else {
+      this.thrustButton.background.setStrokeStyle(3, thrusting ? 0xffe0a8 : 0xffb26b, thrusting ? 1 : 0.9);
+    }
   }
 
   getObjects() {

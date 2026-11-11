@@ -10,6 +10,7 @@ import {
   saveSelectedRocketId, getFlightOptions } from "../data/rockets.js";
 import FlightPredictor from "../systems/FlightPredictor.js";
 import MissionSystem from "../systems/MissionSystem.js";
+import { addSliced, hasConsoleArt, rankKey, setSlicedSize, uiKey } from "../ui/consoleArt.js";
 import { UI_COLORS, addText, formatSeconds } from "../ui/theme.js";
 
 const TALLEST = Math.max(...ROCKETS.map((rocket) => rocket.height));
@@ -223,20 +224,35 @@ export default class HangarScene extends Phaser.Scene {
     // Pilot badge: the patch of the last mission completed, and the rank.
     const radius = Math.round(height * 0.36);
     const badgeX = margin + radius;
-    bar.fillStyle(0x0f1d2b, 1);
-    bar.fillCircle(badgeX, middle, radius);
-    bar.lineStyle(2, AMBER, 0.9);
-    bar.strokeCircle(badgeX, middle, radius);
     const lastDone = [...ROCKETS].reverse().find((rocket) => completed.includes(rocket.id));
-    const patch = this.add
-      .image(badgeX, middle, getPatchTextureKey(lastDone || ROCKETS[0]))
-      .setDisplaySize(radius * 1.7, radius * 1.7);
-    if (!lastDone) {
-      patch.setTint(0x6c7b8c);
+    if (hasConsoleArt(this, "badge-frame")) {
+      // Embroidered ring around the patch; a covered patch before any mission.
+      if (lastDone) {
+        this.add.image(badgeX, middle, getPatchTextureKey(lastDone)).setDisplaySize(radius * 1.62, radius * 1.62);
+        this.add.image(badgeX, middle, uiKey("badge-frame")).setDisplaySize(radius * 2.3, radius * 2.3);
+      } else {
+        this.add.image(badgeX, middle, uiKey("badge-locked")).setDisplaySize(radius * 2.3, radius * 2.3);
+      }
+    } else {
+      bar.fillStyle(0x0f1d2b, 1);
+      bar.fillCircle(badgeX, middle, radius);
+      bar.lineStyle(2, AMBER, 0.9);
+      bar.strokeCircle(badgeX, middle, radius);
+      const patch = this.add
+        .image(badgeX, middle, getPatchTextureKey(lastDone || ROCKETS[0]))
+        .setDisplaySize(radius * 1.7, radius * 1.7);
+      if (!lastDone) {
+        patch.setTint(0x6c7b8c);
+      }
     }
 
     const rank = [...RANKS].reverse().find((entry) => completed.length >= entry.from);
-    const textX = badgeX + radius + 10;
+    let textX = badgeX + radius + 10;
+    if (this.textures.exists(rankKey(rank.title))) {
+      const size = Math.round(height * 0.8);
+      this.add.image(textX + size / 2, middle, rankKey(rank.title)).setDisplaySize(size, size);
+      textX += size + 6;
+    }
     addText(this, textX, middle - 3, rank.title, { size: small ? 12 : 14, bold: true, letterSpacing: 1 }).setOrigin(0, 1);
     const progressWidth = small ? 80 : 120;
     bar.fillStyle(0x1d2f42, 1);
@@ -600,6 +616,16 @@ export default class HangarScene extends Phaser.Scene {
   createLaunchButton() {
     const { launch, compact } = this.layout;
     this.launchGraphics = this.add.graphics();
+    // Console push button: one piece per state, only the current one shown.
+    if (hasConsoleArt(this, "btn-primary-idle")) {
+      const scale = Phaser.Math.Clamp(launch.height / 96, 0.5, 1);
+      this.launchSkins = {};
+      ["idle", "pressed", "disabled"].forEach((state) => {
+        const piece = addSliced(this, `btn-primary-${state}`, { scale }).setPosition(launch.x, launch.y);
+        setSlicedSize(piece, launch.width, launch.height);
+        this.launchSkins[state] = piece;
+      });
+    }
     const centerY = launch.y + launch.height / 2;
     this.launchLabel = addText(this, launch.x + launch.width / 2, centerY, "", {
       size: compact ? 19 : 19,
@@ -635,7 +661,10 @@ export default class HangarScene extends Phaser.Scene {
     const graphics = this.launchGraphics;
     graphics.clear();
 
-    if (enabled) {
+    if (this.launchSkins) {
+      const shown = !enabled ? "disabled" : this.launchHover ? "pressed" : "idle";
+      Object.entries(this.launchSkins).forEach(([state, piece]) => piece.setVisible(state === shown));
+    } else if (enabled) {
       graphics.fillStyle(AMBER, 0.18);
       graphics.fillRoundedRect(x - 3, y - 3, width + 6, height + 6, 12);
       graphics.fillStyle(this.launchHover ? 0xffb84d : AMBER, 1);

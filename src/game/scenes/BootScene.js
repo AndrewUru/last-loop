@@ -11,6 +11,7 @@ import {
 import AudioSystem from "../systems/AudioSystem.js";
 import MissionSystem from "../systems/MissionSystem.js";
 import { UI_COLORS, addText } from "../ui/theme.js";
+import { filterConsoleArt, loadConsoleArt } from "../ui/consoleArt.js";
 
 const STEPS = [
   { title: "Elige", body: "Escoge un cohete en el hangar." },
@@ -30,6 +31,7 @@ export default class BootScene extends Phaser.Scene {
       this.load.image(getPatchTextureKey(rocket), getPatchImagePath(rocket));
     });
     Object.values(ART).forEach((art) => this.load.image(art.key, art.path));
+    loadConsoleArt(this.load);
   }
 
   create() {
@@ -43,6 +45,7 @@ export default class BootScene extends Phaser.Scene {
       ...ROCKETS.flatMap((rocket) => [getRocketTextureKey(rocket), getPatchTextureKey(rocket)]),
       ...Object.values(ART).map((art) => art.key),
     ].forEach((key) => this.textures.get(key).setFilter(Phaser.Textures.FilterMode.LINEAR));
+    filterConsoleArt(this.textures);
 
     this.audio = this.registry.get("audio") || new AudioSystem();
     this.audio.init();

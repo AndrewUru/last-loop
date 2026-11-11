@@ -1,5 +1,6 @@
 import { FLIGHT_WORLD } from "../systems/FlightModel.js";
 import { UI_FONT } from "./theme.js";
+import { addSliced, hasConsoleArt, setSlicedSize } from "./consoleArt.js";
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -194,6 +195,12 @@ export default class FlightHud {
     const depth = 40;
 
     this.panel = this.scene.add.graphics().setScrollFactor(0).setDepth(depth);
+    // Console artwork when it is available; otherwise the drawn panel.
+    this.art = hasConsoleArt(this.scene, "panel-hud") && hasConsoleArt(this.scene, "bar-frame");
+    if (this.art) {
+      this.plate = addSliced(this.scene, "panel-hud").setScrollFactor(0).setDepth(depth).setAlpha(0.94);
+      this.objects.push(this.plate);
+    }
     this.title = this.createText(22, "#f3f7fb", true).setOrigin(0.5, 0);
     this.body = this.createText(14, "#aebdcb").setOrigin(0.5, 0);
     this.bars = {
@@ -209,6 +216,7 @@ export default class FlightHud {
     this.objects.push(this.panel, this.title, this.body, this.keyHint);
     Object.values(this.bars).forEach((bar) => {
       this.objects.push(bar.label, bar.value, bar.graphics);
+      if (bar.frame) this.objects.push(bar.frame, bar.fill);
     });
 
     this.resize(this.scene.scale.width, this.scene.scale.height);
@@ -227,7 +235,15 @@ export default class FlightHud {
   }
 
   createBar(label, color) {
+    let frame = null;
+    let fill = null;
+    if (this.art) {
+      frame = addSliced(this.scene, "bar-frame", { scale: 0.45 }).setScrollFactor(0).setDepth(41);
+      fill = addSliced(this.scene, "bar-fill", { scale: 0.4 }).setScrollFactor(0).setDepth(41).setTint(color);
+    }
     return {
+      frame,
+      fill,
       color,
       progress: 0,
       label: this.createText(11, "#8fa8c0", true).setText(label).setOrigin(0, 1),
@@ -257,10 +273,15 @@ export default class FlightHud {
 
     this.panelBounds = { x: panelX, y: panelY, width: panelWidth, height: panelHeight };
     this.panel.clear();
-    this.panel.fillStyle(0x0b121a, 0.78);
-    this.panel.fillRoundedRect(panelX, panelY, panelWidth, panelHeight, 14);
-    this.panel.lineStyle(1, 0xa8c4de, 0.22);
-    this.panel.strokeRoundedRect(panelX, panelY, panelWidth, panelHeight, 14);
+    if (this.plate) {
+      this.plate.setPosition(panelX, panelY).setScale(this.isCompact ? 0.8 : 1);
+      setSlicedSize(this.plate, panelWidth, panelHeight);
+    } else {
+      this.panel.fillStyle(0x0b121a, 0.78);
+      this.panel.fillRoundedRect(panelX, panelY, panelWidth, panelHeight, 14);
+      this.panel.lineStyle(1, 0xa8c4de, 0.22);
+      this.panel.strokeRoundedRect(panelX, panelY, panelWidth, panelHeight, 14);
+    }
 
     this.title
       .setFontSize(this.isCompact ? 17 : 22)
@@ -287,6 +308,20 @@ export default class FlightHud {
   drawBar(bar) {
     const height = this.isCompact ? 7 : 8;
     bar.graphics.clear();
+    if (bar.frame) {
+      // Recessed slot, then the lit strip inside it, tinted per bar.
+      const frameHeight = height + 6;
+      const top = bar.y - 2 - 3;
+      bar.frame.setPosition(bar.x, top);
+      setSlicedSize(bar.frame, bar.width, frameHeight);
+      const inset = 3;
+      const fillWidth = (bar.width - inset * 2) * bar.progress;
+      const minWidth = bar.fill.minSourceSize * bar.fill.scaleX;
+      bar.fill.setVisible(fillWidth >= minWidth);
+      bar.fill.setTint(bar.fillColor ?? bar.color).setPosition(bar.x + inset, top + 2);
+      setSlicedSize(bar.fill, fillWidth, frameHeight - 4);
+      return;
+    }
     bar.graphics.fillStyle(0x1d2a38, 1);
     bar.graphics.fillRoundedRect(bar.x, bar.y - 2, bar.width, height, height / 2);
     if (bar.progress > 0.005) {
