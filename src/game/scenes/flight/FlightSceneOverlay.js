@@ -74,17 +74,54 @@ export const flightSceneOverlayMethods = {
     return { background, text };
   },
 
+  // The panel is as tall as what it says: title, reason, numbers, mission
+  // lines and the debrief flow one under another, then the buttons.
   layoutMissionOverlay(width, height) {
     const compact = width < 560;
-    const badge = compact ? 84 : 104;
+    // A phone on its side: everything a size down, in a wider panel.
+    const short = height < 480;
+    const badge = short ? 60 : compact ? 84 : 104;
     // The lower half of the badge sits inside the panel and pushes the text down.
     const shift = badge / 2 - 6;
-    const panelWidth = Math.min(620, width - 24);
-    const panelHeight = Math.min((compact ? 560 : 500) + shift, height - 24 - badge / 2);
-    const left = (width - panelWidth) / 2;
-    const top = (height - panelHeight + badge / 2) / 2;
+    const panelWidth = Math.min(short ? 760 : 620, width - 24);
     const centerX = width / 2;
     const textWidth = panelWidth - 48;
+    const buttonHeight = short ? 42 : BUTTON_HEIGHT;
+    const edge = short ? 12 : 22;
+
+    this.resultTitle.setFontSize(short ? 24 : compact ? 28 : 36);
+    this.resultBody.setFontSize(short ? 14 : compact ? 15 : 17).setWordWrapWidth(textWidth);
+    this.resultStats.setFontSize(short ? 13 : compact ? 14 : 16);
+    this.resultMissions.setFontSize(short ? 14 : compact ? 15 : 17).setWordWrapWidth(textWidth);
+    this.resultDebrief.setFontSize(short ? 12 : compact ? 13 : 15).setWordWrapWidth(textWidth);
+
+    // Offsets from the top of the panel; empty texts take no room.
+    const flow = [
+      [this.resultTitle, shift + (short ? 10 : 22)],
+      [this.resultBody, short ? 4 : 10],
+      [this.resultStats, short ? 8 : 16],
+      [this.resultMissions, short ? 8 : 16],
+      [this.resultDebrief, short ? 6 : 12],
+    ];
+    const maxHeight = height - 24 - badge / 2;
+    const footer = (short ? 14 : 24) + buttonHeight + edge;
+    let y = 0;
+    const offsets = flow.map(([text, gap]) => {
+      text.setVisible(true);
+      if (!text.text) return y;
+      const at = y + gap;
+      // The debrief is the one thing that goes when there is no room for it.
+      if (text === this.resultDebrief && at + text.height + footer > maxHeight) {
+        text.setVisible(false);
+        return at;
+      }
+      y = at + text.height;
+      return at;
+    });
+    const panelHeight = Math.min(Math.max(y + footer, short ? 0 : 300), maxHeight);
+    const left = (width - panelWidth) / 2;
+    const top = (height - panelHeight + badge / 2) / 2;
+    flow.forEach(([text], index) => text.setPosition(centerX, top + offsets[index]));
     this.resultPatch.setPosition(centerX, top).setDisplaySize(badge, badge);
 
     this.resultShade.setSize(width, height);
@@ -94,32 +131,16 @@ export const flightSceneOverlayMethods = {
     this.resultPanel.lineStyle(2, this.resultAccent ?? 0x82b6ff, 0.5);
     this.resultPanel.strokeRoundedRect(left, top, panelWidth, panelHeight, 18);
 
-    this.resultTitle.setFontSize(compact ? 28 : 36).setPosition(centerX, top + shift + 26);
-    this.resultBody
-      .setFontSize(compact ? 15 : 17)
-      .setWordWrapWidth(textWidth)
-      .setPosition(centerX, top + shift + (compact ? 70 : 82));
-    this.resultStats.setFontSize(compact ? 14 : 16).setPosition(centerX, top + shift + 160);
-    this.resultMissions
-      .setFontSize(compact ? 15 : 17)
-      .setWordWrapWidth(textWidth)
-      .setPosition(centerX, top + shift + (compact ? 196 : 200));
-    // The debrief follows the mission lines, however many there are.
-    this.resultDebrief
-      .setFontSize(compact ? 13 : 15)
-      .setWordWrapWidth(textWidth)
-      .setPosition(centerX, Math.max(top + shift + 262, this.resultMissions.y + this.resultMissions.height + 12));
-
-    const buttonY = top + panelHeight - BUTTON_HEIGHT / 2 - 22;
+    const buttonY = top + panelHeight - buttonHeight / 2 - edge;
     const buttonWidth = Math.min(BUTTON_WIDTH, (panelWidth - 60) / 2);
     const offset = buttonWidth / 2 + 8;
-    this.layoutOverlayButton(this.resultSecondaryButton, centerX - offset, buttonY, buttonWidth);
-    this.layoutOverlayButton(this.resultPrimaryButton, centerX + offset, buttonY, buttonWidth);
+    this.layoutOverlayButton(this.resultSecondaryButton, centerX - offset, buttonY, buttonWidth, buttonHeight);
+    this.layoutOverlayButton(this.resultPrimaryButton, centerX + offset, buttonY, buttonWidth, buttonHeight);
   },
 
-  layoutOverlayButton(button, x, y, width) {
-    button.background.setPosition(x, y).setSize(width, BUTTON_HEIGHT);
-    button.background.input.hitArea.setTo(0, 0, width, BUTTON_HEIGHT);
+  layoutOverlayButton(button, x, y, width, height = BUTTON_HEIGHT) {
+    button.background.setPosition(x, y).setSize(width, height);
+    button.background.input.hitArea.setTo(0, 0, width, height);
     button.text.setPosition(x, y);
   },
 
@@ -157,7 +178,7 @@ export const flightSceneOverlayMethods = {
       // Remind the player of this rocket's mission, or point them at the next one.
       const target = alreadyDone ? MissionSystem.getCurrentRocket() : this.rocketDef;
       if (target) {
-        missionLines.push(`Misión del ${target.name}: ${target.challenge.title}`);
+        missionLines.push(`${alreadyDone ? "Tu próxima misión" : "Misión"} · ${target.name}: ${target.challenge.title}`);
         missionLines.push(describeChallenge(target.challenge));
       }
     }

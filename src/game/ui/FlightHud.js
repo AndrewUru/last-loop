@@ -1,5 +1,5 @@
 import { FLIGHT_WORLD } from "../systems/FlightModel.js";
-import { UI_FONT } from "./theme.js";
+import { UI_FONT, formatDecimal } from "./theme.js";
 import { addSliced, hasConsoleArt, setSlicedSize } from "./consoleArt.js";
 
 function clamp(value, min, max) {
@@ -53,7 +53,7 @@ export function getFlightInstruction(state, thrustLabel, extra = {}) {
       return {
         title: tooFast ? "¡Frena para aterrizar!" : "Aterrizaje suave…",
         body: tooFast
-          ? `Morro arriba y ${thrustLabel}: baja de ${FLIGHT_WORLD.safeLandingSpeed.toFixed(2)} km/s.`
+          ? `Morro arriba y ${thrustLabel}: baja de ${formatDecimal(FLIGHT_WORLD.safeLandingSpeed, 2)} km/s.`
           : "Mantén el cohete vertical hasta tocar el suelo.",
         tone: tooFast ? "danger" : "success",
       };
@@ -75,11 +75,11 @@ export function getFlightInstruction(state, thrustLabel, extra = {}) {
   }
   // An empty stage with another one above it: drop it, before anything else.
   if (state.separationCue) {
-    const name = extra.stageNames?.[state.stage] || "La etapa";
+    const name = extra.stageNames?.[state.stage] || "Etapa";
     const next = extra.stageNames?.[state.stage + 1];
     return {
       title: `¡Separa la etapa!  (${extra.separateLabel || "S"})`,
-      body: next ? `${name} está vacía: suéltala para encender ${next}.` : `${name} está vacía: suéltala.`,
+      body: next ? `${name} sin combustible: separa para encender ${next}.` : `${name} sin combustible: separa la etapa.`,
       tone: "warning",
     };
   }
@@ -98,7 +98,7 @@ export function getFlightInstruction(state, thrustLabel, extra = {}) {
     if (goal.type === "escape") {
       return {
         title: "Acelera rumbo a la Luna",
-        body: `Sigue la flecha hasta ${goal.speed.toFixed(1)} km/s.`,
+        body: `Sigue la flecha hasta ${formatDecimal(goal.speed)} km/s.`,
         tone: "info",
       };
     }
@@ -178,7 +178,7 @@ export function getFlightInstruction(state, thrustLabel, extra = {}) {
   }
   return {
     title: "Gana velocidad lateral",
-    body: `Al llegar a ${FLIGHT_WORLD.orbitTargetHorizontalSpeed.toFixed(1)} km/s podrás soltar el motor.`,
+    body: `Al llegar a ${formatDecimal(FLIGHT_WORLD.orbitTargetHorizontalSpeed)} km/s podrás soltar el motor.`,
     tone: "info",
   };
 }
@@ -394,8 +394,8 @@ export default class FlightHud {
       this.bars.speed,
       lateralSpeed / orbitSpeed,
       this.isCompact
-        ? `${lateralSpeed.toFixed(1)}/${orbitSpeed.toFixed(1)}`
-        : `${lateralSpeed.toFixed(1)}/${orbitSpeed.toFixed(1)} km/s`,
+        ? `${formatDecimal(lateralSpeed)}/${formatDecimal(orbitSpeed)}`
+        : `${formatDecimal(lateralSpeed)}/${formatDecimal(orbitSpeed)} km/s`,
       lateralSpeed >= orbitSpeed * FLIGHT_WORLD.orbitSpeedRatio ? BAR_COLORS.done : BAR_COLORS.speed,
     );
     this.updateBar(

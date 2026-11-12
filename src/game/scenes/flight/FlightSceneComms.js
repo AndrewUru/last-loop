@@ -2,7 +2,7 @@ import { AiClient } from "../../ai/AiClient.js";
 import MissionControl from "../../ai/MissionControl.js";
 import { getMissionPhases } from "../../data/rockets.js";
 import { getIssPosition, getUpcomingLaunches, summarizeLaunch } from "../../data/realSpace.js";
-import { UI_FONT } from "../../ui/theme.js";
+import { UI_FONT, formatSeconds } from "../../ui/theme.js";
 
 // Mission Control on the radio during a flight: a pre-launch briefing with
 // real news, short calls at the key moments, and a debrief of the telemetry
@@ -54,13 +54,17 @@ export const flightSceneCommsMethods = {
   layoutComms() {
     const { width, height } = this.scale;
     const compact = width < 640;
-    const panelWidth = Math.min(compact ? width - 20 : 440, width - 20);
     const touch = this.touchControlsUi?.visible;
-    const x = compact ? 10 : 16;
+    // Between the steering and thrust buttons when there is room there (a
+    // phone on its side); above the buttons on a narrow one.
+    const between = touch && !compact;
+    const gutter = between ? Math.min(width * 0.26, 230) : 0;
+    const panelWidth = between ? Math.min(440, width - gutter * 2) : Math.min(compact ? width - 20 : 440, width - 20);
+    const x = between ? (width - panelWidth) / 2 : compact ? 10 : 16;
     const textWidth = panelWidth - 28;
-    this.commsText.setWordWrapWidth(textWidth).setFontSize(compact ? 13 : 15);
+    this.commsText.setWordWrapWidth(textWidth).setFontSize(compact || between ? 13 : 15);
     const panelHeight = Math.max(52, this.commsText.height + 34);
-    const bottom = height - (touch ? (compact ? 210 : 170) : 44);
+    const bottom = height - (between ? 12 : touch ? 210 : 44);
     const y = bottom - panelHeight;
     this.commsPanel.clear();
     this.commsPanel.fillStyle(0x0b121a, 0.82);
@@ -230,9 +234,14 @@ export const flightSceneCommsMethods = {
     const late = t.separaciones.filter((s) => (s.espera_tras_vaciarse_s ?? 0) > 3);
     const wasted = t.separaciones.filter((s) => s.combustible_tirado_pct > 10);
     const parts = [];
-    parts.push(t.resultado === "éxito" ? `Vuelo de ${t.tiempo_total_s} s hasta ${t.altura_max_km} km con ${t.combustible_final_pct}% de combustible.` : `${t.motivo}`);
+    // The panel already gives the reason for a failure; add what the log shows.
+    parts.push(
+      t.resultado === "éxito"
+        ? `Vuelo de ${formatSeconds(t.tiempo_total_s)} hasta ${t.altura_max_km} km con ${t.combustible_final_pct}% de combustible.`
+        : `Llegaste a ${t.altura_max_km} km de altura en ${formatSeconds(t.tiempo_total_s)}.`,
+    );
     if (wasted.length) parts.push(`Soltaste ${wasted[0].etapa} con un ${wasted[0].combustible_tirado_pct}% de combustible dentro: espera a que se vacíe.`);
-    else if (late.length) parts.push(`Tardaste ${late[0].espera_tras_vaciarse_s} s en separar ${late[0].etapa}: cada segundo sin motor te hace caer.`);
+    else if (late.length) parts.push(`Tardaste ${formatSeconds(late[0].espera_tras_vaciarse_s)} en separar ${late[0].etapa}: cada segundo sin motor te hace caer.`);
     else if (t.separaciones.length) parts.push("Separaciones limpias y a tiempo.");
     if (t.resultado !== "éxito") parts.push("Consejo: sigue la flecha verde y separa en cuanto el HUD lo pida.");
     return parts.join(" ");
@@ -242,5 +251,6 @@ export const flightSceneCommsMethods = {
     if (!this.resultDebrief) return;
     this.resultDebrief.setText(ai ? `Control (IA): ${text}` : text);
     this.resultDebrief.setColor(ai ? "#cfe8ff" : "#9eb4ca");
+    if (this.resultOverlayVisible) this.layoutMissionOverlay(this.scale.width, this.scale.height);
   },
 };

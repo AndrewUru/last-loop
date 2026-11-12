@@ -5,7 +5,7 @@ import {
   getStoppingHeight, isLevelUnlocked, predictTouchdownX, readLandingProgress, recordLanding, stepLanding,
 } from '../systems/LandingModel.js';
 import FlightTouchControls from '../ui/FlightTouchControls.js';
-import { addText } from '../ui/theme.js';
+import { addText, formatDecimal } from '../ui/theme.js';
 
 const ASSET = `${import.meta.env.BASE_URL}assets/landing/`;
 const STEP = 1 / 120;
@@ -140,6 +140,7 @@ export default class LandingScene extends Phaser.Scene {
     this.mode = 'fly';
     this.accumulator = 0;
     this.clearOverlay();
+    this.syncChrome();
   }
 
   pause() {
@@ -196,7 +197,7 @@ export default class LandingScene extends Phaser.Scene {
         : [
           { text: 'ATERRIZAJE FALLIDO', size: 22, bold: true, color: css(BAD) },
           { text: r.reason },
-          { text: `Descenso ${Math.abs(s.vy).toFixed(1)} m/s · Lateral ${Math.abs(s.vx - s.padVx).toFixed(1)} m/s`, color: '#8fa8c0' },
+          { text: `Descenso ${formatDecimal(Math.abs(s.vy))} m/s · Lateral ${formatDecimal(Math.abs(s.vx - s.padVx))} m/s`, color: '#8fa8c0' },
           { text: tip, color: '#ffd166' },
         ];
       const buttons = [{ label: 'REINTENTAR', action: () => { this.resetAttempt(); this.fly(); }, primary: !r.success || !nextOpen }];
@@ -242,7 +243,9 @@ export default class LandingScene extends Phaser.Scene {
     this.clearOverlay();
     this.controls.buttons.forEach(b => { b.background.input.enabled = false; });
     const { width: w, height: h } = this.scale;
-    const pw = Math.min(w - 24, 460);
+    // A phone on its side has little height: tighter rows in a wider panel.
+    const short = h < 480;
+    const pw = Math.min(w - 24, short ? 560 : 460);
     const wrap = pw - 48;
     const items = [];
     let y = 0;
@@ -271,18 +274,23 @@ export default class LandingScene extends Phaser.Scene {
         y += entries.length * 24 + 8;
       } else if (line.card) {
         const card = line.card;
-        const ch = 74;
+        const ch = short ? 52 : 74;
         const g = this.add.graphics();
         g.fillStyle(card.locked ? 0x111a23 : 0x15222e, 1);
         g.fillRoundedRect(-wrap / 2, y, wrap, ch, 10);
         g.lineStyle(1, card.locked ? 0x2b3a48 : 0x4f6f88, 1);
         g.strokeRoundedRect(-wrap / 2, y, wrap, ch, 10);
-        const title = addText(this, -wrap / 2 + 16, y + 12, `${card.index}. ${card.level.title}`, { size: 15, bold: true, color: card.locked ? '#5b6f80' : '#f3f7fb' });
-        const place = addText(this, -wrap / 2 + 16, y + 36, card.locked ? 'Aterriza en la misión anterior para desbloquear' : card.level.place, { size: 11, color: '#8fa8c0' });
+        const titleY = short ? 8 : 12;
+        const placeY = short ? 30 : 36;
+        const title = addText(this, -wrap / 2 + 16, y + titleY, `${card.index}. ${card.level.title}`, { size: 15, bold: true, color: card.locked ? '#5b6f80' : '#f3f7fb' });
+        const place = addText(this, -wrap / 2 + 16, y + placeY, card.locked ? 'Aterriza en la misión anterior para desbloquear' : card.level.place, { size: 11, color: '#8fa8c0' });
         const medal = card.best ? LANDING_MEDALS.find(m => card.best >= m.min) : null;
-        if (medal) this.drawMedal(g, wrap / 2 - 34, y + ch / 2 - 6, 14, medal);
-        const best = addText(this, wrap / 2 - 34, y + ch - 16, card.locked ? 'BLOQUEADA' : card.best ? `${card.best}` : 'NUEVA', { size: 11, bold: true, color: medal ? css(medal.color) : '#8ff5c4' }).setOrigin(0.5);
-        items.push({ obj: g, y: 0, graphics: true }, { obj: title, y: y + 12, keepX: true }, { obj: place, y: y + 36, keepX: true }, { obj: best, y: y + ch - 16, keepX: true });
+        if (medal) this.drawMedal(g, wrap / 2 - 34, y + ch / 2 - (short ? 8 : 6), short ? 10 : 14, medal);
+        // A score sits under its medal; the other tags hug the card's edge.
+        const scored = Boolean(card.best) && !card.locked;
+        const bestY = short ? ch - 11 : ch - 16;
+        const best = addText(this, scored ? wrap / 2 - 34 : wrap / 2 - 14, y + bestY, card.locked ? 'BLOQUEADA' : card.best ? `${card.best}` : 'NUEVA', { size: 11, bold: true, color: card.locked ? '#5b6f80' : medal ? css(medal.color) : '#8ff5c4' }).setOrigin(scored ? 0.5 : 1, 0.5);
+        items.push({ obj: g, y: 0, graphics: true }, { obj: title, y: y + titleY, keepX: true }, { obj: place, y: y + placeY, keepX: true }, { obj: best, y: y + bestY, keepX: true });
         if (!card.locked) {
           const hit = this.add.rectangle(0, y + ch / 2, wrap, ch, 0xffffff, 0.001).setInteractive({ useHandCursor: true });
           hit.on('pointerover', () => g.setAlpha(0.85));
@@ -290,25 +298,25 @@ export default class LandingScene extends Phaser.Scene {
           hit.on('pointerdown', () => { this.audio?.playClick?.(); this.startLevel(card.level); });
           items.push({ obj: hit, y: y + ch / 2, keepX: true });
         }
-        y += ch + 10;
+        y += ch + (short ? 6 : 10);
       } else {
         const t = addText(this, 0, y, line.text, {
           size: line.size || 14, bold: line.bold, color: line.color || '#f3f7fb', align: 'center', lineSpacing: 5,
         }).setOrigin(0.5, 0).setWordWrapWidth(wrap);
         items.push({ obj: t, y, center: true });
-        y += t.height + 12;
+        y += t.height + (short ? 6 : 12);
       }
     });
-    y += 12;
+    y += short ? 4 : 12;
     const buttonWidth = Math.min(140, (wrap - (buttons.length - 1) * 10) / buttons.length);
     const made = buttons.map((b, i) => {
       const button = this.makeButton(b.label, b.action, { width: buttonWidth, primary: Boolean(b.primary) });
       const bx = (i - (buttons.length - 1) / 2) * (buttonWidth + 10);
       return { button, bx };
     });
-    const ph = Math.min(h - 24, y + 42 + 40);
+    const ph = Math.min(h - 24, y + 42 + (short ? 26 : 40));
     const top = Math.max(12, (h - ph) / 2);
-    const contentTop = top + 22;
+    const contentTop = top + (short ? 14 : 22);
     const bg = this.add.graphics();
     bg.fillStyle(0x08111b, 0.94); bg.fillRoundedRect(-pw / 2, 0, pw, ph, 16);
     bg.lineStyle(1, 0xa8c4de, 0.22); bg.strokeRoundedRect(-pw / 2, 0, pw, ph, 16);
@@ -321,11 +329,24 @@ export default class LandingScene extends Phaser.Scene {
     });
     this.medalCenter = medalY == null ? null : { x: w / 2, y: contentTop + medalY };
     made.forEach(({ button, bx }) => {
-      button.setPosition(w / 2 + bx, top + ph - 34);
+      button.setPosition(w / 2 + bx, top + ph - (short ? 28 : 34));
       this.overlay.add([button.bg, button.label]);
     });
     this.primaryAction = (buttons.find(b => b.primary) || buttons[0])?.action;
     this.lastPanel = { lines, buttons };
+    this.syncChrome();
+  }
+
+  // The flight buttons only show while flying, and the corner HANGAR button
+  // steps aside on the menu, which has its own.
+  syncChrome() {
+    const flying = this.mode === 'fly';
+    this.controls.objects.forEach(o => o.setVisible(this.controls.visible && flying));
+    this.controls.applySeparateVisibility();
+    const corner = this.mode !== 'menu';
+    this.back.bg.setVisible(corner);
+    this.back.label.setVisible(corner);
+    if (this.back.bg.input) this.back.bg.input.enabled = corner;
   }
 
   drawMedal(g, x, y, r, medal) {
@@ -342,7 +363,8 @@ export default class LandingScene extends Phaser.Scene {
     this.resetAttempt();
     this.showPanel([
       { text: 'MISIÓN · RECUPERA EL PROPULSOR', size: 18, bold: true, color: '#8ff5c4' },
-      { text: 'Haz volver la primera etapa y aterrízala de pie.\nCada aterrizaje desbloquea el siguiente.', color: '#aebdcb' },
+      // On a short screen the three missions matter more than the blurb.
+      ...(this.scale.height < 480 ? [] : [{ text: 'Haz volver la primera etapa y aterrízala de pie.\nCada aterrizaje desbloquea el siguiente.', color: '#aebdcb' }]),
       ...LANDING_LEVELS.map((level, i) => ({
         card: { level, index: i + 1, locked: !isLevelUnlocked(this.progress, level.id), best: this.progress.best[level.id] || 0 },
       })),
@@ -381,6 +403,7 @@ export default class LandingScene extends Phaser.Scene {
       this.showPanel(this.lastPanel.lines, this.lastPanel.buttons);
       if (this.mode === 'menu') this.primaryAction = primary;
     }
+    this.syncChrome();
   }
 
   // ---------- loop ----------
@@ -746,7 +769,7 @@ export default class LandingScene extends Phaser.Scene {
     if (!show) return;
 
     const margin = 12;
-    const pw = Math.min(w - margin * 2 - (this.compact ? 0 : 110), 760);
+    const pw = Math.min(w - margin * 2 - (this.compact ? 0 : 124), 760);
     const px = this.compact ? margin : Math.max(margin, (w - pw) / 2 - 40);
     const py = this.compact ? 50 : margin;
     const ph = 92;
@@ -761,12 +784,12 @@ export default class LandingScene extends Phaser.Scene {
     const tilt = Math.abs(s.angle - s.padRoll) * 180 / Math.PI;
     const fuelShare = s.fuelRemaining / s.fuel;
     const gauges = [
-      { value: Math.max(0, -s.vy), limit: LANDING.maxVerticalSpeed, max: 25, text: `${Math.max(0, -s.vy).toFixed(1)} m/s` },
-      { value: Math.abs(rel), limit: LANDING.maxHorizontalSpeed, max: 10, text: `${Math.abs(rel).toFixed(1)} m/s` },
+      { value: Math.max(0, -s.vy), limit: LANDING.maxVerticalSpeed, max: 25, text: `${formatDecimal(Math.max(0, -s.vy))} m/s` },
+      { value: Math.abs(rel), limit: LANDING.maxHorizontalSpeed, max: 10, text: `${formatDecimal(Math.abs(rel))} m/s` },
       { value: tilt, limit: LANDING.maxAngle * 180 / Math.PI, max: 30, text: `${tilt.toFixed(0)}°` },
       { value: fuelShare, fuel: true, text: `${Math.round(fuelShare * 100)}%` },
     ];
-    const gx = px + (this.compact ? 14 : 130);
+    const gx = px + (this.compact ? 14 : Math.max(130, this.hudTitle.width + 30));
     const gw = px + pw - 14 - gx;
     const gap = 12;
     const cols = !this.compact && (gw - gap * 3) / 4 >= 140 ? 4 : 2;

@@ -28,6 +28,11 @@ export function addText(scene, x, y, text, { size = 16, color = UI_COLORS.text, 
   });
 }
 
+// Numbers are shown the Spanish way, with a decimal comma.
+export function formatDecimal(value, digits = 1) {
+  return value.toFixed(digits).replace(".", ",");
+}
+
 // One decimal, so a time just under a challenge limit never rounds up to it.
 export function formatSeconds(seconds) {
   return `${seconds.toFixed(1).replace(".", ",")} s`;

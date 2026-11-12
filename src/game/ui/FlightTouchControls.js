@@ -116,7 +116,9 @@ export default class FlightTouchControls {
     this.layoutButton(this.leftButton, margin + radius, bottom, radius, 0.7);
     this.layoutButton(this.rightButton, margin + radius * 3.4, bottom, radius, 0.7);
     this.layoutButton(this.thrustButton, width - margin - radius * 1.3, bottom - radius * 0.3, radius * 1.3, 0.26);
-    this.layoutButton(this.separateButton, width - margin - radius * 1.3, bottom - radius * 3.2, radius * 0.85, 0.3);
+    this.separate = { x: width - margin - radius * 1.3, y: bottom - radius * 3.4, radius: radius * 0.95 };
+    this.separateScale = null;
+    this.layoutButton(this.separateButton, this.separate.x, this.separate.y, this.separate.radius, 0.3);
 
     this.objects.forEach((object) => object.setVisible(this.visible));
     this.applySeparateVisibility();
@@ -150,10 +152,17 @@ export default class FlightTouchControls {
       this.applySeparateVisibility();
     }
     if (canSeparate) {
-      // Pulses while the burning stage is empty.
-      const pulse = state.separationCue ? 0.6 + 0.4 * Math.sin(this.scene.time.now / 120) : 0.55;
+      // While the burning stage is empty the button grows and throbs: it is
+      // the one thing to press.
+      const beat = Math.sin(this.scene.time.now / 120);
+      const pulse = state.separationCue ? 0.6 + 0.4 * beat : 0.55;
+      const scale = state.separationCue ? 1.22 + 0.06 * beat : 1;
+      if (scale !== this.separateScale) {
+        this.separateScale = scale;
+        this.layoutButton(this.separateButton, this.separate.x, this.separate.y, this.separate.radius * scale, 0.3);
+      }
       if (this.separateButton.image) {
-        this.separateButton.image.setAlpha(state.separationCue ? pulse : 1);
+        this.separateButton.image.setAlpha(state.separationCue ? 0.8 + 0.2 * beat : 1);
       } else {
         this.separateButton.background.setStrokeStyle(3, 0xff8d7a, pulse);
       }
