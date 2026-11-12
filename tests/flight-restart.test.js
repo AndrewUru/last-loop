@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createFlightRuntimeState } from '../src/game/scenes/flight/FlightSceneState.js';
+import { LAUNCH_COUNTDOWN_MS, RETRY_COUNTDOWN_MS, createFlightRuntimeState } from '../src/game/scenes/flight/FlightSceneState.js';
 import { ROCKETS, getFlightOptions } from '../src/game/data/rockets.js';
 
 test('reusing a scene after high orbit starts a fresh flight and camera', () => {
@@ -32,4 +32,19 @@ test('reusing a scene after high orbit starts a fresh flight and camera', () => 
   assert.equal(scene.controls.engineOn, false);
   assert.equal(scene.touchControls.separate, false);
   assert.equal(scene.flightTrail.length, 0);
+});
+
+test('a retry gets a shorter countdown and never starts paused', () => {
+  const input = { keyboard: { addKeys: keys => keys } };
+  const rocket = ROCKETS[0];
+  const first = createFlightRuntimeState(input, rocket.stats, getFlightOptions(rocket));
+  const retry = createFlightRuntimeState(input, rocket.stats, getFlightOptions(rocket), { countdownMs: RETRY_COUNTDOWN_MS });
+
+  assert.equal(first.launchSequence.duration, LAUNCH_COUNTDOWN_MS);
+  assert.equal(first.launchSequence.lastSecond, 5);
+  assert.equal(retry.launchSequence.duration, RETRY_COUNTDOWN_MS);
+  assert.equal(retry.launchSequence.lastSecond, Math.ceil(RETRY_COUNTDOWN_MS / 1000));
+  assert.ok(RETRY_COUNTDOWN_MS < LAUNCH_COUNTDOWN_MS);
+  assert.equal(retry.launchSequence.active, true);
+  assert.equal(retry.paused, false);
 });

@@ -39,3 +39,30 @@ export function drawPanel(graphics, x, y, width, height, { radius = 14, alpha = 
   graphics.lineStyle(1, UI_COLORS.panelEdge, edgeAlpha);
   graphics.strokeRoundedRect(x, y, width, height, radius);
 }
+
+// A small "SONIDO: SÍ / NO" button, anchored at its top-right corner. The M
+// key toggles the sound too (see main.js), so the label follows the audio
+// system rather than its own clicks.
+export function addSoundToggle(scene, x, y, { size = 13, padding = { x: 10, y: 12 } } = {}) {
+  const audio = scene.registry.get("audio");
+  const label = () => (audio?.muted ? "SONIDO: NO" : "SONIDO: SÍ");
+  const button = addText(scene, x, y, label(), {
+    size,
+    bold: true,
+    color: UI_COLORS.textMuted,
+    backgroundColor: "#12202e",
+    padding,
+  })
+    .setOrigin(1, 0)
+    .setInteractive({ useHandCursor: true });
+  const refresh = () => button.setText(label()).setColor(audio?.muted ? UI_COLORS.textDim : UI_COLORS.textMuted);
+  button.on("pointerdown", () => {
+    audio?.resume?.();
+    scene.game.events.emit("toggle-mute");
+    audio?.playClick?.();
+  });
+  scene.game.events.on("mute-changed", refresh);
+  scene.events.once("shutdown", () => scene.game.events.off("mute-changed", refresh));
+  refresh();
+  return button;
+}

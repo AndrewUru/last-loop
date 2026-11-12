@@ -15,7 +15,8 @@ import { flightSceneStagingMethods } from "./flight/FlightSceneStaging.js";
 import { flightSceneZoomMethods } from "./flight/FlightSceneZoom.js";
 import { flightSceneCommsMethods } from "./flight/FlightSceneComms.js";
 import { flightSceneIssMethods } from "./flight/FlightSceneIss.js";
-import { createFlightRuntimeState } from "./flight/FlightSceneState.js";
+import { flightScenePauseMethods } from "./flight/FlightScenePause.js";
+import { RETRY_COUNTDOWN_MS, createFlightRuntimeState } from "./flight/FlightSceneState.js";
 
 class FlightScene extends Phaser.Scene {
   constructor() {
@@ -25,6 +26,8 @@ class FlightScene extends Phaser.Scene {
   init(data) {
     this.rocketDef = getRocket(data.rocketId || loadSelectedRocketId());
     this.stats = this.rocketDef.stats;
+    // Set when the pilot restarts the same flight (see restartFlight).
+    this.isRetry = Boolean(data.retry);
     this.audio = this.registry.get("audio");
     this.audio?.resume();
   }
@@ -41,6 +44,7 @@ class FlightScene extends Phaser.Scene {
     this.createMissionOverlay();
     this.createComms();
     this.createLaunchCountdown();
+    this.createPause();
     this.createBackdropCamera();
     this.createUiCamera();
     this.registerInput();
@@ -54,11 +58,12 @@ class FlightScene extends Phaser.Scene {
     const challenge = this.rocketDef.challenge;
     Object.assign(
       this,
-      createFlightRuntimeState(this.input, this.stats, {
-        wind: challenge.wind,
-        windPhase: Math.random() * Math.PI * 2,
-        ...getFlightOptions(this.rocketDef),
-      }),
+      createFlightRuntimeState(
+        this.input,
+        this.stats,
+        { wind: challenge.wind, windPhase: Math.random() * Math.PI * 2, ...getFlightOptions(this.rocketDef) },
+        this.isRetry ? { countdownMs: RETRY_COUNTDOWN_MS } : undefined,
+      ),
     );
     this.onResultPrimary = (event) => {
       if (this.resultOverlayVisible && !event?.repeat) {
@@ -84,7 +89,7 @@ class FlightScene extends Phaser.Scene {
   createLaunchCountdown() {
     const { width, height } = this.scale;
     this.launchCountdownText = this.add
-      .text(width / 2, height * 0.24, "5", {
+      .text(width / 2, height * 0.24, String(this.launchSequence.lastSecond), {
         fontFamily: "Arial, sans-serif",
         fontSize: `${Math.round(Math.min(width, height) * 0.16)}px`,
         fontStyle: "bold",
@@ -104,8 +109,9 @@ class FlightScene extends Phaser.Scene {
     const padZoom =
       (minViewport * CAMERA_PAD_FILL) / Math.max(this.rocketHeight, ROCKET_CELL_SIZE * 3);
 
-    if (this.launchSequence?.active && remainingMs <= 5000) {
-      const ignitionProgress = Phaser.Math.Clamp((5000 - remainingMs) / 5000, 0, 1);
+    if (this.launchSequence?.active) {
+      const duration = this.launchSequence.duration;
+      const ignitionProgress = Phaser.Math.Clamp((duration - remainingMs) / duration, 0, 1);
       const eased = Phaser.Math.Easing.Cubic.Out(ignitionProgress);
       const closeZoom = padZoom * 3.15;
       const zoom = Phaser.Math.Linear(padZoom, closeZoom, eased);
@@ -190,6 +196,7 @@ class FlightScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    if (this.paused) return;
     if (this.updateLaunchCountdown(delta)) {
       const state = this.simulator.update(0, this.controls);
       const prediction = this.simulator.predictPath(state);
@@ -263,6 +270,7 @@ Object.assign(
   flightSceneZoomMethods,
   flightSceneCommsMethods,
   flightSceneIssMethods,
+  flightScenePauseMethods,
 );
 
 export default FlightScene;

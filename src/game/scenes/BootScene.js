@@ -10,7 +10,7 @@ import {
 } from "../data/rockets.js";
 import AudioSystem from "../systems/AudioSystem.js";
 import MissionSystem from "../systems/MissionSystem.js";
-import { UI_COLORS, addText } from "../ui/theme.js";
+import { UI_COLORS, addSoundToggle, addText } from "../ui/theme.js";
 import { filterConsoleArt, loadConsoleArt } from "../ui/consoleArt.js";
 
 const STEPS = [
@@ -25,6 +25,9 @@ export default class BootScene extends Phaser.Scene {
   }
 
   preload() {
+    // The page shows a loading bar (index.html) until the artwork is in.
+    const bar = document.getElementById("boot-progress");
+    if (bar) this.load.on("progress", (value) => { bar.style.transform = `scaleX(${value})`; });
     this.load.image("cover-hangar", `${import.meta.env.BASE_URL}assets/cover-hangar.webp`);
     ROCKETS.forEach((rocket) => {
       this.load.image(getRocketTextureKey(rocket), getRocketImagePath(rocket));
@@ -37,6 +40,7 @@ export default class BootScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
     const compact = width < 700;
+    document.getElementById("boot-loader")?.remove();
 
     // The game renders without antialiasing, which turns scaled-down artwork
     // into jagged pixels; the artwork is smooth images, so filter it.
@@ -83,7 +87,7 @@ export default class BootScene extends Phaser.Scene {
     const label = progress.launches > 0 ? "CONTINUAR" : "EMPEZAR";
     const buttonY = y + (compact ? 10 : 18);
     this.createStartButton(left, buttonY, compact ? width - 48 : 260, label);
-
+    addSoundToggle(this, width - (compact ? 16 : 28), compact ? 14 : 24, { padding: { x: 10, y: 8 } });
   }
 
   drawBackdrop(width, height) {

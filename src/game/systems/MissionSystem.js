@@ -68,7 +68,7 @@ export default class MissionSystem {
     }
 
     const rocket = ROCKETS_BY_ID[flight.rocketId];
-    const outcome = rocket ? evaluateChallenge(rocket.challenge, flight) : { completed: false, missed: null };
+    const outcome = rocket ? evaluateChallenge(rocket.challenge, flight) : { completed: false, missed: null, missedAll: [] };
     const completed = outcome.completed && !progress.completed.includes(rocket.id);
     if (completed) {
       progress.completed.push(rocket.id);
@@ -76,6 +76,6 @@ export default class MissionSystem {
     writeProgress(progress);
 
     const unlocked = completed ? ROCKETS[ROCKETS.indexOf(rocket) + 1] || null : null;
-    return { achieved: outcome.completed, completed, unlocked, missed: outcome.missed };
+    return { achieved: outcome.completed, completed, unlocked, missed: outcome.missed, missedAll: outcome.missedAll };
   }
 }

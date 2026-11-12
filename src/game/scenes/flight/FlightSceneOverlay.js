@@ -104,10 +104,11 @@ export const flightSceneOverlayMethods = {
       .setFontSize(compact ? 15 : 17)
       .setWordWrapWidth(textWidth)
       .setPosition(centerX, top + shift + (compact ? 196 : 200));
+    // The debrief follows the mission lines, however many there are.
     this.resultDebrief
       .setFontSize(compact ? 13 : 15)
       .setWordWrapWidth(textWidth)
-      .setPosition(centerX, top + shift + (compact ? 262 : 262));
+      .setPosition(centerX, Math.max(top + shift + 262, this.resultMissions.y + this.resultMissions.height + 12));
 
     const buttonY = top + panelHeight - BUTTON_HEIGHT / 2 - 22;
     const buttonWidth = Math.min(BUTTON_WIDTH, (panelWidth - 60) / 2);
@@ -136,10 +137,10 @@ export const flightSceneOverlayMethods = {
         `Tiempo ${formatSeconds(result.time)}`,
         `Altura máx. ${Math.round(result.maxAltitude)} km`,
         `Combustible ${result.fuelPercent}%`,
-      ].join("     "),
+      ].join(this.scale.width < 560 ? "  ·  " : "     "),
     );
 
-    const { completed, unlocked, missed } = result.challenge;
+    const { completed, unlocked, missed, missedAll = [] } = result.challenge;
     const title = this.rocketDef.challenge.title;
     const alreadyDone = !completed && MissionSystem.isCompleted(this.rocketDef.id);
     const missionLines = [];
@@ -151,7 +152,7 @@ export const flightSceneOverlayMethods = {
     } else if (!alreadyDone && missed) {
       // In orbit but the mission was not met: say what was missing.
       missionLines.push(`Misión sin cumplir: ${title}`);
-      missionLines.push(missed);
+      missionLines.push(...(missedAll.length ? missedAll : [missed]));
     } else {
       // Remind the player of this rocket's mission, or point them at the next one.
       const target = alreadyDone ? MissionSystem.getCurrentRocket() : this.rocketDef;
@@ -163,8 +164,13 @@ export const flightSceneOverlayMethods = {
     this.resultMissions.setText(missionLines.join("\n"));
     this.resultMissions.setColor(completed ? "#ffd166" : missed && !alreadyDone ? "#ff9b8a" : "#9eb4ca");
 
-    const primaryLabel = unlocked ? `Ver ${unlocked.shortName || unlocked.name}` : result.success ? "Siguiente" : "Reintentar";
-    this.resultPrimaryButton.text.setText(`${primaryLabel}  (ENTER)`);
+    // In orbit but short of the mission: the useful next step is another go.
+    this.resultRetry = !result.success || Boolean(missed && !alreadyDone);
+    const primaryLabel = unlocked ? `Ver ${unlocked.shortName || unlocked.name}` : this.resultRetry ? "Reintentar" : "Siguiente";
+    // Key names only where there is room for them and a keyboard to press.
+    const keys = this.scale.width >= 560 && !this.touchControlsUi.visible;
+    this.resultPrimaryButton.text.setText(keys ? `${primaryLabel}  (ENTER)` : primaryLabel);
+    this.resultSecondaryButton.text.setText(keys ? "Hangar  (ESC)" : "Hangar");
     this.layoutMissionOverlay(this.scale.width, this.scale.height);
     this.resultOverlay.setVisible(true);
     this.resultOverlayVisible = true;
@@ -210,21 +216,22 @@ export const flightSceneOverlayMethods = {
   },
 
   handleResultPrimaryAction() {
-    if (this.lastResultData?.success) {
+    if (this.resultRetry) {
+      this.restartFlight();
+    } else {
       this.returnToHangar();
-      return;
     }
-
-    this.restartFlight();
   },
 
   restartFlight() {
-    this.scene.restart({ rocketId: this.rocketDef.id });
+    this.releasePause();
+    this.scene.restart({ rocketId: this.rocketDef.id, retry: true });
   },
 
   // A freshly unlocked rocket is shown straight away in the hangar.
   returnToHangar() {
     const unlocked = this.lastResultData?.challenge.unlocked;
+    this.releasePause();
     transitionTo(this, "HangarScene", unlocked ? { rocketId: unlocked.id, revealId: unlocked.id } : { rocketId: this.rocketDef.id });
   },
 };

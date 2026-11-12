@@ -13,11 +13,16 @@ function createFlightKeys(input) {
   });
 }
 
+export const LAUNCH_COUNTDOWN_MS = 5000;
+// A retry skips most of the cinematic: the pilot has already seen it.
+export const RETRY_COUNTDOWN_MS = 2000;
+
 // options go to the flight model (mission wind).
-export function createFlightRuntimeState(input, stats, options) {
+export function createFlightRuntimeState(input, stats, options, { countdownMs = LAUNCH_COUNTDOWN_MS } = {}) {
   return {
     simulator: new FlightSimulator(stats, options),
     finished: false,
+    paused: false,
     resultOverlayVisible: false,
     lastPhaseId: null,
     lastMissionPhase: 0,
@@ -31,13 +36,15 @@ export function createFlightRuntimeState(input, stats, options) {
     phaseShot: 0,
     zoomLabel: null,
     zoomLabelValue: 1,
-    // Five-second cinematic pre-launch. Controls and simulation remain locked
-    // until the countdown reaches zero, then the normal flight loop takes over.
+    // Cinematic pre-launch (five seconds, shorter on a retry). Controls and
+    // simulation remain locked until the countdown reaches zero, then the
+    // normal flight loop takes over.
     launchSequence: {
       active: true,
       elapsed: 0,
-      duration: 5000,
-      lastSecond: 5,
+      duration: countdownMs,
+      remainingMs: countdownMs,
+      lastSecond: Math.ceil(countdownMs / 1000),
       ignitionStarted: false,
       cameraRelease: null,
     },

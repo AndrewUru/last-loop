@@ -314,10 +314,10 @@ export const MAX_Q_TOLERANCE = 0.05;
 
 // flight: { success, fuelPercent, time, targetsHit, hazardsHit, maxQSpeed }
 // Returns whether the mission is done and, if the orbit was reached but the
-// mission was not, why.
+// mission was not, why: `missed` is the first reason, `missedAll` every one.
 export function evaluateChallenge(challenge, flight) {
   if (!flight.success) {
-    return { completed: false, missed: null };
+    return { completed: false, missed: null, missedAll: [] };
   }
   const missed = [];
   if (challenge.targets && flight.targetsHit < challenge.targets.count) {
@@ -336,7 +336,7 @@ export function evaluateChallenge(challenge, flight) {
   if (challenge.minFuel && flight.fuelPercent < challenge.minFuel) {
     missed.push(`Te quedó un ${flight.fuelPercent}% de combustible (mínimo ${challenge.minFuel}%).`);
   }
-  return { completed: missed.length === 0, missed: missed[0] || null };
+  return { completed: missed.length === 0, missed: missed[0] || null, missedAll: missed };
 }
 
 export function loadSelectedRocketId() {

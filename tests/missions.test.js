@@ -52,3 +52,12 @@ test('only a completed challenge unlocks the next rocket and best scores survive
   assert.deepEqual(MissionSystem.getBest('shuttle'), { time: 150, fuelPercent: 20 });
   assert.equal(MissionSystem.getProgress().completed.length, 1);
 });
+
+test('a flight that misses several objectives reports every one of them', () => {
+  const outcome = judge('starship', { targetsHit: 4, time: 180 });
+  assert.equal(outcome.completed, false);
+  assert.equal(outcome.missedAll.length, 2);
+  assert.equal(outcome.missed, outcome.missedAll[0]);
+  assert.deepEqual(judge('starship', {}).missedAll, []);
+  assert.deepEqual(judge('starship', { success: false }).missedAll, []);
+});

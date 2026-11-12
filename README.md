@@ -83,6 +83,9 @@ Los anillos, las piezas y los escombros se colocan a lo largo del ascenso perfec
 | Separar etapa   | `S`                   | Botón de separación |
 | Volver a hangar | `ESC`                 | Botón _Hangar_     |
 | Lanzar / seguir | `ENTER`               | Botón              |
+| Pausa           | `P`                   | Automática al salir de la app; toca para seguir |
+| Reiniciar vuelo | `R` (en pausa o al terminar) | Botón _Reintentar_ |
+| Sonido sí / no  | `M`                   | Botón _Sonido_ en la portada |
 
 En el móvil se puede girar e impulsar a la vez con dos dedos.
 

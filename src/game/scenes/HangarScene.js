@@ -11,7 +11,7 @@ import {
 import FlightPredictor from "../systems/FlightPredictor.js";
 import MissionSystem from "../systems/MissionSystem.js";
 import { addSliced, hasConsoleArt, rankKey, setSlicedSize, uiKey } from "../ui/consoleArt.js";
-import { UI_COLORS, addText, formatSeconds } from "../ui/theme.js";
+import { UI_COLORS, addSoundToggle, addText, formatSeconds } from "../ui/theme.js";
 
 const TALLEST = Math.max(...ROCKETS.map((rocket) => rocket.height));
 const SILHOUETTE = 0x1c2c3d;
@@ -286,6 +286,9 @@ export default class HangarScene extends Phaser.Scene {
       this.audio?.playClick?.();
       transitionTo(this, "LandingScene");
     });
+    if (!compact) {
+      addSoundToggle(this, training.x - training.width - 10, middle - training.height / 2, { size: small ? 11 : 13 });
+    }
 
   }
 

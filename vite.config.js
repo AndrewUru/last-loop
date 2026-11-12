@@ -15,6 +15,16 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+    build: {
+      // Phaser changes far less often than the game: in its own file the
+      // browser keeps it cached across game updates.
+      chunkSizeWarningLimit: 1600,
+      rollupOptions: {
+        output: {
+          manualChunks: { phaser: ["phaser"] },
+        },
+      },
+    },
     server: {
       host: "0.0.0.0",
       port: 5173,

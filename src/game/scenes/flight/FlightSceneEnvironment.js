@@ -187,6 +187,7 @@ export const flightSceneEnvironmentMethods = {
       ...this.getMissionUiObjects(),
       ...this.getCloudUiObjects(),
       ...this.getCommsUiObjects(),
+      ...this.getPauseUiObjects(),
       this.resultOverlay,
     ];
   },
@@ -213,6 +214,7 @@ export const flightSceneEnvironmentMethods = {
     this.hud.resize(width, height);
     this.layoutMissionTracker();
     this.layoutComms?.();
+    this.layoutPause(width, height);
     if (this.resultOverlayVisible) {
       this.layoutMissionOverlay(width, height);
     }
