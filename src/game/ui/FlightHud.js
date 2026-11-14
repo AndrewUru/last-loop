@@ -140,9 +140,12 @@ export function getFlightInstruction(state, thrustLabel, extra = {}) {
         };
   }
   if (state.engineLocked) {
+    const canSeparate = state.stage < (state.stageCount || 1) - 1;
     return {
       title: "Motor apagado",
-      body: "En esta misión solo había un encendido.",
+      body: canSeparate
+        ? `Solo un encendido por etapa: separa (${extra.separateLabel || "S"}) para encender la siguiente.`
+        : "En esta misión solo había un encendido por etapa.",
       tone: "danger",
     };
   }

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ROCKETS_BY_ID, evaluateChallenge } from '../src/game/data/rockets.js';
 import MissionSystem from '../src/game/systems/MissionSystem.js';
+import { applySingleBurn, createSingleBurnRule } from '../src/game/systems/SingleBurn.js';
 
 const flight = { success: true, time: 150, fuelPercent: 20, targetsHit: 6, hazardsHit: 0, maxQSpeed: 2 };
 const judge = (id, changes) => evaluateChallenge(ROCKETS_BY_ID[id].challenge, { ...flight, ...changes });
@@ -60,4 +61,45 @@ test('a flight that misses several objectives reports every one of them', () => 
   assert.equal(outcome.missed, outcome.missedAll[0]);
   assert.deepEqual(judge('starship', {}).missedAll, []);
   assert.deepEqual(judge('starship', { success: false }).missedAll, []);
+});
+
+test('single burn: a stage locks only after it has burned, never right after a separation', () => {
+  const rule = createSingleBurnRule();
+  const state = { launched: false, missionPhase: 0, stage: 0, fuelRemaining: 100 };
+
+  // Letting go on the pad does not count.
+  assert.equal(applySingleBurn(rule, state, true), true);
+  assert.equal(applySingleBurn(rule, state, false), false);
+  assert.equal(rule.engineLocked, false);
+
+  state.launched = true;
+  assert.equal(applySingleBurn(rule, state, true), true);
+
+  // The stage runs dry; the pilot lets go to press "separate".
+  state.fuelRemaining = 0;
+  applySingleBurn(rule, state, false);
+  assert.equal(rule.engineLocked, false);
+
+  // New stage, thrust not pressed yet: it must wait, not lock.
+  state.stage = 1;
+  state.fuelRemaining = 80;
+  assert.equal(applySingleBurn(rule, state, false), false);
+  assert.equal(applySingleBurn(rule, state, false), false);
+  assert.equal(rule.engineLocked, false);
+  assert.equal(applySingleBurn(rule, state, true), true);
+
+  // Letting go while it burns is the one thing that locks it...
+  assert.equal(applySingleBurn(rule, state, false), false);
+  assert.equal(rule.engineLocked, true);
+  assert.equal(applySingleBurn(rule, state, true), false);
+
+  // ...until the stage is dropped, and after orbit the engine is free.
+  state.stage = 2;
+  state.fuelRemaining = 40;
+  assert.equal(applySingleBurn(rule, state, true), true);
+  applySingleBurn(rule, state, false);
+  assert.equal(rule.engineLocked, true);
+  state.missionPhase = 1;
+  assert.equal(applySingleBurn(rule, state, true), true);
+  assert.equal(rule.engineLocked, false);
 });

@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { MAX_Q_TOLERANCE, formatSpeed, getPatchTextureKey, getFlightOptions } from "../../data/rockets.js";
 import FlightPredictor, { getFuelPercent } from "../../systems/FlightPredictor.js";
+import { applySingleBurn, createSingleBurnRule } from "../../systems/SingleBurn.js";
 import { UI_FONT, formatSeconds } from "../../ui/theme.js";
 import { FX_TEXTURES } from "./FlightSceneExhaust.js";
 import { getRingRadius, getRingVisibility, placeAlongClimb } from "./FlightMissionLayout.js";
@@ -40,7 +41,7 @@ function halfEllipse(along, across, from, to) {
 export const flightSceneMissionMethods = {
   createMission() {
     const challenge = this.rocketDef.challenge;
-    this.mission = { targets: [], hazards: [], targetsHit: 0, hazardsHit: 0, maxQSpeed: 0, engineLocked: false };
+    this.mission = { targets: [], hazards: [], targetsHit: 0, hazardsHit: 0, maxQSpeed: 0, engineLocked: false, burn: createSingleBurnRule() };
     this.missionObjects = [];
 
     if (challenge.targets || challenge.hazards) {
@@ -216,25 +217,17 @@ export const flightSceneMissionMethods = {
     this.updateMissionTracker(state);
   },
 
-  // Single-burn missions: during the climb to orbit each stage lights once;
-  // letting go of the engine in flight locks it until the next stage. Letting
-  // go on the pad, before the clamps release, does not count, and after
-  // orbit the engine is free again.
+  // Single-burn missions: each stage lights once on the way to orbit (the
+  // rule itself is in SingleBurn.js). The HUD reads the lock from the state.
   applyMissionControls(thrust) {
     if (!this.rocketDef.challenge.singleBurn) {
       return thrust;
     }
     const state = this.simulator.state;
-    if (state.missionPhase > 0 || (this.mission.engineLocked && state.stage !== this.mission.lockedStage)) {
-      this.mission.engineLocked = false;
-      state.engineLocked = false;
-    }
-    if (state.launched && !thrust && state.missionPhase === 0 && state.fuelRemaining > 0.01) {
-      this.mission.engineLocked = true;
-      this.mission.lockedStage = state.stage;
-      state.engineLocked = true;
-    }
-    return this.mission.engineLocked ? false : thrust;
+    const allowed = applySingleBurn(this.mission.burn, state, thrust);
+    this.mission.engineLocked = this.mission.burn.engineLocked;
+    state.engineLocked = this.mission.burn.engineLocked;
+    return allowed;
   },
 
   collectTarget(target) {
@@ -374,7 +367,13 @@ export const flightSceneMissionMethods = {
         if (state.missionPhase > 0) {
           return ["Ascenso cumplido", "muted"];
         }
-        return mission.engineLocked ? ["Etapa apagada · separa", "muted"] : ["Motor encendido · no lo sueltes", "warn"];
+        if (mission.engineLocked) {
+          return ["Etapa apagada · separa", "bad"];
+        }
+        // A fresh stage waits for the pilot: it only counts once it is lit.
+        return mission.burn.ignitedStage === state.stage || state.fuelRemaining <= 0.01
+          ? ["Motor encendido · no lo sueltes", "warn"]
+          : ["Etapa nueva · enciende y no sueltes", "info"];
       case "time": {
         const left = challenge.maxTime - state.time;
         return [`⏱ ${formatSeconds(state.time)} / ${challenge.maxTime} s`, left <= 0 ? "bad" : left < 10 ? "warn" : "info"];
