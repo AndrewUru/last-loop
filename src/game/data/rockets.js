@@ -176,7 +176,7 @@ export const ROCKETS = [
       { name: "Segunda etapa", kind: "upper", fuel: 0.2, dry: 0.1, time: 50, twr: 0.9, art: [[0, 0.27, 1, 0.36]], engines: [{ x: 0, fuel: "kerosene" }] },
     ],
     payloadArt: [[0, 0, 1, 0.27]],
-    challenge: { title: "Encendido único", singleBurn: true, goal: { type: "raise", altitude: 360 } },
+    challenge: { title: "Encendido único", singleBurn: true },
   },
   {
     id: "sls",
@@ -285,7 +285,7 @@ export function describeChallenge(challenge) {
     clauses.push("de noche");
   }
   if (challenge.singleBurn) {
-    clauses.push("encendiendo el motor una sola vez");
+    clauses.push("con un solo encendido por etapa");
   }
   if (challenge.maxTime) {
     clauses.push(`en menos de ${challenge.maxTime} s`);
